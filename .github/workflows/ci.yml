@@ -22,13 +22,82 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify CI infrastructure
-        run: |
-          echo "Little Minds Client CI"
-          echo "GitHub Actions is running successfully."
-
       - name: Verify repository files
         run: |
           test -f README.md
           test -f .github/pull_request_template.md
           echo "Repository structure verified."
+
+  detect-projects:
+    name: Detect Client Projects
+    runs-on: ubuntu-latest
+    outputs:
+      flutter: ${{ steps.detect.outputs.flutter }}
+      nextjs: ${{ steps.detect.outputs.nextjs }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect project manifests
+        id: detect
+        shell: bash
+        run: |
+          if [ -f apps/mobile/pubspec.yaml ]; then
+            echo "flutter=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "flutter=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -f apps/web/package-lock.json ]; then
+            echo "nextjs=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "nextjs=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  flutter-check:
+    name: Flutter Analysis
+    needs: detect-projects
+    if: needs.detect-projects.outputs.flutter == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+  nextjs-check:
+    name: Next.js Build
+    needs: detect-projects
+    if: needs.detect-projects.outputs.nextjs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
