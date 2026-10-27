@@ -72,7 +72,7 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
     }
     _enterStarted = true;
     final ok = await _controller.enter(widget.activity);
-    if (!mounted) {
+    if (!mounted || _controller.isDisposed) {
       return;
     }
     if (!ok && _controller.phase == GameLifecyclePhase.idle) {
@@ -82,13 +82,18 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
   }
 
   void _onControllerChanged() {
-    if (mounted) {
-      setState(() {});
+    if (!mounted || _controller.isDisposed) {
+      return;
     }
+    setState(() {});
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted || _controller.isDisposed) {
+      return;
+    }
+    // ignore: discarded_futures
     _controller.handleAppLifecycle(state);
   }
 
@@ -128,6 +133,9 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
   Future<void> _onRestart() => _controller.restart();
 
   Future<void> _handleViewport(Size viewport) async {
+    if (!mounted || _controller.isDisposed) {
+      return;
+    }
     if (_lastViewport == null) {
       _lastViewport = viewport;
       return;
@@ -139,8 +147,12 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
     _orientationSnapshot = _controller.captureSnapshot();
     _lastViewport = viewport;
     final snap = _orientationSnapshot;
-    if (snap != null) {
-      await _controller.restoreSnapshot(snap);
+    if (snap == null) {
+      return;
+    }
+    await _controller.restoreSnapshot(snap);
+    if (!mounted || _controller.isDisposed) {
+      return;
     }
   }
 
@@ -157,6 +169,10 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
           builder: (context, constraints) {
             final viewport = Size(constraints.maxWidth, constraints.maxHeight);
             WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) {
+                return;
+              }
+              // ignore: discarded_futures
               _handleViewport(viewport);
             });
 

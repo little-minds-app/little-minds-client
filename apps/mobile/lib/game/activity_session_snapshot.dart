@@ -8,6 +8,7 @@ class ActivitySessionSnapshot {
     required this.phase,
     required this.playState,
     this.pausedBeforeBackground = false,
+    this.transitionSeq,
   });
 
   /// Monotonic generation that invalidates stale async callbacks.
@@ -22,12 +23,17 @@ class ActivitySessionSnapshot {
   /// If true, restoring from background should stay paused.
   final bool pausedBeforeBackground;
 
+  /// Transition sequence at capture time. Stale restores that lose a newer
+  /// pause/resume/restart race are rejected when this no longer matches.
+  final int? transitionSeq;
+
   ActivitySessionSnapshot copyWith({
     int? sessionGeneration,
     String? activityId,
     GameLifecyclePhase? phase,
     Map<String, Object?>? playState,
     bool? pausedBeforeBackground,
+    int? transitionSeq,
   }) {
     return ActivitySessionSnapshot(
       sessionGeneration: sessionGeneration ?? this.sessionGeneration,
@@ -36,6 +42,7 @@ class ActivitySessionSnapshot {
       playState: playState ?? this.playState,
       pausedBeforeBackground:
           pausedBeforeBackground ?? this.pausedBeforeBackground,
+      transitionSeq: transitionSeq ?? this.transitionSeq,
     );
   }
 }

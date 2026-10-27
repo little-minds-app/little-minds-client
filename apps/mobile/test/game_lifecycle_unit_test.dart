@@ -12,6 +12,10 @@ class _HarnessActivity extends LearningActivity {
     this.id = 'lifecycle_harness',
     this.failPrepare = false,
     this.prepareDelay = Duration.zero,
+    this.pauseDelay = Duration.zero,
+    this.resumeDelay = Duration.zero,
+    this.restoreDelay = Duration.zero,
+    this.disposeDelay = Duration.zero,
   });
 
   @override
@@ -19,9 +23,14 @@ class _HarnessActivity extends LearningActivity {
 
   final bool failPrepare;
   final Duration prepareDelay;
+  final Duration pauseDelay;
+  final Duration resumeDelay;
+  final Duration restoreDelay;
+  final Duration disposeDelay;
 
   final calls = <String>[];
   var disposed = false;
+  var disposeCount = 0;
   var playToken = 0;
   final outcomes = <ScoringNeutralOutcome>[];
 
@@ -46,10 +55,20 @@ class _HarnessActivity extends LearningActivity {
   Future<void> onEnter() async => calls.add('onEnter');
 
   @override
-  Future<void> onPause() async => calls.add('onPause');
+  Future<void> onPause() async {
+    calls.add('onPause');
+    if (pauseDelay > Duration.zero) {
+      await Future<void>.delayed(pauseDelay);
+    }
+  }
 
   @override
-  Future<void> onResume() async => calls.add('onResume');
+  Future<void> onResume() async {
+    calls.add('onResume');
+    if (resumeDelay > Duration.zero) {
+      await Future<void>.delayed(resumeDelay);
+    }
+  }
 
   @override
   Future<void> onBackground() async => calls.add('onBackground');
@@ -69,6 +88,10 @@ class _HarnessActivity extends LearningActivity {
   @override
   Future<void> disposeResources() async {
     calls.add('disposeResources');
+    disposeCount++;
+    if (disposeDelay > Duration.zero) {
+      await Future<void>.delayed(disposeDelay);
+    }
     disposed = true;
   }
 
@@ -78,6 +101,9 @@ class _HarnessActivity extends LearningActivity {
   @override
   Future<void> restorePlayState(Map<String, Object?> state) async {
     calls.add('restore');
+    if (restoreDelay > Duration.zero) {
+      await Future<void>.delayed(restoreDelay);
+    }
     playToken = state['token'] as int? ?? 0;
   }
 
@@ -262,7 +288,149 @@ void main() {
       await controller.enter(activity);
       controller.dispose();
       expect(controller.phase, GameLifecyclePhase.disposed);
+      expect(controller.isDisposed, isTrue);
+      // disposeResources is owned async after sync ChangeNotifier.dispose.
+      await Future<void>.delayed(Duration.zero);
       expect(activity.disposed, isTrue);
+    });
+
+    test(
+        'TC-LIFE-013 stale teardown cleanup cannot idle a newer session',
+        () async {
+      final first = _HarnessActivity(
+        id: 'a',
+        disposeDelay: const Duration(milliseconds: 50),
+      );
+      final second = _HarnessActivity(id: 'b');
+      await controller.enter(first);
+
+      // Start exit (slow dispose) then enter second as soon as exclusive allows.
+      final exitFuture = controller.exit();
+      // Let exit claim idle sync + start dispose await.
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      expect(controller.phase, GameLifecyclePhase.idle);
+
+      expect(await controller.enter(second), isTrue);
+      expect(controller.phase, GameLifecyclePhase.running);
+      expect(controller.activity?.id, 'b');
+
+      await exitFuture;
+      // First activity finishes delayed cleanup without forcing idle.
+      expect(controller.phase, GameLifecyclePhase.running);
+      expect(controller.activity?.id, 'b');
+      expect(first.disposed, isTrue);
+      expect(second.disposed, isFalse);
+    });
+
+    test('TC-LIFE-014 dispose during prepare cancels enter safely', () async {
+      final activity = _HarnessActivity(
+        prepareDelay: const Duration(milliseconds: 40),
+      );
+      final enterFuture = controller.enter(activity);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      controller.dispose();
+      expect(controller.isDisposed, isTrue);
+      expect(await enterFuture, isFalse);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(activity.calls.where((c) => c == 'onEnter'), isEmpty);
+      // Sync dispose captured activity for cleanup (prepare may still finish).
+      expect(activity.disposeCount, greaterThanOrEqualTo(1));
+    });
+
+    test('TC-LIFE-015 dispose during pause await stays disposed', () async {
+      final activity = _HarnessActivity(
+        pauseDelay: const Duration(milliseconds: 40),
+      );
+      await controller.enter(activity);
+      final pauseFuture = controller.pause();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      controller.dispose();
+      await pauseFuture;
+      expect(controller.phase, GameLifecyclePhase.disposed);
+      await Future<void>.delayed(Duration.zero);
+      expect(activity.disposed, isTrue);
+    });
+
+    test(
+        'TC-LIFE-016 stale resume cannot overwrite newer pause',
+        () async {
+      final activity = _HarnessActivity(
+        resumeDelay: const Duration(milliseconds: 40),
+      );
+      await controller.enter(activity);
+      await controller.pause();
+      expect(controller.phase, GameLifecyclePhase.paused);
+
+      final resumeFuture = controller.resume();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await controller.pause();
+      await resumeFuture;
+
+      expect(controller.phase, GameLifecyclePhase.paused);
+      expect(game.paused, isTrue);
+    });
+
+    test(
+        'TC-LIFE-017 delayed snapshot restore cannot overwrite pause',
+        () async {
+      final activity = _HarnessActivity(
+        restoreDelay: const Duration(milliseconds: 40),
+      );
+      await controller.enter(activity);
+      activity.playToken = 11;
+      final snap = controller.captureSnapshot();
+      expect(snap, isNotNull);
+
+      final restoreFuture = controller.restoreSnapshot(snap!);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await controller.pause();
+      expect(controller.phase, GameLifecyclePhase.paused);
+
+      await restoreFuture;
+      expect(controller.phase, GameLifecyclePhase.paused);
+      expect(game.paused, isTrue);
+    });
+
+    test(
+        'TC-LIFE-018 delayed snapshot restore ignored after restart',
+        () async {
+      final activity = _HarnessActivity(
+        restoreDelay: const Duration(milliseconds: 40),
+      );
+      await controller.enter(activity);
+      activity.playToken = 5;
+      final snap = controller.captureSnapshot();
+
+      final restoreFuture = controller.restoreSnapshot(snap!);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await controller.restart();
+      expect(activity.playToken, 0);
+
+      await restoreFuture;
+      // Restart won — stale restore must not resurrect old token via phase
+      // rewrite; playToken may or may not flip depending on await order of
+      // restorePlayState body, but phase must stay running from restart.
+      expect(controller.phase, GameLifecyclePhase.running);
+    });
+
+    test(
+        'TC-LIFE-019 overlapping enter/exit keeps later session',
+        () async {
+      final slow = _HarnessActivity(
+        id: 'slow',
+        prepareDelay: const Duration(milliseconds: 40),
+      );
+      final fast = _HarnessActivity(id: 'fast');
+
+      final firstEnter = controller.enter(slow);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      final secondEnter = controller.enter(fast);
+
+      expect(await firstEnter, isFalse);
+      expect(await secondEnter, isTrue);
+      expect(controller.activity?.id, 'fast');
+      expect(controller.phase, GameLifecyclePhase.running);
+      expect(slow.disposed, isTrue);
     });
   });
 }
