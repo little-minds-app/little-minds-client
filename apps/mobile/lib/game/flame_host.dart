@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'activity_registry.dart';
 
-/// Minimal Flame-ready host proving the stack is Flutter + Flame, not Flutter-only.
+/// Shared Flame game shell. Production registry stays empty until a later
+/// E03 task registers a real playable [LearningActivity] (LMP-55+).
+///
+/// Session pause/resume is driven by [ActivitySessionController] (LMP-44).
 class StubLearningGame extends FlameGame {
   StubLearningGame({ActivityRegistry? registry})
       : registry = registry ?? ActivityRegistry();
@@ -15,7 +18,8 @@ class StubLearningGame extends FlameGame {
   Color backgroundColor() => const Color(0xFFE8F5E9);
 }
 
-/// Embeds [StubLearningGame] with a visible host overlay (kept for playable launches).
+/// Diagnostic overlay for bootstrap / empty registry. Playable sessions use
+/// [ActivityPlayHost] instead.
 class FlameHostPanel extends StatelessWidget {
   const FlameHostPanel({
     super.key,

@@ -24,5 +24,16 @@
   "activityObjectCategories": "Nesne Grupları",
   "flameHostReady": "Flame hazır",
   "flameRegistryEmpty": "Etkinlik listesi boş",
-  "flameRegistryCount": "{count} etkinlik kayıtlı"
+  "flameRegistryCount": "{count} etkinlik kayıtlı",
+  "activityBackToHub": "Geri",
+  "activityPause": "Duraklat",
+  "activityResume": "Devam",
+  "activityRestart": "Yeniden başla",
+  "activitySessionUnavailable": "Bu etkinlik henüz çevrimdışı hazır değil.",
+  "activityPhaseIdle": "Hazır",
+  "activityPhasePreparing": "Hazırlanıyor",
+  "activityPhasePlaying": "Oynanıyor",
+  "activityPhasePaused": "Duraklatıldı",
+  "activityPhaseBackground": "Bekleniyor",
+  "activityPhaseCompleted": "Aferin"
 }

@@ -48,5 +48,19 @@
         "type": "int"
       }
     }
-  }
+  },
+  "activityBackToHub": "Back",
+  "@activityBackToHub": {
+    "description": "Safe return from mini-game host to Child Hub."
+  },
+  "activityPause": "Pause",
+  "activityResume": "Resume",
+  "activityRestart": "Start again",
+  "activitySessionUnavailable": "This activity is not ready offline yet.",
+  "activityPhaseIdle": "Ready",
+  "activityPhasePreparing": "Getting ready",
+  "activityPhasePlaying": "Playing",
+  "activityPhasePaused": "Paused",
+  "activityPhaseBackground": "Waiting",
+  "activityPhaseCompleted": "Nice work"
 }

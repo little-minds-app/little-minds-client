@@ -89,4 +89,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String flameRegistryCount(int count) {
     return '$count activities registered';
   }
+
+  @override
+  String get activityBackToHub => 'Back';
+
+  @override
+  String get activityPause => 'Pause';
+
+  @override
+  String get activityResume => 'Resume';
+
+  @override
+  String get activityRestart => 'Start again';
+
+  @override
+  String get activitySessionUnavailable =>
+      'This activity is not ready offline yet.';
+
+  @override
+  String get activityPhaseIdle => 'Ready';
+
+  @override
+  String get activityPhasePreparing => 'Getting ready';
+
+  @override
+  String get activityPhasePlaying => 'Playing';
+
+  @override
+  String get activityPhasePaused => 'Paused';
+
+  @override
+  String get activityPhaseBackground => 'Waiting';
+
+  @override
+  String get activityPhaseCompleted => 'Nice work';
 }
