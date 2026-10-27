@@ -1,38 +1,44 @@
 /**
- * LMP-23 client contract tests — schema validation, pin integrity, generated surface.
+ * LMP-23 / LMP-27 client contract tests — pin integrity, schema, generated surface.
  */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import { parse as parseYaml } from 'yaml';
+import {
+  assertGeneratedClientsPresent,
+  assertGeneratedPinMetadata,
+  assertPinAndArtifactIntegrity,
+  gitBlobShaFromFile,
+} from '../../scripts/contracts/integrity.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OPENAPI_PATH = join(ROOT, 'contracts', 'openapi.yaml');
 const VERSION_PATH = join(ROOT, 'contracts', 'VERSION');
 const PIN_PATH = join(ROOT, 'contracts', 'pin.json');
-const TS_SCHEMA = join(ROOT, 'generated', 'typescript', 'schema.ts');
-const DART_PUBSPEC = join(ROOT, 'generated', 'dart', 'pubspec.yaml');
 
-describe('LMP-23 OpenAPI pin and schema', () => {
-  it('records a full backend commit SHA pin (not main)', () => {
+describe('LMP-23/27 OpenAPI pin and schema', () => {
+  it('records a full backend commit SHA pin (not main) plus artifact blob SHA', () => {
     const pin = JSON.parse(readFileSync(PIN_PATH, 'utf8'));
     assert.match(pin.backendCommitSha, /^[0-9a-f]{40}$/i);
+    assert.match(pin.artifactBlobSha, /^[0-9a-f]{40}$/i);
     assert.equal(pin.artifactPath, 'contracts/openapi.yaml');
     assert.equal(pin.contractVersion, '0.1.0');
     assert.equal(pin.backendRepository, 'little-minds-app/little-minds-backend');
     assert.notEqual(pin.backendCommitSha.toLowerCase(), 'main');
   });
 
-  it('keeps VERSION, pin, and OpenAPI info.version aligned', () => {
+  it('keeps VERSION, pin, OpenAPI info.version, and vendored blob SHA aligned', () => {
     const version = readFileSync(VERSION_PATH, 'utf8').trim();
     const pin = JSON.parse(readFileSync(PIN_PATH, 'utf8'));
-    const doc = parseYaml(readFileSync(OPENAPI_PATH, 'utf8'));
+    const openApiRaw = readFileSync(OPENAPI_PATH);
+    const doc = parseYaml(openApiRaw.toString('utf8'));
     assert.equal(version, '0.1.0');
-    assert.equal(pin.contractVersion, version);
-    assert.equal(doc.info.version, version);
+    assertPinAndArtifactIntegrity({ pin, version, openApiDoc: doc, openApiRaw });
+    assert.equal(gitBlobShaFromFile(OPENAPI_PATH), pin.artifactBlobSha);
   });
 
   it('validates OpenAPI 3 document with only GET /health', async () => {
@@ -45,14 +51,10 @@ describe('LMP-23 OpenAPI pin and schema', () => {
     assert.deepEqual(schema.required.sort(), ['service', 'status', 'timestamp'].sort());
   });
 
-  it('exposes committed TypeScript and Dart generated clients', () => {
-    assert.ok(existsSync(TS_SCHEMA), 'generated/typescript/schema.ts missing');
-    assert.ok(existsSync(DART_PUBSPEC), 'generated/dart/pubspec.yaml missing');
-    const ts = readFileSync(TS_SCHEMA, 'utf8');
-    assert.match(ts, /\/health/);
-    assert.match(ts, /getHealth/);
-    assert.match(ts, /HealthStatus/);
-    const pubspec = readFileSync(DART_PUBSPEC, 'utf8');
-    assert.match(pubspec, /name:\s*'?little_minds_api'?/);
+  it('exposes committed TypeScript and Dart generated clients pinned to backend SHA', () => {
+    const pin = JSON.parse(readFileSync(PIN_PATH, 'utf8'));
+    const version = readFileSync(VERSION_PATH, 'utf8').trim();
+    assertGeneratedClientsPresent(ROOT);
+    assertGeneratedPinMetadata({ root: ROOT, pin, version });
   });
 });

@@ -25,9 +25,12 @@ export function readPin() {
   return JSON.parse(readFileSync(PIN_PATH, 'utf8'));
 }
 
+export function readOpenApiRaw() {
+  return readFileSync(OPENAPI_PATH);
+}
+
 export function readOpenApiDocument() {
-  const raw = readFileSync(OPENAPI_PATH, 'utf8');
-  return parseYaml(raw);
+  return parseYaml(readOpenApiRaw().toString('utf8'));
 }
 
 export function readCompatibility() {
