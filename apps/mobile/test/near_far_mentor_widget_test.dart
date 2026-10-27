@@ -431,7 +431,11 @@ void main() {
         LittleMindsApp(
           audioGuidance: RecordingHubAudioGuidance(),
           locale: const Locale('en', 'US'),
-          mentorInjectedCard: draftCard,
+          // Future.value loader — no AssetBundle; flushes on tester.pump().
+          mentorCardLoader: _ImmediateMentorLoader({
+            'en-US': draftCard,
+            'tr-TR': trDraftCard,
+          }),
         ),
       );
       await _pumpFrames(tester);
