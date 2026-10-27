@@ -146,10 +146,10 @@ void main() {
       expect(controller.handoff.showsPanel, isFalse);
     });
 
-    test('TC-NF-006 mentor adjacency metadata only (no parent UI)', () {
+    test('TC-NF-006 mentor adjacency metadata links LMP-48 parent UI', () {
       const mentor = NearFarMentorAdjacency();
       final json = mentor.toMetadataJson();
-      expect(json['parent_ui'], isFalse);
+      expect(json['parent_ui'], isTrue);
       expect(json['mentor_card_id'], NearFarConstants.mentorCardId);
       expect(json['mentor_card_id'], 'mentor_near_far_32m_adjacency_v1');
       expect(json['schema_version'], '1.0.0');

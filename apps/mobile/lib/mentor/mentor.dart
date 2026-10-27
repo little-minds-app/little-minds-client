@@ -1,7 +1,7 @@
-/// Thin client consumption of backend Parent Play Mentor card schema (LMP-47).
+/// Parent Play Mentor card client consumption (LMP-47 models + LMP-48 UI).
 ///
 /// Canonical contract: little-minds-backend content schema.
-/// No LMP-48 UI. No OpenAPI invent.
+/// No OpenAPI invent. Draft fixtures stay behind [MentorCardReviewGate].
 library;
 
 export 'mentor_card.dart';
@@ -11,3 +11,4 @@ export 'mentor_card_pin.dart';
 export 'mentor_card_review.dart';
 export 'mentor_card_safe_copy.dart';
 export 'mentor_card_validator.dart';
+export 'mentor_card_view.dart';

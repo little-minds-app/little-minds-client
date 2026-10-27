@@ -8,7 +8,7 @@ import 'mentor_card_validator.dart';
 
 /// Loads pinned Near/Far mentor card fixtures (backend LMP-47 mirror).
 ///
-/// No parent UI — parse/validate only for LMP-47 consumption + LMP-48 prep.
+/// Used by LMP-48 parent mentor UI after review-gate checks.
 class MentorCardFixtureLoader {
   MentorCardFixtureLoader({AssetBundle? bundle})
       : _bundle = bundle ?? rootBundle;

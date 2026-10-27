@@ -493,6 +493,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Spoken near/far audio is blocked until approved offline voice packs and a working player are installed. On-screen labels still work.'**
   String get nearFarSpokenAssetsBlocked;
+
+  /// AppBar title for the Near/Far parent mentor card surface (LMP-48). Chrome only — not coaching copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Parent Play Mentor'**
+  String get mentorCardSurfaceTitle;
+
+  /// Back control from parent mentor card surface to Parent Settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get mentorCardBack;
+
+  /// Parent Settings entry to the Near/Far mentor card (parent path only; not Kids Hub).
+  ///
+  /// In en, this message translates to:
+  /// **'Near/Far mentor card'**
+  String get mentorCardSettingsEntry;
+
+  /// Clarifies mentor entry is caregiver coaching and draft is gated.
+  ///
+  /// In en, this message translates to:
+  /// **'Caregiver coaching for near and far play. Draft content stays behind the review gate.'**
+  String get mentorCardSettingsEntryHint;
+
+  /// No description provided for @mentorCardSectionWhy.
+  ///
+  /// In en, this message translates to:
+  /// **'Why'**
+  String get mentorCardSectionWhy;
+
+  /// No description provided for @mentorCardSectionHow.
+  ///
+  /// In en, this message translates to:
+  /// **'How'**
+  String get mentorCardSectionHow;
+
+  /// No description provided for @mentorCardSectionWhatToSay.
+  ///
+  /// In en, this message translates to:
+  /// **'What to say'**
+  String get mentorCardSectionWhatToSay;
+
+  /// No description provided for @mentorCardWhatBefore.
+  ///
+  /// In en, this message translates to:
+  /// **'Before'**
+  String get mentorCardWhatBefore;
+
+  /// No description provided for @mentorCardWhatDuring.
+  ///
+  /// In en, this message translates to:
+  /// **'During'**
+  String get mentorCardWhatDuring;
+
+  /// No description provided for @mentorCardWhatAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'After'**
+  String get mentorCardWhatAfter;
+
+  /// No description provided for @mentorCardSectionSafety.
+  ///
+  /// In en, this message translates to:
+  /// **'Safety'**
+  String get mentorCardSectionSafety;
+
+  /// No description provided for @mentorCardSectionAdaptations.
+  ///
+  /// In en, this message translates to:
+  /// **'Adaptations'**
+  String get mentorCardSectionAdaptations;
+
+  /// No description provided for @mentorCardSectionObserved.
+  ///
+  /// In en, this message translates to:
+  /// **'Observed vs suggested'**
+  String get mentorCardSectionObserved;
+
+  /// Age applicability range chrome for a mentor card (dynamic from MentorCardV1).
+  ///
+  /// In en, this message translates to:
+  /// **'For children aged {minMonths}–{maxMonths} months'**
+  String mentorCardAgeRange(int minMonths, int maxMonths);
+
+  /// No description provided for @mentorCardAgeFits.
+  ///
+  /// In en, this message translates to:
+  /// **'Fits this child’s age.'**
+  String get mentorCardAgeFits;
+
+  /// No description provided for @mentorCardAgeOutside.
+  ///
+  /// In en, this message translates to:
+  /// **'Outside this card’s age range.'**
+  String get mentorCardAgeOutside;
+
+  /// No description provided for @mentorCardSafetyAdultRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Adult supervision is required.'**
+  String get mentorCardSafetyAdultRequired;
+
+  /// No description provided for @mentorCardSafetyNoProof.
+  ///
+  /// In en, this message translates to:
+  /// **'No photos or proof are required.'**
+  String get mentorCardSafetyNoProof;
+
+  /// Explicit banner when draft fixtures are shown in debug/test preview only.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft preview — not approved caregiver guidance.'**
+  String get mentorCardDraftPreviewBanner;
+
+  /// No description provided for @mentorCardNotApprovedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Guidance not ready yet'**
+  String get mentorCardNotApprovedTitle;
+
+  /// No description provided for @mentorCardNotApprovedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This mentor card is still in “{status}” review and is not approved for caregivers.'**
+  String mentorCardNotApprovedBody(String status);
+
+  /// No description provided for @mentorCardLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading mentor guidance'**
+  String get mentorCardLoading;
+
+  /// No description provided for @mentorCardLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Mentor guidance could not be loaded. Try again.'**
+  String get mentorCardLoadError;
+
+  /// No description provided for @mentorCardRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get mentorCardRetry;
+
+  /// No description provided for @mentorCardSemanticsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Parent Play Mentor card: {title}'**
+  String mentorCardSemanticsLabel(String title);
+
+  /// Optional CTA from mentor card to existing Near/Far demo + mission handoff (LMP-48). Not a duplicate mission UI.
+  ///
+  /// In en, this message translates to:
+  /// **'Try the near and far mission'**
+  String get mentorCardOpenMission;
+
+  /// No description provided for @mentorCardOpenMissionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof.'**
+  String get mentorCardOpenMissionHint;
 }
 
 class _AppLocalizationsDelegate

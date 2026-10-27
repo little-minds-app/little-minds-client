@@ -4,7 +4,8 @@ import 'near_far_constants.dart';
 
 /// F-009 mentor **adjacency / metadata** (LMP-45) + thin LMP-47 card pin link.
 ///
-/// Parent-visible mentor card UI remains **LMP-48** (`parent_ui: false`).
+/// Parent mentor card UI is LMP-48 (`NearFarMentorSurface` / `MentorCardView`).
+/// Mission navigation from the mentor card remains deferred.
 class NearFarMentorAdjacency {
   const NearFarMentorAdjacency({
     this.mentorCardId = NearFarConstants.mentorCardId,
@@ -48,7 +49,7 @@ class NearFarMentorAdjacency {
         'during_copy_keys': duringCopyKeys,
         'after_copy_key': afterCopyKey,
         'prohibited_claims': prohibitedClaims,
-        // Explicitly not a parent UI surface (LMP-48).
-        'parent_ui': false,
+        // Parent mentor card UI (LMP-48 Step 1); mission nav still deferred.
+        'parent_ui': true,
       };
 }

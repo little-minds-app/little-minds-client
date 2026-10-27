@@ -128,5 +128,67 @@
   "@nearFarMissionBack": {
     "description": "Obvious calm exit from mission guidance, skip, or completion."
   },
-  "nearFarSpokenAssetsBlocked": "Spoken near/far audio is blocked until approved offline voice packs and a working player are installed. On-screen labels still work."
+  "nearFarSpokenAssetsBlocked": "Spoken near/far audio is blocked until approved offline voice packs and a working player are installed. On-screen labels still work.",
+  "mentorCardSurfaceTitle": "Parent Play Mentor",
+  "@mentorCardSurfaceTitle": {
+    "description": "AppBar title for the Near/Far parent mentor card surface (LMP-48). Chrome only — not coaching copy."
+  },
+  "mentorCardBack": "Back",
+  "@mentorCardBack": {
+    "description": "Back control from parent mentor card surface to Parent Settings."
+  },
+  "mentorCardSettingsEntry": "Near/Far mentor card",
+  "@mentorCardSettingsEntry": {
+    "description": "Parent Settings entry to the Near/Far mentor card (parent path only; not Kids Hub)."
+  },
+  "mentorCardSettingsEntryHint": "Caregiver coaching for near and far play. Draft content stays behind the review gate.",
+  "@mentorCardSettingsEntryHint": {
+    "description": "Clarifies mentor entry is caregiver coaching and draft is gated."
+  },
+  "mentorCardSectionWhy": "Why",
+  "mentorCardSectionHow": "How",
+  "mentorCardSectionWhatToSay": "What to say",
+  "mentorCardWhatBefore": "Before",
+  "mentorCardWhatDuring": "During",
+  "mentorCardWhatAfter": "After",
+  "mentorCardSectionSafety": "Safety",
+  "mentorCardSectionAdaptations": "Adaptations",
+  "mentorCardSectionObserved": "Observed vs suggested",
+  "mentorCardAgeRange": "For children aged {minMonths}–{maxMonths} months",
+  "@mentorCardAgeRange": {
+    "description": "Age applicability range chrome for a mentor card (dynamic from MentorCardV1).",
+    "placeholders": {
+      "minMonths": {"type": "int"},
+      "maxMonths": {"type": "int"}
+    }
+  },
+  "mentorCardAgeFits": "Fits this child’s age.",
+  "mentorCardAgeOutside": "Outside this card’s age range.",
+  "mentorCardSafetyAdultRequired": "Adult supervision is required.",
+  "mentorCardSafetyNoProof": "No photos or proof are required.",
+  "mentorCardDraftPreviewBanner": "Draft preview — not approved caregiver guidance.",
+  "@mentorCardDraftPreviewBanner": {
+    "description": "Explicit banner when draft fixtures are shown in debug/test preview only."
+  },
+  "mentorCardNotApprovedTitle": "Guidance not ready yet",
+  "mentorCardNotApprovedBody": "This mentor card is still in “{status}” review and is not approved for caregivers.",
+  "@mentorCardNotApprovedBody": {
+    "placeholders": {
+      "status": {"type": "String"}
+    }
+  },
+  "mentorCardLoading": "Loading mentor guidance",
+  "mentorCardLoadError": "Mentor guidance could not be loaded. Try again.",
+  "mentorCardRetry": "Try again",
+  "mentorCardSemanticsLabel": "Parent Play Mentor card: {title}",
+  "@mentorCardSemanticsLabel": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "mentorCardOpenMission": "Try the near and far mission",
+  "@mentorCardOpenMission": {
+    "description": "Optional CTA from mentor card to existing Near/Far demo + mission handoff (LMP-48). Not a duplicate mission UI."
+  },
+  "mentorCardOpenMissionHint": "Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof."
 }

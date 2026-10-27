@@ -6,9 +6,12 @@ import 'config/app_config.dart';
 import 'config/app_config_scope.dart';
 import 'game/flame_host.dart';
 import 'l10n/app_localizations.dart';
+import 'mentor/mentor_card.dart';
+import 'mentor/mentor_card_fixtures.dart';
 import 'near_far/near_far_activity.dart';
 import 'surfaces/child_hub_surface.dart';
 import 'surfaces/near_far_demo_surface.dart';
+import 'surfaces/near_far_mentor_surface.dart';
 import 'surfaces/parent_gate_surface.dart';
 import 'surfaces/parent_settings_surface.dart';
 import 'surfaces/profile_selection_surface.dart';
@@ -16,6 +19,9 @@ import 'surfaces/profile_selection_surface.dart';
 /// Root application — MaterialApp + shell navigation (Flutter built-ins only).
 ///
 /// State-management choice is a **scaffolding assumption** until ADR-003.
+///
+/// Parent path (preserve Gate): Hub → Parent Gate → Parent Settings →
+/// mentor card / Near/Far demo. Near/Far is never a seventh Kids Hub tile.
 class LittleMindsApp extends StatefulWidget {
   LittleMindsApp({
     super.key,
@@ -26,6 +32,8 @@ class LittleMindsApp extends StatefulWidget {
     this.forceShowEnvBadge = false,
     this.initialNearFarDemo = false,
     this.nearFarActivity,
+    this.mentorCardLoader,
+    this.mentorInjectedCard,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -48,6 +56,15 @@ class LittleMindsApp extends StatefulWidget {
   /// Optional injected Near/Far activity for widget tests.
   final NearFarActivity? nearFarActivity;
 
+  /// Optional mentor fixture loader override (widget tests / DI).
+  final MentorCardFixtureLoader? mentorCardLoader;
+
+  /// Optional preloaded mentor card for deterministic shell widget tests.
+  ///
+  /// Avoids FakeAsync hangs on `rootBundle` asset I/O while preserving real
+  /// Gate → Settings → Mentor navigation.
+  final MentorCardV1? mentorInjectedCard;
+
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
 }
@@ -58,6 +75,7 @@ enum _ShellRoute {
   parentGate,
   parentSettings,
   nearFarDemo,
+  nearFarMentor,
 }
 
 class _LittleMindsAppState extends State<LittleMindsApp> {
@@ -65,7 +83,26 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
   late _ShellRoute _route =
       widget.initialNearFarDemo ? _ShellRoute.nearFarDemo : _ShellRoute.childHub;
 
+  /// Where Near/Far demo should return (mentor card or Parent Settings).
+  _ShellRoute _nearFarDemoReturn = _ShellRoute.parentSettings;
+
   void _go(_ShellRoute route) => setState(() => _route = route);
+
+  void _openNearFarDemo({required _ShellRoute returnTo}) {
+    setState(() {
+      _nearFarDemoReturn = returnTo;
+      _route = _ShellRoute.nearFarDemo;
+    });
+  }
+
+  void _closeNearFarDemo() {
+    if (widget.initialNearFarDemo &&
+        _nearFarDemoReturn == _ShellRoute.parentSettings) {
+      _go(_ShellRoute.childHub);
+      return;
+    }
+    _go(_nearFarDemoReturn);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,17 +146,25 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
               case _ShellRoute.parentSettings:
                 return ParentSettingsSurface(
                   onBack: () => _go(_ShellRoute.parentGate),
-                  onOpenNearFarDemo: () => _go(_ShellRoute.nearFarDemo),
+                  onOpenNearFarDemo: () => _openNearFarDemo(
+                    returnTo: _ShellRoute.parentSettings,
+                  ),
+                  onOpenNearFarMentor: () => _go(_ShellRoute.nearFarMentor),
                 );
               case _ShellRoute.nearFarDemo:
                 return NearFarDemoSurface(
                   game: _game,
                   activity: widget.nearFarActivity,
-                  onClose: () => _go(
-                    widget.initialNearFarDemo
-                        ? _ShellRoute.childHub
-                        : _ShellRoute.parentSettings,
+                  onClose: _closeNearFarDemo,
+                );
+              case _ShellRoute.nearFarMentor:
+                return NearFarMentorSurface(
+                  onBack: () => _go(_ShellRoute.parentSettings),
+                  onOpenNearFarMission: () => _openNearFarDemo(
+                    returnTo: _ShellRoute.nearFarMentor,
                   ),
+                  loader: widget.mentorCardLoader,
+                  injectedCard: widget.mentorInjectedCard,
                 );
             }
           },

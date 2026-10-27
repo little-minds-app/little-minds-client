@@ -4,8 +4,10 @@ import 'window_size_class.dart';
 
 /// Adaptive chrome that recomposes for compact vs expanded windows (F-034).
 ///
-/// Compact: single-column body.
-/// Expanded/medium: dual-pane with side navigation chrome (not stretched phone UI).
+/// Compact: single-column body with AppBar.
+/// Expanded/medium: dual-pane with side navigation chrome when [navigation] is
+/// useful; pass [forceSingleColumn] to keep a full-width AppBar layout and
+/// avoid an empty left sidebar (e.g. Parent Play Mentor, LMP-48).
 class AdaptiveShell extends StatelessWidget {
   const AdaptiveShell({
     super.key,
@@ -13,6 +15,7 @@ class AdaptiveShell extends StatelessWidget {
     required this.body,
     this.navigation,
     this.actions = const [],
+    this.forceSingleColumn = false,
   });
 
   final String title;
@@ -20,21 +23,28 @@ class AdaptiveShell extends StatelessWidget {
   final Widget? navigation;
   final List<Widget> actions;
 
+  /// When true, always use compact-style single-column chrome (title + actions
+  /// AppBar, full-width body) even on medium/expanded widths.
+  final bool forceSingleColumn;
+
   static const Key compactChromeKey = Key('shell-compact-chrome');
   static const Key expandedChromeKey = Key('shell-expanded-chrome');
   static const Key dualPaneKey = Key('shell-dual-pane');
+  static const Key singleColumnWideKey = Key('shell-single-column-wide');
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final sizeClass = windowSizeClassForWidth(constraints.maxWidth);
-        final useExpanded = sizeClass == WindowSizeClass.expanded ||
+        final wide = sizeClass == WindowSizeClass.expanded ||
             sizeClass == WindowSizeClass.medium;
 
-        if (!useExpanded) {
+        if (!wide || forceSingleColumn) {
           return Scaffold(
-            key: compactChromeKey,
+            key: forceSingleColumn && wide
+                ? singleColumnWideKey
+                : compactChromeKey,
             appBar: AppBar(
               title: Text(title),
               actions: actions,
