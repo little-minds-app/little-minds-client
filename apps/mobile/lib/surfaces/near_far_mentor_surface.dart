@@ -53,6 +53,9 @@ class NearFarMentorSurface extends StatefulWidget {
   static const Key errorKey = Key('near-far-mentor-error');
   static const Key scrollKey = Key('near-far-mentor-scroll');
 
+  /// Readable content column on tablet / wide parent chrome (F-034).
+  static const double contentMaxWidth = 860;
+
   @override
   State<NearFarMentorSurface> createState() => _NearFarMentorSurfaceState();
 }
@@ -131,6 +134,8 @@ class _NearFarMentorSurfaceState extends State<NearFarMentorSurface> {
     return OrientationBinder(
       surface: AppSurface.parentSettings,
       child: AdaptiveShell(
+        // Avoid empty dual-pane sidebar — full-width AppBar + centered column.
+        forceSingleColumn: true,
         title: l10n.mentorCardSurfaceTitle,
         actions: [
           ConstrainedBox(
@@ -200,7 +205,9 @@ class _NearFarMentorSurfaceState extends State<NearFarMentorSurface> {
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
+            constraints: const BoxConstraints(
+              maxWidth: NearFarMentorSurface.contentMaxWidth,
+            ),
             child: MentorCardView(
               card: _card!,
               childAgeMonths: widget.childAgeMonths,

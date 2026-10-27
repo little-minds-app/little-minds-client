@@ -79,7 +79,7 @@
   "mentorCardSectionSafety": "Güvenlik",
   "mentorCardSectionAdaptations": "Uyarlamalar",
   "mentorCardSectionObserved": "Gözlenen ve önerilen",
-  "mentorCardAgeRange": "Yaş {minMonths}–{maxMonths} ay",
+  "mentorCardAgeRange": "{minMonths}–{maxMonths} aylık çocuklar için",
   "mentorCardAgeFits": "Bu çocuğun yaşına uygun.",
   "mentorCardAgeOutside": "Bu kartın yaş aralığının dışında.",
   "mentorCardSafetyAdultRequired": "Yetişkin gözetimi gereklidir.",

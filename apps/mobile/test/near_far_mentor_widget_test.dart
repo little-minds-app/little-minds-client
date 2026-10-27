@@ -82,6 +82,12 @@ Future<void> _waitForMentorContent(WidgetTester tester) async {
   fail('Mentor surface did not finish loading');
 }
 
+Future<void> _expandPromptTile(WidgetTester tester, Key key) async {
+  await tester.ensureVisible(find.byKey(key));
+  await tester.tap(find.byKey(key));
+  await _pumpFrames(tester, 8);
+}
+
 Future<void> _openMentorFromHub(WidgetTester tester) async {
   await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
   await _pumpFrames(tester, 8);
@@ -175,12 +181,25 @@ void main() {
       expect(find.byKey(MentorCardView.whatBeforeKey), findsOneWidget);
       expect(find.byKey(MentorCardView.whatDuringKey), findsOneWidget);
       expect(find.byKey(MentorCardView.whatAfterKey), findsOneWidget);
-      expect(find.text(approvedCard.whatToSay.before.first), findsOneWidget);
-      expect(find.text(approvedCard.whatToSay.during.first), findsOneWidget);
-      expect(find.text(approvedCard.whatToSay.after.first), findsOneWidget);
+      // Collapsed by default — section labels remain visible.
+      expect(find.text('Before'), findsOneWidget);
+      expect(find.text('During'), findsOneWidget);
+      expect(find.text('After'), findsOneWidget);
+      await _expandPromptTile(tester, MentorCardView.whatBeforeKey);
+      expect(find.text(approvedCard.whatToSay.before.first), findsWidgets);
+      await _expandPromptTile(tester, MentorCardView.whatDuringKey);
+      expect(find.text(approvedCard.whatToSay.during.first), findsWidgets);
+      await _expandPromptTile(tester, MentorCardView.whatAfterKey);
+      expect(find.text(approvedCard.whatToSay.after.first), findsWidgets);
+      // Safety never collapsed.
       expect(find.byKey(MentorCardView.safetyKey), findsOneWidget);
+      expect(find.text(approvedCard.safety.constraints.first), findsOneWidget);
       expect(find.byKey(MentorCardView.adaptationsKey), findsOneWidget);
       expect(find.byKey(MentorCardView.ageKey), findsOneWidget);
+      expect(
+        find.text('For children aged 30–35 months'),
+        findsOneWidget,
+      );
       expect(find.textContaining('Fits this'), findsOneWidget);
       expect(find.byKey(MentorCardView.openMissionKey), findsOneWidget);
 
@@ -188,6 +207,58 @@ void main() {
       await tester.tap(find.byKey(MentorCardView.openMissionKey));
       await _pumpFrames(tester, 4);
       expect(missionTaps, 1);
+    });
+
+    testWidgets('TC-MC-W17 phone has no dual-pane empty sidebar',
+        (tester) async {
+      await _setSurface(
+        tester,
+        width: ScaffoldingViewports.compactPhoneWidth,
+        height: ScaffoldingViewports.compactPhoneHeight,
+      );
+      await tester.pumpWidget(
+        LittleMindsApp(
+          audioGuidance: RecordingHubAudioGuidance(),
+          mentorInjectedCard: approvedCard,
+        ),
+      );
+      await _pumpFrames(tester);
+      await _openMentorFromHub(tester);
+
+      expect(find.byKey(AdaptiveShell.dualPaneKey), findsNothing);
+      expect(find.byKey(AdaptiveShell.compactChromeKey), findsOneWidget);
+      expect(find.byKey(NearFarMentorSurface.scrollKey), findsOneWidget);
+      // No horizontal overflow of mentor column on compact phone.
+      final viewWidth = tester.view.physicalSize.width;
+      final cardWidth = tester.getSize(find.byKey(MentorCardView.viewKey)).width;
+      expect(cardWidth, lessThanOrEqualTo(viewWidth));
+    });
+
+    testWidgets('TC-MC-W18 large text scale keeps mission CTA reachable',
+        (tester) async {
+      await _setSurface(
+        tester,
+        width: ScaffoldingViewports.compactPhoneWidth,
+        height: ScaffoldingViewports.compactPhoneHeight,
+      );
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(1.6)),
+          child: _localize(
+            child: MentorCardView(
+              card: approvedCard,
+              onOpenMission: () {},
+            ),
+          ),
+        ),
+      );
+      await _pumpFrames(tester);
+
+      expect(find.byKey(MentorCardView.safetyKey), findsOneWidget);
+      await tester.ensureVisible(find.byKey(MentorCardView.openMissionKey));
+      expect(find.byKey(MentorCardView.openMissionKey), findsOneWidget);
+      final size = tester.getSize(find.byKey(MentorCardView.openMissionKey));
+      expect(size.height, greaterThanOrEqualTo(48));
     });
 
     testWidgets('TC-MC-W02 draft without preview is blocked (prod-safe)',
@@ -244,10 +315,13 @@ void main() {
 
       expect(find.text(approvedTr.title), findsOneWidget);
       expect(find.text(approvedTr.why.summary), findsOneWidget);
-      expect(find.text(approvedTr.whatToSay.during.first), findsOneWidget);
+      expect(find.text('30–35 aylık çocuklar için'), findsOneWidget);
       expect(find.text('Neden'), findsOneWidget);
       expect(find.text('Nasıl'), findsOneWidget);
       expect(find.text('Ne söylenebilir'), findsOneWidget);
+      expect(find.text('Sırasında'), findsOneWidget);
+      await _expandPromptTile(tester, MentorCardView.whatDuringKey);
+      expect(find.text(approvedTr.whatToSay.during.first), findsOneWidget);
     });
 
     testWidgets('TC-MC-W05 missing mission link hides CTA', (tester) async {
@@ -420,7 +494,8 @@ void main() {
       expect(missionSize.height, greaterThanOrEqualTo(48));
     });
 
-    testWidgets('TC-MC-W12 tablet layout uses AdaptiveShell expanded chrome',
+    testWidgets(
+        'TC-MC-W12 tablet mentor uses single-column chrome (no empty sidebar)',
         (tester) async {
       await _setSurface(
         tester,
@@ -441,9 +516,14 @@ void main() {
       await _pumpFrames(tester);
       await _openMentorFromHub(tester);
 
-      expect(find.byKey(AdaptiveShell.expandedChromeKey), findsOneWidget);
-      expect(find.byKey(AdaptiveShell.dualPaneKey), findsOneWidget);
+      expect(find.byKey(AdaptiveShell.singleColumnWideKey), findsOneWidget);
+      expect(find.byKey(AdaptiveShell.dualPaneKey), findsNothing);
+      expect(find.byKey(AdaptiveShell.expandedChromeKey), findsNothing);
       expect(find.byKey(MentorCardView.viewKey), findsOneWidget);
+      // Centered readable column — not stretched edge-to-edge on iPad.
+      final cardBox =
+          tester.getRect(find.byKey(MentorCardView.viewKey));
+      expect(cardBox.width, lessThanOrEqualTo(NearFarMentorSurface.contentMaxWidth));
     });
 
     testWidgets('TC-MC-W13 invalid fixture load shows error recovery',

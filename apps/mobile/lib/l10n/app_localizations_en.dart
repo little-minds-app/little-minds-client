@@ -263,7 +263,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String mentorCardAgeRange(int minMonths, int maxMonths) {
-    return 'Ages $minMonths–$maxMonths months';
+    return 'For children aged $minMonths–$maxMonths months';
   }
 
   @override

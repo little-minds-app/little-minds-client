@@ -572,10 +572,10 @@ abstract class AppLocalizations {
   /// **'Observed vs suggested'**
   String get mentorCardSectionObserved;
 
-  /// Age applicability range chrome for a mentor card.
+  /// Age applicability range chrome for a mentor card (dynamic from MentorCardV1).
   ///
   /// In en, this message translates to:
-  /// **'Ages {minMonths}–{maxMonths} months'**
+  /// **'For children aged {minMonths}–{maxMonths} months'**
   String mentorCardAgeRange(int minMonths, int maxMonths);
 
   /// No description provided for @mentorCardAgeFits.

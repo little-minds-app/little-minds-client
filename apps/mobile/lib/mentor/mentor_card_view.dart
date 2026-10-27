@@ -186,7 +186,8 @@ class _MentorCardBody extends StatelessWidget {
               color: theme.colorScheme.tertiaryContainer,
               borderRadius: BorderRadius.circular(8),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 child: Text(
                   l10n.mentorCardDraftPreviewBanner,
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -239,21 +240,19 @@ class _MentorCardBody extends StatelessWidget {
           key: MentorCardView.whatToSayKey,
           title: l10n.mentorCardSectionWhatToSay,
           children: [
-            _SubSection(
+            _ExpandablePromptTile(
               key: MentorCardView.whatBeforeKey,
               title: l10n.mentorCardWhatBefore,
               lines: before,
               theme: theme,
             ),
-            const SizedBox(height: 12),
-            _SubSection(
+            _ExpandablePromptTile(
               key: MentorCardView.whatDuringKey,
               title: l10n.mentorCardWhatDuring,
               lines: during,
               theme: theme,
             ),
-            const SizedBox(height: 12),
-            _SubSection(
+            _ExpandablePromptTile(
               key: MentorCardView.whatAfterKey,
               title: l10n.mentorCardWhatAfter,
               lines: after,
@@ -261,6 +260,7 @@ class _MentorCardBody extends StatelessWidget {
             ),
           ],
         ),
+        // Safety is never collapsed — always visible for caregivers.
         _Section(
           key: MentorCardView.safetyKey,
           title: l10n.mentorCardSectionSafety,
@@ -284,6 +284,27 @@ class _MentorCardBody extends StatelessWidget {
             ],
           ],
         ),
+        if (showMissionAction && onOpenMission != null) ...[
+          const SizedBox(height: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48, minWidth: 200),
+            child: FilledButton(
+              key: MentorCardView.openMissionKey,
+              onPressed: onOpenMission,
+              child: Text(l10n.mentorCardOpenMission),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            key: MentorCardView.openMissionHintKey,
+            l10n.mentorCardOpenMissionHint,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         _Section(
           key: MentorCardView.adaptationsKey,
           title: l10n.mentorCardSectionAdaptations,
@@ -315,26 +336,6 @@ class _MentorCardBody extends StatelessWidget {
             ),
           ),
         ),
-        if (showMissionAction && onOpenMission != null) ...[
-          const SizedBox(height: 12),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 48, minWidth: 200),
-            child: FilledButton(
-              key: MentorCardView.openMissionKey,
-              onPressed: onOpenMission,
-              child: Text(l10n.mentorCardOpenMission),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            key: MentorCardView.openMissionHintKey,
-            l10n.mentorCardOpenMissionHint,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -373,7 +374,8 @@ class _AgeApplicability extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ageLine = l10n.mentorCardAgeRange(card.ageMinMonths, card.ageMaxMonths);
+    final ageLine =
+        l10n.mentorCardAgeRange(card.ageMinMonths, card.ageMaxMonths);
     final applicability = childAgeMonths == null
         ? null
         : isMentorCardAgeApplicable(card, childAgeMonths!)
@@ -437,8 +439,9 @@ class _Section extends StatelessWidget {
   }
 }
 
-class _SubSection extends StatelessWidget {
-  const _SubSection({
+/// Collapsed-by-default Before/During/After prompts (accessible ExpansionTile).
+class _ExpandablePromptTile extends StatelessWidget {
+  const _ExpandablePromptTile({
     super.key,
     required this.title,
     required this.lines,
@@ -451,30 +454,34 @@ class _SubSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
+    return Semantics(
+      explicitChildNodes: true,
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+        childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+        title: Text(
           title,
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 6),
-        for (final line in lines)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('•  ', style: theme.textTheme.bodyLarge),
-                Expanded(
-                  child: Text(line, style: theme.textTheme.bodyLarge),
-                ),
-              ],
+        children: [
+          for (final line in lines)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('•  ', style: theme.textTheme.bodyLarge),
+                  Expanded(
+                    child: Text(line, style: theme.textTheme.bodyLarge),
+                  ),
+                ],
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

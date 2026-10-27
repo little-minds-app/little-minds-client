@@ -154,9 +154,9 @@
   "mentorCardSectionSafety": "Safety",
   "mentorCardSectionAdaptations": "Adaptations",
   "mentorCardSectionObserved": "Observed vs suggested",
-  "mentorCardAgeRange": "Ages {minMonths}–{maxMonths} months",
+  "mentorCardAgeRange": "For children aged {minMonths}–{maxMonths} months",
   "@mentorCardAgeRange": {
-    "description": "Age applicability range chrome for a mentor card.",
+    "description": "Age applicability range chrome for a mentor card (dynamic from MentorCardV1).",
     "placeholders": {
       "minMonths": {"type": "int"},
       "maxMonths": {"type": "int"}
