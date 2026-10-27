@@ -1,6 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/screen_time/screen_time.dart';
 
+/// Detects whether the process local zone matches US Eastern DST on 2026
+/// America/New_York transition dates. Requires `TZ=America/New_York` (or
+/// equivalent) **before** the Dart VM starts.
+bool localObservesNewYorkDst2026() {
+  final spring = DateTime(2026, 3, 9).difference(DateTime(2026, 3, 8));
+  final fall = DateTime(2026, 11, 2).difference(DateTime(2026, 11, 1));
+  return spring == const Duration(hours: 23) &&
+      fall == const Duration(hours: 25);
+}
+
+/// Detects Europe/Berlin-like DST on 2026 EU transition dates.
+bool localObservesBerlinDst2026() {
+  final spring = DateTime(2026, 3, 30).difference(DateTime(2026, 3, 29));
+  final fall = DateTime(2026, 10, 26).difference(DateTime(2026, 10, 25));
+  return spring == const Duration(hours: 23) &&
+      fall == const Duration(hours: 25);
+}
+
 void main() {
   late FakeMonotonicClock mono;
   late FakeWallClock wall;
@@ -249,7 +267,7 @@ void main() {
 
       final last = DateTime.utc(2026, 10, 27, 21);
       final next = ScreenTimeAccountant.startOfNextLocalDay(last);
-      expect(next.difference(DateTime.utc(2026, 10, 27)), const Duration(days: 1));
+      expect(next, DateTime.utc(2026, 10, 28));
       expect(
         next.difference(last),
         const Duration(hours: 3),
@@ -257,9 +275,7 @@ void main() {
       );
     });
 
-    test('TC-ST-034 startOfNextLocalDay is calendar-based for local kind', () {
-      // Local construction: next midnight is date+1 at 00:00, not +Duration(hours:24)
-      // from an arbitrary afternoon instant.
+    test('TC-ST-034 startOfNextLocalDay uses day+1 construction, not Duration', () {
       final afternoon = DateTime(2026, 10, 27, 15, 30);
       final next = ScreenTimeAccountant.startOfNextLocalDay(afternoon);
       expect(next, DateTime(2026, 10, 28));
@@ -268,6 +284,152 @@ void main() {
         next,
         isNot(afternoon.add(const Duration(hours: 24))),
         reason: 'must not use +24h from afternoon wall time',
+      );
+
+      final springMidnight = DateTime(2026, 3, 8);
+      final calendarNext =
+          ScreenTimeAccountant.startOfNextLocalDay(springMidnight);
+      expect(calendarNext, DateTime(2026, 3, 9));
+      // On DST spring-forward zones, Duration(days:1) lands at 01:00 — not midnight.
+      // On UTC / non-DST zones the two coincide; that is expected.
+      final springGap =
+          DateTime(2026, 3, 9).difference(DateTime(2026, 3, 8));
+      if (springGap == const Duration(hours: 23)) {
+        expect(
+          calendarNext,
+          isNot(springMidnight.add(const Duration(days: 1))),
+          reason: 'Duration(days:1) is 24h absolute, not next calendar midnight',
+        );
+      }
+    });
+  });
+
+  group('startOfNextLocalDay calendar boundaries', () {
+    test('TC-ST-035 UTC normal day is exactly 24h between midnights', () {
+      final day = DateTime.utc(2026, 6, 15, 12, 0);
+      final next = ScreenTimeAccountant.startOfNextLocalDay(day);
+      expect(next, DateTime.utc(2026, 6, 16));
+      expect(next.isUtc, isTrue);
+      expect(
+        next.difference(DateTime.utc(2026, 6, 15)),
+        const Duration(hours: 24),
+      );
+    });
+
+    test('TC-ST-036 month-end rolls to next month', () {
+      expect(
+        ScreenTimeAccountant.startOfNextLocalDay(DateTime.utc(2026, 1, 31, 8)),
+        DateTime.utc(2026, 2, 1),
+      );
+      expect(
+        ScreenTimeAccountant.startOfNextLocalDay(DateTime(2026, 4, 30, 22)),
+        DateTime(2026, 5, 1),
+      );
+    });
+
+    test('TC-ST-037 year-end rolls to next year', () {
+      expect(
+        ScreenTimeAccountant.startOfNextLocalDay(DateTime.utc(2026, 12, 31, 23, 59)),
+        DateTime.utc(2027, 1, 1),
+      );
+      expect(
+        ScreenTimeAccountant.startOfNextLocalDay(DateTime(2026, 12, 31, 1)),
+        DateTime(2027, 1, 1),
+      );
+    });
+  });
+
+  group('DST local midnight spans (controlled process TZ)', () {
+    test('TC-ST-038 spring-forward midnights span 23h (America/New_York)', () async {
+      if (!localObservesNewYorkDst2026()) {
+        // ignore: avoid_print
+        print(
+          'SKIP TC-ST-038: process TZ is not America/New_York (or equivalent). '
+          'Re-run with TZ=America/New_York. UTC walls are always 24h.',
+        );
+        return;
+      }
+
+      final before = DateTime(2026, 3, 8);
+      final next = ScreenTimeAccountant.startOfNextLocalDay(before);
+      expect(next, DateTime(2026, 3, 9));
+      expect(next.difference(before), const Duration(hours: 23));
+      expect(
+        before.add(const Duration(days: 1)),
+        DateTime(2026, 3, 9, 1),
+        reason: 'Duration(days:1) wrongly lands at 01:00 after spring-forward',
+      );
+
+      // Rollover accepts 23h mono evidence (not a hard-coded 24h).
+      await fresh(wallStart: DateTime(2026, 3, 8, 22, 0));
+      accountant.startActive();
+      mono.elapse(const Duration(minutes: 1));
+      accountant.stopActive();
+      await accountant.persist();
+
+      wall.set(DateTime(2026, 3, 9, 0, 30));
+      mono.elapse(const Duration(hours: 2, minutes: 30));
+      accountant.tick();
+
+      expect(accountant.dayKey, '2026-03-09');
+      expect(accountant.trustState, TrustState.trusted);
+    });
+
+    test('TC-ST-039 fall-back midnights span 25h (America/New_York)', () async {
+      if (!localObservesNewYorkDst2026()) {
+        // ignore: avoid_print
+        print(
+          'SKIP TC-ST-039: process TZ is not America/New_York (or equivalent). '
+          'Re-run with TZ=America/New_York. UTC walls are always 24h.',
+        );
+        return;
+      }
+
+      final before = DateTime(2026, 11, 1);
+      final next = ScreenTimeAccountant.startOfNextLocalDay(before);
+      expect(next, DateTime(2026, 11, 2));
+      expect(next.difference(before), const Duration(hours: 25));
+
+      // US fall-back 2026 is 02:00 on Nov 1 → Nov 1 is the 25h civil day.
+      // From 22:00 Nov 1 to midnight Nov 2 the remaining gap is still 2h.
+      await fresh(wallStart: DateTime(2026, 11, 1, 22, 0));
+      accountant.startActive();
+      mono.elapse(const Duration(minutes: 1));
+      accountant.stopActive();
+      await accountant.persist();
+
+      wall.set(DateTime(2026, 11, 2, 0, 30));
+      mono.elapse(const Duration(hours: 2, minutes: 30));
+      accountant.tick();
+      expect(accountant.dayKey, '2026-11-02');
+      expect(accountant.trustState, TrustState.trusted);
+      expect(
+        DateTime(2026, 11, 2).difference(DateTime(2026, 11, 1)),
+        const Duration(hours: 25),
+      );
+    });
+
+    test('TC-ST-039b Europe/Berlin spring/fall when TZ configured', () {
+      if (!localObservesBerlinDst2026()) {
+        final spring = DateTime(2026, 3, 30).difference(DateTime(2026, 3, 29));
+        final fall = DateTime(2026, 10, 26).difference(DateTime(2026, 10, 25));
+        // ignore: avoid_print
+        print(
+          'SKIP TC-ST-039b: process TZ is not Europe/Berlin (or equivalent). '
+          'Observed spring=$spring fall=$fall. '
+          'Re-run with TZ=Europe/Berlin for 23h/25h assertions.',
+        );
+        return;
+      }
+      expect(
+        ScreenTimeAccountant.startOfNextLocalDay(DateTime(2026, 3, 29))
+            .difference(DateTime(2026, 3, 29)),
+        const Duration(hours: 23),
+      );
+      expect(
+        ScreenTimeAccountant.startOfNextLocalDay(DateTime(2026, 10, 25))
+            .difference(DateTime(2026, 10, 25)),
+        const Duration(hours: 25),
       );
     });
   });

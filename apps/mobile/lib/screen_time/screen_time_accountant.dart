@@ -23,9 +23,12 @@ import 'wall_clock.dart';
 /// ## Day rollover (conservative, DST/TZ-aware local midnight)
 /// - Day key = local calendar `YYYY-MM-DD` from [WallClock] components (the
 ///   wall instant must already be in the household timezone).
-/// - Local midnight uses **calendar** next-day construction
-///   ([startOfNextLocalDay]), not a fixed 24h duration — so DST long/short days
-///   change the monotonic evidence required for automatic rollover.
+/// - Local midnight uses **calendar date components**
+///   (`DateTime(year, month, day + 1)` / UTC equivalent) via
+///   [startOfNextLocalDay] — never `Duration(days: 1)` / `Duration(hours: 24)`.
+///   On DST spring-forward / fall-back, wall elapsed between consecutive local
+///   midnights may be 23h or 25h; that wall span is the monotonic evidence
+///   required for automatic rollover.
 /// - Active intervals that span midnight are **split**: pre-midnight seconds
 ///   stay on the old day (then discarded with the day reset); post-midnight
 ///   seconds carry into the new day (no double-count, no loss).
@@ -329,29 +332,20 @@ final class ScreenTimeAccountant {
     return '$y-$m-$d';
   }
 
-  /// Start of the next local calendar day after [wall]'s date.
+  /// Start of the next local calendar day after [wall]'s date (00:00:00.000).
   ///
-  /// Uses calendar construction (`DateTime(y, m, d) + 1 day`), **not**
-  /// `wall + Duration(hours: 24)`, so DST spring-forward / fall-back days
-  /// yield 23h or 25h wall spans between midnights.
+  /// Constructs the next calendar date with `year` / `month` / `day + 1`
+  /// (Dart overflows month/year). Does **not** add [Duration.days] or a fixed
+  /// 24h span: on DST spring-forward, `localMidnight.add(Duration(days: 1))`
+  /// lands at 01:00 next calendar day, which would corrupt rollover evidence.
+  ///
+  /// When [wall] is local in a DST-observing zone, elapsed wall time between
+  /// consecutive midnights may be 23h, 24h, or 25h. UTC walls are always 24h.
   static DateTime startOfNextLocalDay(DateTime wall) {
-    final start = DateTime(
-      wall.year,
-      wall.month,
-      wall.day,
-      0,
-      0,
-      0,
-      0,
-      0,
-    );
-    // Preserve UTC vs local kind used by the wall clock.
     if (wall.isUtc) {
-      return DateTime.utc(start.year, start.month, start.day)
-          .add(const Duration(days: 1));
+      return DateTime.utc(wall.year, wall.month, wall.day + 1);
     }
-    return DateTime(start.year, start.month, start.day)
-        .add(const Duration(days: 1));
+    return DateTime(wall.year, wall.month, wall.day + 1);
   }
 
   void _ensureRestored() {
@@ -636,7 +630,7 @@ final class ScreenTimeAccountant {
         nextMidnight.millisecondsSinceEpoch - lastWall.millisecondsSinceEpoch;
     final monoDeltaMs = monoNow.inMilliseconds - _lastMonotonicMs;
 
-    // Calendar midnight gap may be 23h/24h/25h under DST — never hard-code 24h.
+    // Gap is calendar next-midnight minus last wall (23h/24h/25h under DST).
     if (msToMidnight > 0 && monoDeltaMs >= msToMidnight) {
       _rolloverSplittingActive(
         currentDay: currentDay,
