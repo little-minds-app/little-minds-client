@@ -151,7 +151,7 @@ void main() {
       final json = mentor.toMetadataJson();
       expect(json['parent_ui'], isFalse);
       expect(json['mentor_card_id'], NearFarConstants.mentorCardId);
-      expect(json['mentor_card_id'], 'near_far_play_mentor');
+      expect(json['mentor_card_id'], 'mentor_near_far_32m_adjacency_v1');
       expect(json['schema_version'], '1.0.0');
       expect(json['backend_content_pin_sha'], isA<String>());
       expect(json['during_copy_keys'], isA<List>());

@@ -9,6 +9,8 @@
 | Layer | Location |
 |---|---|
 | Pin + schema/fixture mirror | `content/mentor-card/` |
+| Mission/activity id mapping | [`content/mentor-card/MISSION_ID_MAPPING.md`](../content/mentor-card/MISSION_ID_MAPPING.md) |
+| Contract compatibility notes | [`content/mentor-card/CONTRACT_COMPAT.md`](../content/mentor-card/CONTRACT_COMPAT.md) |
 | Flutter assets (Near/Far JSON) | `apps/mobile/assets/content/mentor_cards/` |
 | Dart models / safe-copy / validator | `apps/mobile/lib/mentor/` |
 | Near/Far adjacency link | `NearFarMentorAdjacency` → `near_far_play_mentor` |
@@ -18,13 +20,14 @@
 - Invent a second OpenAPI or divergent JSON Schema
 - Parent mentor card UI (LMP-48)
 - Audio / TTS (LMP-120)
+- Treat `review_status: draft` as approved caregiver content
 
 ## Validation
 
 ```bash
 cd apps/mobile
 flutter analyze
-flutter test test/mentor_card_unit_test.dart test/near_far_unit_test.dart
+flutter test test/mentor_card_unit_test.dart test/mentor_card_contract_compat_test.dart test/near_far_unit_test.dart
 ```
 
-After backend #11 merges, update the SHA in `PIN.md` and `MentorCardContentPin.backendCommitSha`.
+After backend #11 merges, update the SHA in `PIN.md` and `MentorCardContentPin.backendCommitSha` to the **real** merge commit (never invent one).

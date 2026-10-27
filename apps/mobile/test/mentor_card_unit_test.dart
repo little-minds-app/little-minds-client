@@ -30,7 +30,7 @@ void main() {
     test('TC-MC-001 pin documents backend PR head pending merge', () {
       expect(
         MentorCardContentPin.backendCommitSha,
-        'dac60c575342b7cb8c86f2603bfc219e51d45ed5',
+        'a6dc8116994595be1788450c525e48138b9580eb',
       );
       expect(MentorCardContentPin.schemaVersion, mentorCardSchemaVersion);
       expect(
@@ -56,6 +56,11 @@ void main() {
       expect(en.adaptations, isNotEmpty);
       expect(en.locale, 'en-US');
       expect(tr.locale, 'tr-TR');
+      expect(en.reviewStatus, 'draft');
+      expect(
+        MentorCardNearFarLinks.resolveMissionId(en),
+        'near_far_sock_soft_toy_v1',
+      );
     });
 
     test('TC-MC-003 locales share mentor_card_id without single-locale hardcoding',

@@ -6,6 +6,8 @@ library;
 
 export 'mentor_card.dart';
 export 'mentor_card_fixtures.dart';
+export 'mentor_card_near_far_links.dart';
 export 'mentor_card_pin.dart';
+export 'mentor_card_review.dart';
 export 'mentor_card_safe_copy.dart';
 export 'mentor_card_validator.dart';

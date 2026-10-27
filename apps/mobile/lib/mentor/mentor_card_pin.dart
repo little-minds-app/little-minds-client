@@ -4,9 +4,10 @@
 /// https://github.com/little-minds-app/little-minds-backend/pull/11 merges.
 abstract final class MentorCardContentPin {
   /// Backend commit that authored the mirrored schema + fixtures.
-  /// Pending merge of backend PR #11 — replace with `main` merge SHA later.
+  /// Open backend PR #11 head (ID-aligned). Do not invent a merge SHA —
+  /// replace with the real `main` merge commit after backend merges.
   static const String backendCommitSha =
-      'dac60c575342b7cb8c86f2603bfc219e51d45ed5';
+      'a6dc8116994595be1788450c525e48138b9580eb';
 
   static const String backendPullRequestUrl =
       'https://github.com/little-minds-app/little-minds-backend/pull/11';

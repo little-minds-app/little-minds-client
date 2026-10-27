@@ -40,8 +40,8 @@ const Set<String> mentorCardReviewStatuses = {
   'rolled_back',
 };
 
-/// Canonical Near/Far mentor card id from backend fixtures.
-const String nearFarMentorCardId = 'near_far_play_mentor';
+/// Canonical Near/Far mentor card id (LMP-47 mission-id decision).
+const String nearFarMentorCardId = 'mentor_near_far_32m_adjacency_v1';
 
 class MentorCardMaterial {
   const MentorCardMaterial({
