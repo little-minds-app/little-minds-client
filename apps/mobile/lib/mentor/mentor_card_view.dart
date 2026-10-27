@@ -80,26 +80,24 @@ class MentorCardView extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Semantics(
+      key: viewKey,
       container: true,
       label: l10n.mentorCardSemanticsLabel(card.title),
-      child: KeyedSubtree(
-        key: viewKey,
-        child: _showContent
-            ? _MentorCardBody(
-                card: card,
-                childAgeMonths: childAgeMonths,
-                showDraftBanner: !_caregiverReady && allowDraftPreview,
-                showMissionAction: _canOfferMission,
-                onOpenMission: onOpenMission,
-                l10n: l10n,
-                theme: theme,
-              )
-            : _MentorCardBlocked(
-                card: card,
-                l10n: l10n,
-                theme: theme,
-              ),
-      ),
+      child: _showContent
+          ? _MentorCardBody(
+              card: card,
+              childAgeMonths: childAgeMonths,
+              showDraftBanner: !_caregiverReady && allowDraftPreview,
+              showMissionAction: _canOfferMission,
+              onOpenMission: onOpenMission,
+              l10n: l10n,
+              theme: theme,
+            )
+          : _MentorCardBlocked(
+              card: card,
+              l10n: l10n,
+              theme: theme,
+            ),
     );
   }
 }
