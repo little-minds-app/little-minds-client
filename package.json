@@ -1,0 +1,26 @@
+{
+  "name": "little-minds-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Little Minds client workspace — Flutter mobile, Parent Web (later), generated API clients",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=20 <23"
+  },
+  "scripts": {
+    "contracts:validate": "node scripts/contracts/validate.mjs",
+    "contracts:compat": "node scripts/contracts/check-compatibility.mjs",
+    "contracts:generate": "node scripts/contracts/generate.mjs",
+    "contracts:check": "bash scripts/check-contracts.sh",
+    "test": "node --test tests/contract/*.test.mjs"
+  },
+  "dependencies": {
+    "@apidevtools/swagger-parser": "13.1.0",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@openapitools/openapi-generator-cli": "2.42.0",
+    "openapi-typescript": "7.13.0"
+  }
+}
