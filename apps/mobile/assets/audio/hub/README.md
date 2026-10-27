@@ -22,13 +22,21 @@ assets/audio/hub/<locale>/<cue_id>.wav
 | Playable select | `playable_select` |
 | Parent exit | `parent_exit` |
 
-## Current V1 status
+## Current V1 status — probe only, not playback
 
-**No pedagogy-approved voice packs are shipped yet.**  
-`LocalAssetHubAudioGuidance` probes the asset bundle and **no-ops gracefully** when files are missing. The Child Hub remains fully usable offline.
+**This is not full spoken audio guidance.**
 
-Do **not** add unreviewed child-facing voice content. Production cues require content/pedagogy review before `is_offline_ready` claims.
+`LocalAssetHubAudioGuidance`:
+
+1. Looks up the expected local asset path in the Flutter asset bundle.
+2. Returns whether the file **exists**.
+3. Does **not** decode or play WAV/PCM (no speakers, no `AudioPlayer`).
+4. No-ops when the file is missing (current default — no pedagogy-approved packs shipped).
+
+Do **not** tell QA or users that Kids Mode “has audio cues” in the playback sense until approved voice packs land **and** a real player is wired.
+
+Do **not** add unreviewed child-facing voice content. Production cues require content/pedagogy review before any `is_offline_ready` claims.
 
 ## Placeholder directory
 
-This folder (and locale subfolders if empty) exists so `pubspec.yaml` asset declarations resolve. Add approved `.wav` files later without changing the API.
+This folder (and locale subfolders) exists so `pubspec.yaml` asset declarations resolve. Add approved `.wav` files later without changing the path API.

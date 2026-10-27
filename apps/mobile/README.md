@@ -6,7 +6,7 @@ Flutter + Flame Kids App with **Child Hub v1** (LMP-43) on top of the LMP-24 boo
 
 - **Child Hub v1** — calm Kids Mode home: landscape-only (ADR-018), adaptive phone/tablet (F-034), `tr-TR` / `en-US` (F-020), large touch targets, safe areas, reduced-motion aware.
 - Activity catalog for the six V1 engines as **passive** tiles until a playable `LearningActivity` is registered (no fake games / progress).
-- Offline-safe **audio guidance API** with graceful no-op when locale-tagged WAV assets are missing (see `assets/audio/hub/README.md`).
+- Offline-safe **audio cue hook** (asset-path probe + graceful no-op). See `assets/audio/hub/README.md` — **not** full spoken playback in V1.
 - Parent exit → **Parent Gate** only; settings stay behind the gate.
 - Flame host + `ActivityRegistry` retained for future playable launches.
 - LMP-28 public env config badge (non-release / tests).
@@ -15,7 +15,7 @@ Flutter + Flame Kids App with **Child Hub v1** (LMP-43) on top of the LMP-24 boo
 ## What this is not
 
 - Playable mini-game mechanics (F-005) — deferred to later E03 tasks.
-- Pedagogy-approved voice packs (assets not shipped yet; stub is intentional).
+- **Real audio playback** — `LocalAssetHubAudioGuidance` only probes whether a local WAV path exists; it does not play sound. Pedagogy-approved voice packs are not shipped.
 - Real Parent Gate OTP / auth, OpenAPI wiring into hub, store flavors (LMP-30), Crashlytics.
 - Product locks for min OS / breakpoints — numbers below remain **TECHNICAL ASSUMPTION** (see `docs/device-support-matrix.md`).
 

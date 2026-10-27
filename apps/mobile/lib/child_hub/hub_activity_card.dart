@@ -5,8 +5,9 @@ import 'hub_activity_catalog.dart';
 
 /// Large, calm activity tile for Child Hub (F-004 / F-034 / F-020).
 ///
-/// Playable tiles invoke [onPlay]. Passive tiles never launch a game —
-/// they only invoke [onPassiveTap] for audio/a11y feedback.
+/// Playable tiles are announced as buttons and may invoke [onPlay].
+/// Passive tiles are **not** presented as game-launch buttons: they remain
+/// focusable for "coming soon" information only and never open the Flame host.
 class HubActivityCard extends StatelessWidget {
   const HubActivityCard({
     super.key,
@@ -41,62 +42,77 @@ class HubActivityCard extends StatelessWidget {
         ? colorScheme.onPrimaryContainer
         : colorScheme.onSurfaceVariant;
 
-    final VoidCallback? action = playable ? onPlay : onPassiveTap;
-
-    return Semantics(
-      key: cardKey(tile.id),
-      button: true,
-      enabled: true,
-      label: tile.title,
-      hint: playable ? l10n.hubPlayableHint : l10n.hubPassiveHint,
-      onTap: action,
-      child: ExcludeSemantics(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: minSize, minHeight: minSize),
-          child: Material(
-            color: background,
+    final visual = ExcludeSemantics(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: minSize, minHeight: minSize),
+        child: Material(
+          color: background,
+          borderRadius: BorderRadius.circular(24),
+          child: InkWell(
             borderRadius: BorderRadius.circular(24),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(24),
-              onTap: action,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: playable
-                          ? _StatusChip(
-                              key: playableBadgeKey(tile.id),
-                              label: l10n.hubPlayableHint,
-                              foreground: foreground,
-                              emphasized: true,
-                            )
-                          : _StatusChip(
-                              key: passiveBadgeKey(tile.id),
-                              label: l10n.hubPassiveBadge,
-                              foreground: foreground,
-                              emphasized: false,
-                            ),
+            // Sighted tap: playable launches; passive only informs (never Flame).
+            onTap: playable ? onPlay : onPassiveTap,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: playable
+                        ? _StatusChip(
+                            key: playableBadgeKey(tile.id),
+                            label: l10n.hubPlayableHint,
+                            foreground: foreground,
+                            emphasized: true,
+                          )
+                        : _StatusChip(
+                            key: passiveBadgeKey(tile.id),
+                            label: l10n.hubPassiveBadge,
+                            foreground: foreground,
+                            emphasized: false,
+                          ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    tile.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: foreground,
+                      fontWeight: FontWeight.w700,
                     ),
-                    const Spacer(),
-                    Text(
-                      tile.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: foreground,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
+    );
+
+    if (playable) {
+      return Semantics(
+        key: cardKey(tile.id),
+        button: true,
+        enabled: true,
+        label: tile.title,
+        hint: l10n.hubPlayableHint,
+        onTap: onPlay,
+        child: visual,
+      );
+    }
+
+    // Passive / not ready: do NOT use the button role — screen readers must not
+    // hear an active game control. Label states "Soon" / not ready; onTap only
+    // informs (Parent/Hub handlers must not open Flame for these tiles).
+    return Semantics(
+      key: cardKey(tile.id),
+      button: false,
+      enabled: true,
+      label: '${tile.title}. ${l10n.hubPassiveBadge}. ${l10n.hubPassiveHint}',
+      onTap: onPassiveTap,
+      child: visual,
     );
   }
 }

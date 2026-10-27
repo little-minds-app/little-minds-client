@@ -224,7 +224,7 @@ void main() {
     expect(find.text('Şekil eşleştirme'), findsOneWidget);
   });
 
-  // TC-HUB-006 — Semantics / a11y labels on cards + parent exit.
+  // TC-HUB-006 — Semantics / a11y labels on parent exit + passive cards.
   testWidgets('TC-HUB-006 exposes accessibility labels', (tester) async {
     final handle = tester.ensureSemantics();
     try {
@@ -251,9 +251,68 @@ void main() {
         HubActivityCard.cardKey(HubCatalogActivityId.shapeMatching.id),
       );
       final shapeData = tester.getSemantics(shapeFinder);
-      expect(shapeData.label, 'Shape matching');
-      expect(shapeData.hint, 'Not ready yet');
-      expect(shapeData.flagsCollection.isButton, isTrue);
+      // Passive cards: informative label, NOT a game-launch button.
+      expect(shapeData.label, contains('Shape matching'));
+      expect(shapeData.label, contains('Soon'));
+      expect(shapeData.label, contains('Not ready yet'));
+      expect(shapeData.flagsCollection.isButton, isFalse);
+    } finally {
+      handle.dispose();
+    }
+  });
+
+  // TC-HUB-011 — Regression: passive semantics ≠ playable button; tap ≠ Flame.
+  testWidgets(
+      'TC-HUB-011 passive cards are not playable buttons and never open Flame',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    try {
+      final audio = RecordingHubAudioGuidance();
+      await _setLandscape(
+        tester,
+        width: ScaffoldingViewports.compactPhoneHeight,
+        height: ScaffoldingViewports.compactPhoneWidth,
+      );
+      await tester.pumpWidget(
+        LittleMindsApp(
+          game: StubLearningGame(
+            registry: ActivityRegistry([
+              _PlayableShapeMatching(),
+              _PassiveRegistered(),
+            ]),
+          ),
+          audioGuidance: audio,
+        ),
+      );
+      await _pumpFrames(tester);
+
+      final passiveFinder = find.byKey(
+        HubActivityCard.cardKey(HubCatalogActivityId.counting.id),
+      );
+      final passiveData = tester.getSemantics(passiveFinder);
+      expect(passiveData.flagsCollection.isButton, isFalse);
+      expect(passiveData.label, contains('Counting'));
+      expect(passiveData.label, contains('Soon'));
+      expect(passiveData.label, isNot(contains('Play')));
+
+      final playableFinder = find.byKey(
+        HubActivityCard.cardKey(HubCatalogActivityId.shapeMatching.id),
+      );
+      final playableData = tester.getSemantics(playableFinder);
+      expect(playableData.flagsCollection.isButton, isTrue);
+      expect(playableData.label, 'Shape matching');
+      expect(playableData.hint, 'Play');
+
+      // Passive tap informs only — Flame host must stay closed.
+      await tester.ensureVisible(passiveFinder);
+      await tester.tap(passiveFinder);
+      await _pumpFrames(tester);
+      expect(find.byKey(ChildHubSurface.playHostKey), findsNothing);
+      expect(find.byKey(FlameHostPanel.hostKey), findsNothing);
+      expect(
+        audio.plays.any((p) => p.cue == HubAudioCue.passiveUnavailable),
+        isTrue,
+      );
     } finally {
       handle.dispose();
     }

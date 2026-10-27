@@ -2,15 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-/// Locale-tagged Child Hub audio cues (F-004 / Blueprint § audio integrity).
+/// Locale-tagged Child Hub audio cue IDs (F-004 / Blueprint § audio integrity).
 ///
 /// Asset convention (local / offline only — never network):
 /// `assets/audio/hub/<locale>/<cue_id>.wav`
 /// Examples: `assets/audio/hub/en-US/welcome.wav`, `…/tr-TR/welcome.wav`
 ///
-/// When the asset is missing (current V1 default until pedagogy-approved
-/// voice packs land), implementations MUST no-op gracefully. The hub stays
-/// fully usable offline without invented external audio.
+/// **V1 reality:** [LocalAssetHubAudioGuidance] only **probes** whether a local
+/// asset exists. It does **not** decode or play PCM/WAV audio. Missing assets
+/// no-op. Do not describe this as full spoken audio guidance for QA or users
+/// until pedagogy-approved packs land and a real player is wired.
 enum HubAudioCue {
   welcome('welcome'),
   passiveUnavailable('passive_unavailable'),
@@ -21,11 +22,16 @@ enum HubAudioCue {
   final String assetStem;
 }
 
-/// Plays hub navigation cues without leaving Kids Mode offline boundaries.
+/// Offline-bound hub cue hook (no network audio).
+///
+/// [play] is the extension-point name. The default [LocalAssetHubAudioGuidance]
+/// implementation is an **existence probe + no-op**, not media playback.
 abstract class HubAudioGuidance {
-  /// Attempts to play [cue] for [localeTag] (`en-US` / `tr-TR`).
+  /// Invokes the cue hook for [localeTag] (`en-US` / `tr-TR`).
   ///
-  /// Returns whether a local asset was found. Missing assets are not errors.
+  /// Return value for [LocalAssetHubAudioGuidance]: `true` only means a local
+  /// asset **file was found** — not that sound was heard. Missing assets and
+  /// [soundOff] return `false` without error.
   Future<bool> play(
     HubAudioCue cue, {
     required String localeTag,
@@ -37,11 +43,12 @@ abstract class HubAudioGuidance {
       'assets/audio/hub/$localeTag/${cue.assetStem}.wav';
 }
 
-/// Default offline-safe guidance: probes the asset bundle, never fetches
-/// remote audio, and no-ops when assets are absent (graceful stub).
+/// **Probe-only** offline stub — not a media player.
 ///
-/// Playback of present WAV files is intentionally deferred until approved
-/// voice assets ship; discovery still validates the offline path contract.
+/// Loads the expected asset path from the bundle to verify the offline
+/// contract. Never fetches remote audio. Never plays WAV/PCM. When the file is
+/// absent (current V1 default), returns `false` and no-ops. Real spoken cues
+/// require pedagogy-approved assets **and** a future playback implementation.
 class LocalAssetHubAudioGuidance implements HubAudioGuidance {
   LocalAssetHubAudioGuidance({AssetBundle? bundle})
       : _bundle = bundle ?? rootBundle;
@@ -60,11 +67,12 @@ class LocalAssetHubAudioGuidance implements HubAudioGuidance {
 
     final path = HubAudioGuidance.assetPath(cue, localeTag);
     try {
+      // Existence probe only — no AudioPlayer / no PCM decode / no speakers.
       await _bundle.load(path);
-      // Asset exists. Full PCM playback lands with pedagogy-approved packs.
-      // Until then, presence is enough for offline contract + tests.
       if (kDebugMode) {
-        debugPrint('HubAudioGuidance: asset present (stub play): $path');
+        debugPrint(
+          'HubAudioGuidance: asset present (probe only, no playback): $path',
+        );
       }
       return true;
     } catch (_) {
