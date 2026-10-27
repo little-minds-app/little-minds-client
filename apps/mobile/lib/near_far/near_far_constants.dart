@@ -23,5 +23,8 @@ abstract final class NearFarConstants {
   static const double farMinNormalizedDistance = 0.48;
 
   static const String missionId = 'near_far_sock_soft_toy_v1';
+
+  /// Canonical mentor card id (LMP-45 adjacency + LMP-47 decision).
+  /// Still no parent UI — LMP-48.
   static const String mentorCardId = 'mentor_near_far_32m_adjacency_v1';
 }
