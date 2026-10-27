@@ -1,23 +1,37 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
 import '../shell/adaptive_shell.dart';
 
 /// Native Parent Settings placeholder — portrait + landscape (ADR-018).
+///
+/// Temporary developer entry to the LMP-45 Near/Far demo (not child-facing Hub
+/// nav). **Does not** imply a secure, authenticated Parent Gate — Gate/Settings
+/// remain scaffolding until real auth lands.
 class ParentSettingsSurface extends StatelessWidget {
   const ParentSettingsSurface({
     super.key,
     this.onBack,
+    this.onOpenNearFarDemo,
   });
 
   final VoidCallback? onBack;
 
+  /// Opens the dedicated Near/Far Kids Mode demo route (LMP-45).
+  ///
+  /// Temporary demo affordance only — not an authenticated caregiver control.
+  final VoidCallback? onOpenNearFarDemo;
+
   static const Key surfaceKey = Key('surface-parent-settings');
   static const Key placeholderKey = Key('parent-settings-placeholder');
+  static const Key nearFarDemoKey = Key('parent-settings-near-far-demo');
+  static const Key nearFarDemoHintKey = Key('parent-settings-near-far-demo-hint');
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return OrientationBinder(
       surface: AppSurface.parentSettings,
       child: AdaptiveShell(
@@ -34,11 +48,39 @@ class ParentSettingsSurface extends StatelessWidget {
           child: Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(
-                key: placeholderKey,
-                'Parent Settings placeholder. Flavors, analytics, and billing arrive later.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    key: placeholderKey,
+                    'Parent Settings placeholder. Flavors, analytics, and billing arrive later.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  if (onOpenNearFarDemo != null) ...[
+                    const SizedBox(height: 24),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: 48,
+                        minWidth: 200,
+                      ),
+                      child: OutlinedButton(
+                        key: nearFarDemoKey,
+                        onPressed: onOpenNearFarDemo,
+                        child: Text(l10n.nearFarDemoEntry),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      key: nearFarDemoHintKey,
+                      l10n.nearFarDemoEntryHint,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.black54,
+                          ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),

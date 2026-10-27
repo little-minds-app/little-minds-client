@@ -1,6 +1,6 @@
 # Little Minds Mobile (`apps/mobile`)
 
-Flutter + Flame Kids App with **Child Hub v1** (LMP-43) on top of the LMP-24 bootstrap.
+Flutter + Flame Kids App with **Child Hub v1** (LMP-43), Flame lifecycle (LMP-44), and Near/Far Slice B demo (LMP-45).
 
 ## What this is
 
@@ -11,13 +11,16 @@ Flutter + Flame Kids App with **Child Hub v1** (LMP-43) on top of the LMP-24 boo
 - Parent exit → **Parent Gate** only; settings stay behind the gate.
 - Flame host + `ActivityRegistry` retained for future playable launches.
 - **LMP-44** reusable Flame activity session lifecycle (enter/exit, pause/resume, foreground/background, restart/dispose, orientation state preserve, hitbox scaling, scoring-neutral outcomes). Production registry stays empty — Hub cards remain Coming Soon.
+- **LMP-45 Near/Far** — dedicated Kids Mode demo route (not a Hub catalog / seventh game): 32-month offline drag-position sock + soft toy, versioned local §14 event fixtures, safe mission handoff contract, F-009 mentor adjacency metadata only. Entry: Parent Settings → “Try Near/Far demo”.
 - LMP-28 public env config badge (non-release / tests).
 - QA-UI-001 widget tests under `test/`.
 
 ## What this is not
 
-- Playable mini-game mechanics (F-005) — deferred to later E03 tasks (Shape Matching = LMP-55).
-- **Real audio playback** — `LocalAssetHubAudioGuidance` only probes whether a local WAV path exists; it does not play sound. Pedagogy-approved voice packs are not shipped.
+- Playable Hub mini-game mechanics among the six engines (F-005 engines) — Shape Matching = LMP-55 (blocked until LMP-45 Done).
+- Full Real World Mission skip/feedback UI (**LMP-46**), parent mentor card UI (**LMP-47/48**), production telemetry (**LMP-50**).
+- **Spoken near/far WAV packs** — `OPENAI_API_KEY` is present but OpenAI Speech returns **429 `credit_balance_exhausted`**; no `near.wav`/`far.wav` shipped. Spoken-label AC remains blocked. On-screen Near/Far text labels still work. See `assets/audio/near_far/README.md`.
+- **Real hub audio playback** — `LocalAssetHubAudioGuidance` only probes whether a local WAV path exists; it does not play sound.
 - Real Parent Gate OTP / auth, OpenAPI wiring into hub, store flavors (LMP-30), Crashlytics.
 - Product locks for min OS / breakpoints — numbers below remain **TECHNICAL ASSUMPTION** (see `docs/device-support-matrix.md`).
 
@@ -98,11 +101,25 @@ lib/
   main.dart / app.dart
   l10n/            # en + tr ARB + generated localizations
   child_hub/       # catalog, cards, audio guidance
+  near_far/        # LMP-45 Near/Far demo (not Hub catalog)
   config/          # LMP-28 AppConfig + TECHNICAL ASSUMPTION breakpoints
   orientation/     # ADR-018 policy + binder
   shell/           # Adaptive phone/tablet chrome (Parent surfaces)
-  surfaces/        # Child Hub v1 / profile / parent-gate / settings
+  surfaces/        # Child Hub / NearFar demo / profile / parent-gate / settings
   game/            # Flame host, ActivityRegistry, LMP-44 session lifecycle
-assets/audio/hub/  # Offline cue convention (WAV packs TBD)
-test/              # QA-UI-001 widget + unit tests (incl. game lifecycle)
+assets/audio/hub/       # Offline hub cue convention (WAV packs TBD)
+assets/audio/near_far/  # Spoken near/far convention (licensed packs blocked)
+test/              # QA-UI-001 widget + unit tests (lifecycle + near/far)
+```
+
+### Near/Far demo (LMP-45) — Mac simulator follow-on
+
+```bash
+cd apps/mobile
+flutter run -d "iPhone 15"
+# Grown-ups → Settings → Try Near/Far demo
+# Landscape: drag sock + soft toy near, then far; mission invitation appears.
+# Confirm: Hub still has six Coming Soon cards only; no seventh catalog tile.
+# Spoken audio: expect on-screen blocker note until licensed WAVs are added.
+flutter run -d "iPad (10th generation)"   # same journey, tablet layout
 ```

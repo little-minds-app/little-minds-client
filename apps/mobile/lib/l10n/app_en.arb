@@ -62,5 +62,40 @@
   "activityPhasePlaying": "Playing",
   "activityPhasePaused": "Paused",
   "activityPhaseBackground": "Waiting",
-  "activityPhaseCompleted": "Nice work"
+  "activityPhaseCompleted": "Nice work",
+  "nearFarTitle": "Near and Far",
+  "@nearFarTitle": {
+    "description": "Near/Far Slice B demo title (LMP-45)."
+  },
+  "nearFarBack": "Back",
+  "nearFarDemoEntry": "Temporary Near/Far demo (dev)",
+  "@nearFarDemoEntry": {
+    "description": "Temporary developer/demo entry on Parent Settings placeholder. Does not imply a secure authenticated Parent Gate — real auth is not implemented yet. Not Child Hub nav."
+  },
+  "nearFarDemoEntryHint": "Opens a temporary Slice B demo. Parent Gate here is a placeholder — not secure sign-in yet.",
+  "@nearFarDemoEntryHint": {
+    "description": "Clarifies that Parent Settings / Gate are scaffolding, not authenticated caregiver security."
+  },
+  "nearFarPromptNear": "Move the sock and soft toy near each other.",
+  "nearFarPromptFar": "Now move them far apart.",
+  "nearFarPromptDone": "Nice exploring!",
+  "nearFarLabelNear": "Near",
+  "nearFarLabelFar": "Far",
+  "nearFarLabelNeither": "Keep moving",
+  "nearFarSockLabel": "Sock",
+  "nearFarSoftToyLabel": "Soft toy",
+  "nearFarMissionTitle": "Try it in the room",
+  "nearFarMissionBody": "Ask a grown-up for one sock and one soft toy. Put them near, then far. Talk about what changed.",
+  "nearFarMissionMaterials": "Materials: one sock, one soft toy. Adult supervision. No glass or small choking hazards.",
+  "nearFarMissionOpen": "Open invitation",
+  "nearFarMissionOpenedConfirm": "Invitation open — try sock and soft toy near, then far, with a grown-up.",
+  "@nearFarMissionOpenedConfirm": {
+    "description": "Calm confirmation after caregiver opens the safe real-world invitation (LMP-45). Not mentor UI / not LMP-46 skip flow."
+  },
+  "nearFarMissionLater": "Maybe later",
+  "nearFarMissionBack": "Back",
+  "@nearFarMissionBack": {
+    "description": "Obvious exit from the mission handoff panel after the invitation is open."
+  },
+  "nearFarSpokenAssetsBlocked": "Spoken near/far audio is blocked until approved offline voice packs and a working player are installed. On-screen labels still work."
 }

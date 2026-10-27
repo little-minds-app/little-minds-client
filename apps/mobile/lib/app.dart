@@ -6,7 +6,9 @@ import 'config/app_config.dart';
 import 'config/app_config_scope.dart';
 import 'game/flame_host.dart';
 import 'l10n/app_localizations.dart';
+import 'near_far/near_far_activity.dart';
 import 'surfaces/child_hub_surface.dart';
+import 'surfaces/near_far_demo_surface.dart';
 import 'surfaces/parent_gate_surface.dart';
 import 'surfaces/parent_settings_surface.dart';
 import 'surfaces/profile_selection_surface.dart';
@@ -22,6 +24,8 @@ class LittleMindsApp extends StatefulWidget {
     this.locale,
     this.audioGuidance,
     this.forceShowEnvBadge = false,
+    this.initialNearFarDemo = false,
+    this.nearFarActivity,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -38,6 +42,12 @@ class LittleMindsApp extends StatefulWidget {
   /// Developer/test-only: surface LMP-28 env badge on Child Hub.
   final bool forceShowEnvBadge;
 
+  /// Opens the dedicated Near/Far demo route (LMP-45) — not Hub catalog.
+  final bool initialNearFarDemo;
+
+  /// Optional injected Near/Far activity for widget tests.
+  final NearFarActivity? nearFarActivity;
+
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
 }
@@ -47,11 +57,13 @@ enum _ShellRoute {
   profileSelection,
   parentGate,
   parentSettings,
+  nearFarDemo,
 }
 
 class _LittleMindsAppState extends State<LittleMindsApp> {
   late final StubLearningGame _game = widget.game ?? StubLearningGame();
-  _ShellRoute _route = _ShellRoute.childHub;
+  late _ShellRoute _route =
+      widget.initialNearFarDemo ? _ShellRoute.nearFarDemo : _ShellRoute.childHub;
 
   void _go(_ShellRoute route) => setState(() => _route = route);
 
@@ -97,6 +109,17 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
               case _ShellRoute.parentSettings:
                 return ParentSettingsSurface(
                   onBack: () => _go(_ShellRoute.parentGate),
+                  onOpenNearFarDemo: () => _go(_ShellRoute.nearFarDemo),
+                );
+              case _ShellRoute.nearFarDemo:
+                return NearFarDemoSurface(
+                  game: _game,
+                  activity: widget.nearFarActivity,
+                  onClose: () => _go(
+                    widget.initialNearFarDemo
+                        ? _ShellRoute.childHub
+                        : _ShellRoute.parentSettings,
+                  ),
                 );
             }
           },
