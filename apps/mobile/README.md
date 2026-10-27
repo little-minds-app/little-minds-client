@@ -1,18 +1,23 @@
 # Little Minds Mobile (`apps/mobile`)
 
-Flutter + Flame bootstrap for the Kids App and native Parent Gate/Settings stubs (**LMP-24**).
+Flutter + Flame Kids App with **Child Hub v1** (LMP-43) on top of the LMP-24 bootstrap.
 
 ## What this is
 
-- Adaptive phone/tablet shell (F-034) with window-driven layout (not device-model hardcoding).
-- ADR-018 orientation wiring for Child Hub / profile (landscape-only) and Parent Gate/Settings (portrait + landscape).
-- Flame host + empty `ActivityRegistry` stub (no real mini-games).
+- **Child Hub v1** — calm Kids Mode home: landscape-only (ADR-018), adaptive phone/tablet (F-034), `tr-TR` / `en-US` (F-020), large touch targets, safe areas, reduced-motion aware.
+- Activity catalog for the six V1 engines as **passive** tiles until a playable `LearningActivity` is registered (no fake games / progress).
+- Offline-safe **audio guidance API** with graceful no-op when locale-tagged WAV assets are missing (see `assets/audio/hub/README.md`).
+- Parent exit → **Parent Gate** only; settings stay behind the gate.
+- Flame host + `ActivityRegistry` retained for future playable launches.
+- LMP-28 public env config badge (non-release / tests).
 - QA-UI-001 widget tests under `test/`.
 
 ## What this is not
 
-- Real Kids Hub UX, audio nav, content packs, auth/GSM OTP, OpenAPI Dart client wiring, store flavors/distribution (LMP-30), Crashlytics, or backend work.
-- Product locks for min OS / breakpoints — numbers below are **TECHNICAL ASSUMPTION** only (see `docs/device-support-matrix.md`).
+- Playable mini-game mechanics (F-005) — deferred to later E03 tasks.
+- Pedagogy-approved voice packs (assets not shipped yet; stub is intentional).
+- Real Parent Gate OTP / auth, OpenAPI wiring into hub, store flavors (LMP-30), Crashlytics.
+- Product locks for min OS / breakpoints — numbers below remain **TECHNICAL ASSUMPTION** (see `docs/device-support-matrix.md`).
 
 ## Environment config (LMP-28)
 
@@ -24,16 +29,14 @@ Public build-time config only — `LM_ENV` + `LM_API_BASE_URL`. Never put secret
 | `staging` / `production` | Required via `--dart-define` (HTTPS) |
 
 ```bash
-# Defaults (development + localhost:3000)
 flutter run
 
-# Android emulator → host machine
 flutter run \
   --dart-define=LM_ENV=development \
   --dart-define=LM_API_BASE_URL=http://10.0.2.2:3000
 ```
 
-Full matrix and security rules: [`docs/client-environment-config.md`](../../docs/client-environment-config.md).
+Full matrix: [`docs/client-environment-config.md`](../../docs/client-environment-config.md).
 
 ## Scaffolding assumptions (not PO-approved locks)
 
@@ -53,21 +56,34 @@ Full matrix and security rules: [`docs/client-environment-config.md`](../../docs
 
 ### Cloud Agent / Linux hosts
 
-This Cloud Agent environment is **Linux**. iOS Simulator is **not available** here. Android SDK/emulator may also be absent. Compensating evidence for PRs:
+This Cloud Agent environment is **Linux**. iOS Simulator is **not available** here. Compensating evidence for PRs:
 
-1. `flutter analyze` + `flutter test` (required; also run in CI once `pubspec.yaml` exists).
+1. `flutter analyze` + `flutter test` (required; also run in CI).
 2. Android emulator and/or iOS Simulator runs on a developer Mac when available.
 3. Reviewer acknowledgment that runtime simulator evidence may follow on macOS if not attachable in-agent.
+
+### iOS Simulator manual steps (iPhone 15 — visual reference)
+
+```bash
+cd apps/mobile
+flutter pub get
+open -a Simulator
+xcrun simctl boot "iPhone 15" || true
+flutter run -d "iPhone 15"
+# Rotate to landscape (Child Hub is landscape-only).
+# Confirm: brand + greeting, six passive Soon tiles, Grown-ups → Parent Gate,
+# no settings from hub, no external links.
+```
 
 ## Local commands
 
 ```bash
 cd apps/mobile
 flutter pub get
+flutter gen-l10n
 flutter analyze
 flutter test
 
-# Where the host provides devices:
 flutter devices
 flutter run -d <ios-simulator-id>
 flutter run -d <android-emulator-id>
@@ -78,10 +94,13 @@ flutter run -d <android-emulator-id>
 ```text
 lib/
   main.dart / app.dart
+  l10n/            # en + tr ARB + generated localizations
+  child_hub/       # catalog, cards, audio guidance
   config/          # LMP-28 AppConfig + TECHNICAL ASSUMPTION breakpoints
   orientation/     # ADR-018 policy + binder
-  shell/           # Adaptive phone/tablet chrome
-  surfaces/        # Hub / profile / parent-gate / settings stubs
-  game/            # Flame host + empty activity registry
-test/              # QA-UI-001 widget + unit + env validation tests
+  shell/           # Adaptive phone/tablet chrome (Parent surfaces)
+  surfaces/        # Child Hub v1 / profile / parent-gate / settings
+  game/            # Flame host + activity registry
+assets/audio/hub/  # Offline cue convention (WAV packs TBD)
+test/              # QA-UI-001 widget + unit tests
 ```

@@ -1,0 +1,39 @@
+{
+  "@@locale": "en",
+  "appTitle": "Little Minds",
+  "hubGreeting": "Let's play!",
+  "@hubGreeting": {
+    "description": "Calm Child Hub greeting shown under the brand."
+  },
+  "hubSubtitle": "Choose something calm and fun. Grown-ups can leave safely.",
+  "hubEmptyPlayable": "No games are ready to play yet. Soft tiles below are coming soon.",
+  "hubPassiveBadge": "Soon",
+  "hubPassiveHint": "Not ready yet",
+  "hubPlayableHint": "Play",
+  "hubParentExit": "Grown-ups",
+  "@hubParentExit": {
+    "description": "Accessible label for the safe Parent Gate exit control."
+  },
+  "hubProfiles": "Profiles",
+  "hubProfilesHint": "Choose who is playing. No fake profiles here.",
+  "hubAudioWelcomeCue": "Welcome to Little Minds",
+  "hubAudioPassiveCue": "This game is coming soon",
+  "hubAudioPlayableCue": "Let's play",
+  "hubAudioParentExitCue": "Opening grown-ups gate",
+  "activityShapeMatching": "Shape matching",
+  "activityColorSorting": "Color sorting",
+  "activityAnimalSounds": "Animal sounds",
+  "activityCounting": "Counting",
+  "activityMemoryMatching": "Memory matching",
+  "activityObjectCategories": "Object categories",
+  "flameHostReady": "Flame host ready",
+  "flameRegistryEmpty": "Activity registry empty",
+  "flameRegistryCount": "{count} activities registered",
+  "@flameRegistryCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
+}

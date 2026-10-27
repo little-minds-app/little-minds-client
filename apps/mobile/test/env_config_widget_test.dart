@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/app.dart';
+import 'package:little_minds_mobile/child_hub/hub_audio_guidance.dart';
 import 'package:little_minds_mobile/config/app_config.dart';
 import 'package:little_minds_mobile/config/app_environment.dart';
 import 'package:little_minds_mobile/config/env_config_badge.dart';
@@ -34,8 +35,8 @@ void main() {
   testWidgets('TC-ENV-006 boots with development config badge', (tester) async {
     await _setSurface(
       tester,
-      width: ScaffoldingViewports.compactPhoneWidth,
-      height: ScaffoldingViewports.compactPhoneHeight,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
     );
 
     final config = AppConfig.resolve(
@@ -47,6 +48,7 @@ void main() {
       LittleMindsApp(
         game: StubLearningGame(),
         config: config,
+        audioGuidance: RecordingHubAudioGuidance(),
       ),
     );
     await _pumpFrames(tester);
@@ -61,38 +63,53 @@ void main() {
   });
 
   // TC-ENV-007 — F-034 compact + expanded still compose with injected config.
-  testWidgets('TC-ENV-007 compact and expanded chrome with staging config',
+  testWidgets('TC-ENV-007 compact and expanded hub layout with staging config',
       (tester) async {
     final config = AppConfig.resolve(
       envName: 'staging',
       apiBaseUrl: 'https://api.staging.example.test',
     );
 
+    // Phone landscape: wide but short → compact Kids Mode pane.
     await _setSurface(
       tester,
-      width: ScaffoldingViewports.compactPhoneWidth,
-      height: ScaffoldingViewports.compactPhoneHeight,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
     );
     await tester.pumpWidget(
-      LittleMindsApp(game: StubLearningGame(), config: config),
+      LittleMindsApp(
+        game: StubLearningGame(),
+        config: config,
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
     );
     await _pumpFrames(tester);
 
-    expect(find.byKey(AdaptiveShell.compactChromeKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.compactLayoutKey), findsOneWidget);
     expect(find.textContaining('env=staging'), findsOneWidget);
 
+    // Tablet landscape: wide + tall enough for dual-pane hub.
     await _setSurface(
       tester,
-      width: ScaffoldingViewports.tabletWidth,
-      height: ScaffoldingViewports.tabletHeight,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
     );
     await tester.pumpWidget(
-      LittleMindsApp(game: StubLearningGame(), config: config),
+      LittleMindsApp(
+        game: StubLearningGame(),
+        config: config,
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
     );
     await _pumpFrames(tester);
 
+    expect(find.byKey(ChildHubSurface.expandedLayoutKey), findsOneWidget);
+    expect(find.textContaining('env=staging'), findsOneWidget);
+
+    // Parent Gate AdaptiveShell still available after safe exit.
+    await tester.ensureVisible(find.byKey(ChildHubSurface.parentExitKey));
+    await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
+    await _pumpFrames(tester);
     expect(find.byKey(AdaptiveShell.expandedChromeKey), findsOneWidget);
-    expect(find.byKey(AdaptiveShell.dualPaneKey), findsOneWidget);
-    expect(find.textContaining('env=staging'), findsOneWidget);
   });
 }
