@@ -6,6 +6,8 @@ import 'config/app_config.dart';
 import 'config/app_config_scope.dart';
 import 'game/flame_host.dart';
 import 'l10n/app_localizations.dart';
+import 'mentor/mentor_card.dart';
+import 'mentor/mentor_card_fixtures.dart';
 import 'near_far/near_far_activity.dart';
 import 'surfaces/child_hub_surface.dart';
 import 'surfaces/near_far_demo_surface.dart';
@@ -30,6 +32,8 @@ class LittleMindsApp extends StatefulWidget {
     this.forceShowEnvBadge = false,
     this.initialNearFarDemo = false,
     this.nearFarActivity,
+    this.mentorCardLoader,
+    this.mentorInjectedCard,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -51,6 +55,15 @@ class LittleMindsApp extends StatefulWidget {
 
   /// Optional injected Near/Far activity for widget tests.
   final NearFarActivity? nearFarActivity;
+
+  /// Optional mentor fixture loader override (widget tests / DI).
+  final MentorCardFixtureLoader? mentorCardLoader;
+
+  /// Optional preloaded mentor card for deterministic shell widget tests.
+  ///
+  /// Avoids FakeAsync hangs on `rootBundle` asset I/O while preserving real
+  /// Gate → Settings → Mentor navigation.
+  final MentorCardV1? mentorInjectedCard;
 
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
@@ -150,6 +163,8 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
                   onOpenNearFarMission: () => _openNearFarDemo(
                     returnTo: _ShellRoute.nearFarMentor,
                   ),
+                  loader: widget.mentorCardLoader,
+                  injectedCard: widget.mentorInjectedCard,
                 );
             }
           },

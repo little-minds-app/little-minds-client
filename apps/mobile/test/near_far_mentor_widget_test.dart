@@ -61,9 +61,16 @@ Widget _localize({
   );
 }
 
+/// Deterministic wait after Mentor route opens.
+///
+/// Prefer [LittleMindsApp.mentorInjectedCard] / sync loaders in shell tests —
+/// FakeAsync does not complete `rootBundle` fixture I/O, so asset-backed loads
+/// hang on the loading spinner forever. Injected cards finish in initState.
 Future<void> _waitForMentorContent(WidgetTester tester) async {
-  for (var i = 0; i < 120; i++) {
-    await tester.pump(const Duration(milliseconds: 16));
+  for (var i = 0; i < 30; i++) {
+    // Flush build + microtasks (e.g. Future.value loaders). No pumpAndSettle:
+    // CircularProgressIndicator / Flame keep scheduling frames.
+    await tester.pump();
     final loading = find.byKey(NearFarMentorSurface.loadingKey);
     final view = find.byKey(MentorCardView.viewKey);
     final error = find.byKey(NearFarMentorSurface.errorKey);
@@ -94,8 +101,26 @@ Future<void> _openMentorFromHub(WidgetTester tester) async {
 
 class _FailingMentorLoader extends MentorCardFixtureLoader {
   @override
-  Future<MentorCardV1> requireNearFar({required String locale}) async {
-    throw StateError('unsupported schema for $locale');
+  Future<MentorCardV1> requireNearFar({required String locale}) {
+    return Future<MentorCardV1>.error(
+      StateError('unsupported schema for $locale'),
+    );
+  }
+}
+
+/// Completes on the microtask queue (no AssetBundle I/O) for FakeAsync tests.
+class _ImmediateMentorLoader extends MentorCardFixtureLoader {
+  _ImmediateMentorLoader(this._cards);
+
+  final Map<String, MentorCardV1> _cards;
+
+  @override
+  Future<MentorCardV1> requireNearFar({required String locale}) {
+    final card = _cards[locale];
+    if (card == null) {
+      return Future<MentorCardV1>.error(StateError('no card for $locale'));
+    }
+    return Future<MentorCardV1>.value(card);
   }
 }
 
@@ -286,6 +311,8 @@ void main() {
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           config: _productionConfig,
+          // Deterministic draft card — no rootBundle under FakeAsync.
+          mentorInjectedCard: draftCard,
         ),
       );
       await _pumpFrames(tester);
@@ -322,6 +349,7 @@ void main() {
         LittleMindsApp(
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
+          mentorInjectedCard: draftCard,
         ),
       );
       await _pumpFrames(tester);
@@ -376,7 +404,10 @@ void main() {
         height: 640,
       );
       await tester.pumpWidget(
-        LittleMindsApp(audioGuidance: RecordingHubAudioGuidance()),
+        LittleMindsApp(
+          audioGuidance: RecordingHubAudioGuidance(),
+          mentorInjectedCard: draftCard,
+        ),
       );
       await _pumpFrames(tester);
       await _openMentorFromHub(tester);
@@ -400,6 +431,7 @@ void main() {
         LittleMindsApp(
           audioGuidance: RecordingHubAudioGuidance(),
           locale: const Locale('en', 'US'),
+          mentorInjectedCard: draftCard,
         ),
       );
       await _pumpFrames(tester);
@@ -427,7 +459,13 @@ void main() {
           ),
         ),
       );
-      await _pumpFrames(tester, 20);
+      // Future.error completes on the microtask queue — flush without settle.
+      for (var i = 0; i < 10; i++) {
+        await tester.pump();
+        if (find.byKey(NearFarMentorSurface.errorKey).evaluate().isNotEmpty) {
+          break;
+        }
+      }
 
       expect(find.byKey(NearFarMentorSurface.errorKey), findsOneWidget);
       expect(find.byKey(MentorCardView.viewKey), findsNothing);
