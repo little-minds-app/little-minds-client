@@ -1,4 +1,3 @@
-
 name: Client CI
 
 on:
@@ -32,6 +31,36 @@ jobs:
         run: |
           chmod +x scripts/check-lmp19-docs.sh
           ./scripts/check-lmp19-docs.sh
+
+  contract-checks:
+    name: OpenAPI Generated Clients
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install contract tooling
+        run: npm ci
+
+      - name: Validate, compatibility, generate, drift
+        run: |
+          chmod +x scripts/check-contracts.sh
+          npm run contracts:check
+
+      - name: Contract unit tests
+        run: npm test
 
   detect-projects:
     name: Detect Client Projects
