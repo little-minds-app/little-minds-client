@@ -1,0 +1,21 @@
+name: little_minds_mobile
+description: Little Minds Kids App bootstrap (Flutter + Flame). Scaffolding only — LMP-24.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flame: ^1.38.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
