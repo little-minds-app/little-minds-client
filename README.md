@@ -36,11 +36,18 @@ See [`contracts/README.md`](contracts/README.md). Java 11+ required for Dart gen
 
 See [`apps/mobile/README.md`](apps/mobile/README.md) for run instructions, scaffolding assumptions, and Cloud Agent / Linux simulator limits.
 
+Public environment config (**LMP-28**): [`docs/client-environment-config.md`](docs/client-environment-config.md) — `LM_ENV` + `LM_API_BASE_URL` only; no secrets in the binary.
+
 ```bash
 cd apps/mobile
 flutter pub get
 flutter analyze
 flutter test
+
+# Optional explicit development defines
+flutter run \
+  --dart-define=LM_ENV=development \
+  --dart-define=LM_API_BASE_URL=http://localhost:3000
 ```
 
 ## CI

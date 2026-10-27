@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'config/app_config.dart';
+import 'config/app_config_scope.dart';
 import 'game/flame_host.dart';
 import 'surfaces/child_hub_surface.dart';
 import 'surfaces/parent_gate_surface.dart';
@@ -10,12 +12,16 @@ import 'surfaces/profile_selection_surface.dart';
 ///
 /// State-management choice is a **scaffolding assumption** until ADR-003.
 class LittleMindsApp extends StatefulWidget {
-  const LittleMindsApp({
+  LittleMindsApp({
     super.key,
     this.game,
-  });
+    AppConfig? config,
+  }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
+
+  /// Public build-time environment config (LMP-28). Defaults to development.
+  final AppConfig config;
 
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
@@ -36,37 +42,40 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Little Minds',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
-        useMaterial3: true,
-      ),
-      home: Builder(
-        builder: (context) {
-          switch (_route) {
-            case _ShellRoute.childHub:
-              return ChildHubSurface(
-                game: _game,
-                onOpenProfiles: () => _go(_ShellRoute.profileSelection),
-                onOpenParentGate: () => _go(_ShellRoute.parentGate),
-              );
-            case _ShellRoute.profileSelection:
-              return ProfileSelectionSurface(
-                onBackToHub: () => _go(_ShellRoute.childHub),
-              );
-            case _ShellRoute.parentGate:
-              return ParentGateSurface(
-                onBackToHub: () => _go(_ShellRoute.childHub),
-                onOpenSettings: () => _go(_ShellRoute.parentSettings),
-              );
-            case _ShellRoute.parentSettings:
-              return ParentSettingsSurface(
-                onBack: () => _go(_ShellRoute.parentGate),
-              );
-          }
-        },
+    return AppConfigScope(
+      config: widget.config,
+      child: MaterialApp(
+        title: 'Little Minds',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
+          useMaterial3: true,
+        ),
+        home: Builder(
+          builder: (context) {
+            switch (_route) {
+              case _ShellRoute.childHub:
+                return ChildHubSurface(
+                  game: _game,
+                  onOpenProfiles: () => _go(_ShellRoute.profileSelection),
+                  onOpenParentGate: () => _go(_ShellRoute.parentGate),
+                );
+              case _ShellRoute.profileSelection:
+                return ProfileSelectionSurface(
+                  onBackToHub: () => _go(_ShellRoute.childHub),
+                );
+              case _ShellRoute.parentGate:
+                return ParentGateSurface(
+                  onBackToHub: () => _go(_ShellRoute.childHub),
+                  onOpenSettings: () => _go(_ShellRoute.parentSettings),
+                );
+              case _ShellRoute.parentSettings:
+                return ParentSettingsSurface(
+                  onBack: () => _go(_ShellRoute.parentGate),
+                );
+            }
+          },
+        ),
       ),
     );
   }

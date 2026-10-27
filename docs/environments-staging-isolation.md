@@ -44,6 +44,7 @@ The [device support matrix](./device-support-matrix.md) includes a staging-flavo
 
 ## Related
 
+- Client public env config (LMP-28): [client-environment-config.md](./client-environment-config.md)
 - Device matrix: [device-support-matrix.md](./device-support-matrix.md)
 - ADR boundaries: [adr/README.md](./adr/README.md)
 - Blueprint §26, F-028

@@ -11,8 +11,29 @@ Flutter + Flame bootstrap for the Kids App and native Parent Gate/Settings stubs
 
 ## What this is not
 
-- Real Kids Hub UX, audio nav, content packs, auth/GSM OTP, OpenAPI Dart client, flavors, Crashlytics, or LMP-21 backend work.
+- Real Kids Hub UX, audio nav, content packs, auth/GSM OTP, OpenAPI Dart client wiring, store flavors/distribution (LMP-30), Crashlytics, or backend work.
 - Product locks for min OS / breakpoints — numbers below are **TECHNICAL ASSUMPTION** only (see `docs/device-support-matrix.md`).
+
+## Environment config (LMP-28)
+
+Public build-time config only — `LM_ENV` + `LM_API_BASE_URL`. Never put secrets in the binary.
+
+| Env | Default API URL |
+|---|---|
+| `development` | `http://localhost:3000` |
+| `staging` / `production` | Required via `--dart-define` (HTTPS) |
+
+```bash
+# Defaults (development + localhost:3000)
+flutter run
+
+# Android emulator → host machine
+flutter run \
+  --dart-define=LM_ENV=development \
+  --dart-define=LM_API_BASE_URL=http://10.0.2.2:3000
+```
+
+Full matrix and security rules: [`docs/client-environment-config.md`](../../docs/client-environment-config.md).
 
 ## Scaffolding assumptions (not PO-approved locks)
 
@@ -57,10 +78,10 @@ flutter run -d <android-emulator-id>
 ```text
 lib/
   main.dart / app.dart
-  config/          # TECHNICAL ASSUMPTION breakpoints / viewports
+  config/          # LMP-28 AppConfig + TECHNICAL ASSUMPTION breakpoints
   orientation/     # ADR-018 policy + binder
   shell/           # Adaptive phone/tablet chrome
   surfaces/        # Hub / profile / parent-gate / settings stubs
   game/            # Flame host + empty activity registry
-test/              # QA-UI-001 widget + unit tests
+test/              # QA-UI-001 widget + unit + env validation tests
 ```
