@@ -45,7 +45,7 @@ class NearFarActivity extends LearningActivity {
   final bool soundOff;
   final String playSessionId;
 
-  /// Mentor adjacency metadata only — no parent UI (LMP-47/48).
+  /// Mentor adjacency metadata (parent UI lives in LMP-48 mentor surfaces).
   final NearFarMentorAdjacency mentorAdjacency = const NearFarMentorAdjacency();
 
   var _prompt = NearFarPromptStep.makeNear;

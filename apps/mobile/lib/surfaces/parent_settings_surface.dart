@@ -15,6 +15,7 @@ class ParentSettingsSurface extends StatelessWidget {
     super.key,
     this.onBack,
     this.onOpenNearFarDemo,
+    this.onOpenNearFarMentor,
   });
 
   final VoidCallback? onBack;
@@ -24,10 +25,16 @@ class ParentSettingsSurface extends StatelessWidget {
   /// Temporary demo affordance only — not an authenticated caregiver control.
   final VoidCallback? onOpenNearFarDemo;
 
+  /// Opens the Parent Near/Far mentor card surface (LMP-48). Parent path only.
+  final VoidCallback? onOpenNearFarMentor;
+
   static const Key surfaceKey = Key('surface-parent-settings');
   static const Key placeholderKey = Key('parent-settings-placeholder');
   static const Key nearFarDemoKey = Key('parent-settings-near-far-demo');
   static const Key nearFarDemoHintKey = Key('parent-settings-near-far-demo-hint');
+  static const Key nearFarMentorKey = Key('parent-settings-near-far-mentor');
+  static const Key nearFarMentorHintKey =
+      Key('parent-settings-near-far-mentor-hint');
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +64,29 @@ class ParentSettingsSurface extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
+                  if (onOpenNearFarMentor != null) ...[
+                    const SizedBox(height: 24),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: 48,
+                        minWidth: 200,
+                      ),
+                      child: FilledButton.tonal(
+                        key: nearFarMentorKey,
+                        onPressed: onOpenNearFarMentor,
+                        child: Text(l10n.mentorCardSettingsEntry),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      key: nearFarMentorHintKey,
+                      l10n.mentorCardSettingsEntryHint,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.black54,
+                          ),
+                    ),
+                  ],
                   if (onOpenNearFarDemo != null) ...[
                     const SizedBox(height: 24),
                     ConstrainedBox(

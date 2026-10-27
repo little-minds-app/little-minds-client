@@ -221,4 +221,88 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get nearFarSpokenAssetsBlocked =>
       'Onaylı çevrimdışı ses paketleri ve çalışan bir oynatıcı gelene kadar konuşulan yakın/uzak sesleri engellidir. Ekrandaki yazılar çalışır.';
+
+  @override
+  String get mentorCardSurfaceTitle => 'Ebeveyn Oyun Rehberi';
+
+  @override
+  String get mentorCardBack => 'Geri';
+
+  @override
+  String get mentorCardSettingsEntry => 'Yakın/Uzak mentor kartı';
+
+  @override
+  String get mentorCardSettingsEntryHint =>
+      'Yakın ve uzak oyun için bakımveren rehberliği. Taslak içerik inceleme kapısının arkasında kalır.';
+
+  @override
+  String get mentorCardSectionWhy => 'Neden';
+
+  @override
+  String get mentorCardSectionHow => 'Nasıl';
+
+  @override
+  String get mentorCardSectionWhatToSay => 'Ne söylenebilir';
+
+  @override
+  String get mentorCardWhatBefore => 'Önce';
+
+  @override
+  String get mentorCardWhatDuring => 'Sırasında';
+
+  @override
+  String get mentorCardWhatAfter => 'Sonra';
+
+  @override
+  String get mentorCardSectionSafety => 'Güvenlik';
+
+  @override
+  String get mentorCardSectionAdaptations => 'Uyarlamalar';
+
+  @override
+  String get mentorCardSectionObserved => 'Gözlenen ve önerilen';
+
+  @override
+  String mentorCardAgeRange(int minMonths, int maxMonths) {
+    return 'Yaş $minMonths–$maxMonths ay';
+  }
+
+  @override
+  String get mentorCardAgeFits => 'Bu çocuğun yaşına uygun.';
+
+  @override
+  String get mentorCardAgeOutside => 'Bu kartın yaş aralığının dışında.';
+
+  @override
+  String get mentorCardSafetyAdultRequired => 'Yetişkin gözetimi gereklidir.';
+
+  @override
+  String get mentorCardSafetyNoProof => 'Fotoğraf veya kanıt istenmez.';
+
+  @override
+  String get mentorCardDraftPreviewBanner =>
+      'Taslak önizleme — onaylı bakımveren rehberliği değildir.';
+
+  @override
+  String get mentorCardNotApprovedTitle => 'Rehberlik henüz hazır değil';
+
+  @override
+  String mentorCardNotApprovedBody(String status) {
+    return 'Bu mentor kartı hâlâ “$status” incelemesinde ve bakımverenler için onaylı değildir.';
+  }
+
+  @override
+  String get mentorCardLoading => 'Mentor rehberliği yükleniyor';
+
+  @override
+  String get mentorCardLoadError =>
+      'Mentor rehberliği yüklenemedi. Yeniden deneyin.';
+
+  @override
+  String get mentorCardRetry => 'Yeniden dene';
+
+  @override
+  String mentorCardSemanticsLabel(String title) {
+    return 'Ebeveyn Oyun Rehberi kartı: $title';
+  }
 }

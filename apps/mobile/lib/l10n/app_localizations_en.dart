@@ -220,4 +220,88 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get nearFarSpokenAssetsBlocked =>
       'Spoken near/far audio is blocked until approved offline voice packs and a working player are installed. On-screen labels still work.';
+
+  @override
+  String get mentorCardSurfaceTitle => 'Parent Play Mentor';
+
+  @override
+  String get mentorCardBack => 'Back';
+
+  @override
+  String get mentorCardSettingsEntry => 'Near/Far mentor card';
+
+  @override
+  String get mentorCardSettingsEntryHint =>
+      'Caregiver coaching for near and far play. Draft content stays behind the review gate.';
+
+  @override
+  String get mentorCardSectionWhy => 'Why';
+
+  @override
+  String get mentorCardSectionHow => 'How';
+
+  @override
+  String get mentorCardSectionWhatToSay => 'What to say';
+
+  @override
+  String get mentorCardWhatBefore => 'Before';
+
+  @override
+  String get mentorCardWhatDuring => 'During';
+
+  @override
+  String get mentorCardWhatAfter => 'After';
+
+  @override
+  String get mentorCardSectionSafety => 'Safety';
+
+  @override
+  String get mentorCardSectionAdaptations => 'Adaptations';
+
+  @override
+  String get mentorCardSectionObserved => 'Observed vs suggested';
+
+  @override
+  String mentorCardAgeRange(int minMonths, int maxMonths) {
+    return 'Ages $minMonths–$maxMonths months';
+  }
+
+  @override
+  String get mentorCardAgeFits => 'Fits this child’s age.';
+
+  @override
+  String get mentorCardAgeOutside => 'Outside this card’s age range.';
+
+  @override
+  String get mentorCardSafetyAdultRequired => 'Adult supervision is required.';
+
+  @override
+  String get mentorCardSafetyNoProof => 'No photos or proof are required.';
+
+  @override
+  String get mentorCardDraftPreviewBanner =>
+      'Draft preview — not approved caregiver guidance.';
+
+  @override
+  String get mentorCardNotApprovedTitle => 'Guidance not ready yet';
+
+  @override
+  String mentorCardNotApprovedBody(String status) {
+    return 'This mentor card is still in “$status” review and is not approved for caregivers.';
+  }
+
+  @override
+  String get mentorCardLoading => 'Loading mentor guidance';
+
+  @override
+  String get mentorCardLoadError =>
+      'Mentor guidance could not be loaded. Try again.';
+
+  @override
+  String get mentorCardRetry => 'Try again';
+
+  @override
+  String mentorCardSemanticsLabel(String title) {
+    return 'Parent Play Mentor card: $title';
+  }
 }

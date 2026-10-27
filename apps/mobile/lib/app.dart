@@ -9,6 +9,7 @@ import 'l10n/app_localizations.dart';
 import 'near_far/near_far_activity.dart';
 import 'surfaces/child_hub_surface.dart';
 import 'surfaces/near_far_demo_surface.dart';
+import 'surfaces/near_far_mentor_surface.dart';
 import 'surfaces/parent_gate_surface.dart';
 import 'surfaces/parent_settings_surface.dart';
 import 'surfaces/profile_selection_surface.dart';
@@ -58,6 +59,7 @@ enum _ShellRoute {
   parentGate,
   parentSettings,
   nearFarDemo,
+  nearFarMentor,
 }
 
 class _LittleMindsAppState extends State<LittleMindsApp> {
@@ -110,6 +112,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
                 return ParentSettingsSurface(
                   onBack: () => _go(_ShellRoute.parentGate),
                   onOpenNearFarDemo: () => _go(_ShellRoute.nearFarDemo),
+                  onOpenNearFarMentor: () => _go(_ShellRoute.nearFarMentor),
                 );
               case _ShellRoute.nearFarDemo:
                 return NearFarDemoSurface(
@@ -120,6 +123,10 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
                         ? _ShellRoute.childHub
                         : _ShellRoute.parentSettings,
                   ),
+                );
+              case _ShellRoute.nearFarMentor:
+                return NearFarMentorSurface(
+                  onBack: () => _go(_ShellRoute.parentSettings),
                 );
             }
           },
