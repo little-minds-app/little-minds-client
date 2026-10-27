@@ -8,7 +8,10 @@ enum NearFarEventType {
   activityCompleted('activity_completed'),
   activityAbandoned('activity_abandoned'),
   realWorldMissionOffered('real_world_mission_offered'),
-  realWorldMissionOpened('real_world_mission_opened');
+  realWorldMissionOpened('real_world_mission_opened'),
+  /// Local fixture for optional skip / tried-together (Blueprint §14 parent
+  /// feedback name). No production upload (LMP-50); no photo proof.
+  missionFeedbackSubmitted('mission_feedback_submitted');
 
   const NearFarEventType(this.wireName);
   final String wireName;

@@ -112,7 +112,8 @@ void main() {
   });
 
   group('NearFarMissionHandoff + mentor adjacency', () {
-    test('TC-NF-005 safe handoff offer/open without skip UI surface', () {
+    test('TC-NF-005 safe handoff offer/start/skip/complete/dismiss lifecycle',
+        () {
       final controller = NearFarMissionHandoffController();
       expect(controller.handoff.state, NearFarMissionHandoffState.unavailable);
 
@@ -120,9 +121,29 @@ void main() {
       expect(offered.isAvailable, isTrue);
       expect(offered.materials, contains('one sock'));
       expect(offered.safetyNotes, isNotEmpty);
+      expect(offered.showsPanel, isTrue);
 
-      final opened = controller.open();
+      final opened = controller.start();
       expect(opened.state, NearFarMissionHandoffState.opened);
+      // Idempotent start while already opened.
+      expect(controller.start().state, NearFarMissionHandoffState.opened);
+
+      final completed = controller.completeOptionally();
+      expect(completed.state, NearFarMissionHandoffState.completed);
+      expect(completed.isTerminalCalm, isTrue);
+      // Cannot complete twice / from completed.
+      expect(
+        controller.completeOptionally().state,
+        NearFarMissionHandoffState.completed,
+      );
+
+      controller.reset();
+      controller.offer();
+      expect(controller.skip().state, NearFarMissionHandoffState.skipped);
+      // Skip is idempotent and never moves completed→skipped wrongly.
+      expect(controller.skip().state, NearFarMissionHandoffState.skipped);
+      expect(controller.dismiss().state, NearFarMissionHandoffState.dismissed);
+      expect(controller.handoff.showsPanel, isFalse);
     });
 
     test('TC-NF-006 mentor adjacency metadata only (no parent UI)', () {
@@ -131,6 +152,15 @@ void main() {
       expect(json['parent_ui'], isFalse);
       expect(json['mentor_card_id'], NearFarConstants.mentorCardId);
       expect(json['during_copy_keys'], isA<List>());
+    });
+
+    test('TC-NF-017 skip from offered never requires proof fields', () {
+      final controller = NearFarMissionHandoffController();
+      controller.offer();
+      final skipped = controller.skip();
+      expect(skipped.state, NearFarMissionHandoffState.skipped);
+      expect(skipped.materials, isNotEmpty);
+      // Payload shape for feedback is validated via activity emission tests.
     });
   });
 
@@ -398,6 +428,123 @@ void main() {
             .where((e) => e.eventType == 'real_world_mission_opened')
             .length,
         1,
+      );
+    });
+
+    test('TC-NF-018 skip emits mission_feedback_submitted once; no proof',
+        () async {
+      var i = 0;
+      final events = NearFarLocalEventBuffer(idFactory: () => 'sk-${i++}');
+      final activity = NearFarActivity(
+        eventBuffer: events,
+        playSessionId: 'skip-sess',
+        spokenLabels: NearFarSpokenLabels(bundle: _Bundle()),
+      );
+      await activity.prepare();
+      await activity.onEnter();
+      final near = NearFarRelationLogic.nearPositions();
+      activity.moveSock(near.sock);
+      activity.moveSoftToy(near.softToy);
+      final far = NearFarRelationLogic.initialFarPositions();
+      activity.moveSock(far.sock);
+      activity.moveSoftToy(far.softToy);
+
+      activity.skipMissionHandoff();
+      activity.skipMissionHandoff();
+      final feedback = events.events
+          .where((e) => e.eventType == 'mission_feedback_submitted')
+          .toList();
+      expect(feedback, hasLength(1));
+      expect(feedback.single.payload['status'], 'skipped');
+      expect(feedback.single.payload['source'], 'caregiver_report');
+      expect(feedback.single.payload['proof_required'], isFalse);
+      expect(feedback.single.payload.containsKey('photo'), isFalse);
+      expect(
+        activity.missionHandoff.handoff.state,
+        NearFarMissionHandoffState.skipped,
+      );
+    });
+
+    test('TC-NF-019 start then optional complete emits tried_together once',
+        () async {
+      var i = 0;
+      final events = NearFarLocalEventBuffer(idFactory: () => 'done-${i++}');
+      final activity = NearFarActivity(
+        eventBuffer: events,
+        playSessionId: 'done-sess',
+        spokenLabels: NearFarSpokenLabels(bundle: _Bundle()),
+      );
+      await activity.prepare();
+      await activity.onEnter();
+      final near = NearFarRelationLogic.nearPositions();
+      activity.moveSock(near.sock);
+      activity.moveSoftToy(near.softToy);
+      final far = NearFarRelationLogic.initialFarPositions();
+      activity.moveSock(far.sock);
+      activity.moveSoftToy(far.softToy);
+
+      activity.startMissionHandoff();
+      activity.completeMissionOptionally();
+      activity.completeMissionOptionally();
+      final feedback = events.events
+          .where((e) => e.eventType == 'mission_feedback_submitted')
+          .toList();
+      expect(feedback, hasLength(1));
+      expect(feedback.single.payload['status'], 'tried_together');
+      expect(
+        activity.missionHandoff.handoff.state,
+        NearFarMissionHandoffState.completed,
+      );
+    });
+
+    test('TC-NF-020 restart clears mission skip/complete flags for repeat',
+        () async {
+      var i = 0;
+      final events = NearFarLocalEventBuffer(idFactory: () => 'rep-${i++}');
+      final activity = NearFarActivity(
+        eventBuffer: events,
+        playSessionId: 'rep-sess',
+        spokenLabels: NearFarSpokenLabels(bundle: _Bundle()),
+      );
+      await activity.prepare();
+      await activity.onEnter();
+
+      void completeDigital() {
+        final near = NearFarRelationLogic.nearPositions();
+        activity.moveSock(near.sock);
+        activity.moveSoftToy(near.softToy);
+        final far = NearFarRelationLogic.initialFarPositions();
+        activity.moveSock(far.sock);
+        activity.moveSoftToy(far.softToy);
+      }
+
+      completeDigital();
+      activity.skipMissionHandoff();
+      expect(
+        activity.missionHandoff.handoff.state,
+        NearFarMissionHandoffState.skipped,
+      );
+
+      await activity.onRestart();
+      expect(
+        activity.missionHandoff.handoff.state,
+        NearFarMissionHandoffState.unavailable,
+      );
+      completeDigital();
+      activity.startMissionHandoff();
+      activity.completeMissionOptionally();
+      expect(
+        events.events
+            .where((e) => e.eventType == 'mission_feedback_submitted')
+            .length,
+        2,
+      );
+      expect(
+        events.events
+            .where((e) => e.eventType == 'mission_feedback_submitted')
+            .last
+            .payload['status'],
+        'tried_together',
       );
     });
   });

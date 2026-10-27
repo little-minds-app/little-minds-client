@@ -173,11 +173,43 @@ class AppLocalizationsEn extends AppLocalizations {
       'Materials: one sock, one soft toy. Adult supervision. No glass or small choking hazards.';
 
   @override
-  String get nearFarMissionOpen => 'Open invitation';
+  String get nearFarMissionTry => 'Try together';
+
+  @override
+  String get nearFarMissionOpen => 'Try together';
+
+  @override
+  String get nearFarMissionSkip => 'Skip';
+
+  @override
+  String get nearFarMissionDone => 'We\'re done';
+
+  @override
+  String get nearFarMissionStepsTitle => 'Explore near and far';
 
   @override
   String get nearFarMissionOpenedConfirm =>
-      'Invitation open — try sock and soft toy near, then far, with a grown-up.';
+      'With a grown-up, explore near and far using a sock and a soft toy.';
+
+  @override
+  String get nearFarMissionStep1 =>
+      'Ask a grown-up for one sock and one soft toy.';
+
+  @override
+  String get nearFarMissionStep2 => 'Put them near each other.';
+
+  @override
+  String get nearFarMissionStep3 => 'Now put them far apart.';
+
+  @override
+  String get nearFarMissionStep4 =>
+      'Talk about what changed. Pointing is okay too.';
+
+  @override
+  String get nearFarMissionSkipped => 'That\'s okay. You can try another time.';
+
+  @override
+  String get nearFarMissionCompleted => 'Nice exploring together.';
 
   @override
   String get nearFarMissionLater => 'Maybe later';

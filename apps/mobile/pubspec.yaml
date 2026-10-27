@@ -1,5 +1,5 @@
 name: little_minds_mobile
-description: Little Minds Kids App (Flutter + Flame). Child Hub v1 + Flame lifecycle (LMP-44) + Near/Far demo (LMP-45).
+description: Little Minds Kids App (Flutter + Flame). Child Hub v1 + Flame lifecycle (LMP-44) + Near/Far demo (LMP-45) + mission handoff/skip (LMP-46).
 publish_to: "none"
 version: 0.1.0+1
 

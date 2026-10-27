@@ -404,17 +404,77 @@ abstract class AppLocalizations {
   /// **'Materials: one sock, one soft toy. Adult supervision. No glass or small choking hazards.'**
   String get nearFarMissionMaterials;
 
-  /// No description provided for @nearFarMissionOpen.
+  /// Primary Start/Try action for optional real-world mission (LMP-46). No proof or photo.
   ///
   /// In en, this message translates to:
-  /// **'Open invitation'**
+  /// **'Try together'**
+  String get nearFarMissionTry;
+
+  /// Deprecated alias of nearFarMissionTry for older copy references.
+  ///
+  /// In en, this message translates to:
+  /// **'Try together'**
   String get nearFarMissionOpen;
 
-  /// Calm confirmation after caregiver opens the safe real-world invitation (LMP-45). Not mentor UI / not LMP-46 skip flow.
+  /// Explicit optional skip — never penalized (LM-005 / F-008).
   ///
   /// In en, this message translates to:
-  /// **'Invitation open — try sock and soft toy near, then far, with a grown-up.'**
+  /// **'Skip'**
+  String get nearFarMissionSkip;
+
+  /// Optional calm completion — no timer, score, or proof required.
+  ///
+  /// In en, this message translates to:
+  /// **'We\'re done'**
+  String get nearFarMissionDone;
+
+  /// Title while optional off-screen mission guidance is active.
+  ///
+  /// In en, this message translates to:
+  /// **'Explore near and far'**
+  String get nearFarMissionStepsTitle;
+
+  /// Calm lead-in after Start/Try (LMP-46). Not parent mentor UI (LMP-47/48).
+  ///
+  /// In en, this message translates to:
+  /// **'With a grown-up, explore near and far using a sock and a soft toy.'**
   String get nearFarMissionOpenedConfirm;
+
+  /// No description provided for @nearFarMissionStep1.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a grown-up for one sock and one soft toy.'**
+  String get nearFarMissionStep1;
+
+  /// No description provided for @nearFarMissionStep2.
+  ///
+  /// In en, this message translates to:
+  /// **'Put them near each other.'**
+  String get nearFarMissionStep2;
+
+  /// No description provided for @nearFarMissionStep3.
+  ///
+  /// In en, this message translates to:
+  /// **'Now put them far apart.'**
+  String get nearFarMissionStep3;
+
+  /// No description provided for @nearFarMissionStep4.
+  ///
+  /// In en, this message translates to:
+  /// **'Talk about what changed. Pointing is okay too.'**
+  String get nearFarMissionStep4;
+
+  /// Calm skip acknowledgment — no guilt, no proof.
+  ///
+  /// In en, this message translates to:
+  /// **'That\'s okay. You can try another time.'**
+  String get nearFarMissionSkipped;
+
+  /// Calm optional completion — scoring-neutral, no photo proof.
+  ///
+  /// In en, this message translates to:
+  /// **'Nice exploring together.'**
+  String get nearFarMissionCompleted;
 
   /// No description provided for @nearFarMissionLater.
   ///
@@ -422,7 +482,7 @@ abstract class AppLocalizations {
   /// **'Maybe later'**
   String get nearFarMissionLater;
 
-  /// Obvious exit from the mission handoff panel after the invitation is open.
+  /// Obvious calm exit from mission guidance, skip, or completion.
   ///
   /// In en, this message translates to:
   /// **'Back'**

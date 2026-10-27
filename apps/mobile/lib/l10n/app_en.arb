@@ -87,15 +87,46 @@
   "nearFarMissionTitle": "Try it in the room",
   "nearFarMissionBody": "Ask a grown-up for one sock and one soft toy. Put them near, then far. Talk about what changed.",
   "nearFarMissionMaterials": "Materials: one sock, one soft toy. Adult supervision. No glass or small choking hazards.",
-  "nearFarMissionOpen": "Open invitation",
-  "nearFarMissionOpenedConfirm": "Invitation open — try sock and soft toy near, then far, with a grown-up.",
+  "nearFarMissionTry": "Try together",
+  "@nearFarMissionTry": {
+    "description": "Primary Start/Try action for optional real-world mission (LMP-46). No proof or photo."
+  },
+  "nearFarMissionOpen": "Try together",
+  "@nearFarMissionOpen": {
+    "description": "Deprecated alias of nearFarMissionTry for older copy references."
+  },
+  "nearFarMissionSkip": "Skip",
+  "@nearFarMissionSkip": {
+    "description": "Explicit optional skip — never penalized (LM-005 / F-008)."
+  },
+  "nearFarMissionDone": "We're done",
+  "@nearFarMissionDone": {
+    "description": "Optional calm completion — no timer, score, or proof required."
+  },
+  "nearFarMissionStepsTitle": "Explore near and far",
+  "@nearFarMissionStepsTitle": {
+    "description": "Title while optional off-screen mission guidance is active."
+  },
+  "nearFarMissionOpenedConfirm": "With a grown-up, explore near and far using a sock and a soft toy.",
   "@nearFarMissionOpenedConfirm": {
-    "description": "Calm confirmation after caregiver opens the safe real-world invitation (LMP-45). Not mentor UI / not LMP-46 skip flow."
+    "description": "Calm lead-in after Start/Try (LMP-46). Not parent mentor UI (LMP-47/48)."
+  },
+  "nearFarMissionStep1": "Ask a grown-up for one sock and one soft toy.",
+  "nearFarMissionStep2": "Put them near each other.",
+  "nearFarMissionStep3": "Now put them far apart.",
+  "nearFarMissionStep4": "Talk about what changed. Pointing is okay too.",
+  "nearFarMissionSkipped": "That's okay. You can try another time.",
+  "@nearFarMissionSkipped": {
+    "description": "Calm skip acknowledgment — no guilt, no proof."
+  },
+  "nearFarMissionCompleted": "Nice exploring together.",
+  "@nearFarMissionCompleted": {
+    "description": "Calm optional completion — scoring-neutral, no photo proof."
   },
   "nearFarMissionLater": "Maybe later",
   "nearFarMissionBack": "Back",
   "@nearFarMissionBack": {
-    "description": "Obvious exit from the mission handoff panel after the invitation is open."
+    "description": "Obvious calm exit from mission guidance, skip, or completion."
   },
   "nearFarSpokenAssetsBlocked": "Spoken near/far audio is blocked until approved offline voice packs and a working player are installed. On-screen labels still work."
 }

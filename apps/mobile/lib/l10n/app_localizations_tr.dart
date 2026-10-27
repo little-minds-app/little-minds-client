@@ -174,11 +174,43 @@ class AppLocalizationsTr extends AppLocalizations {
       'Malzemeler: bir çorap, bir yumuşak oyuncak. Yetişkin gözetimi. Cam veya boğulma riski olan küçük nesneler yok.';
 
   @override
-  String get nearFarMissionOpen => 'Daveti aç';
+  String get nearFarMissionTry => 'Birlikte dene';
+
+  @override
+  String get nearFarMissionOpen => 'Birlikte dene';
+
+  @override
+  String get nearFarMissionSkip => 'Atla';
+
+  @override
+  String get nearFarMissionDone => 'Bitirdik';
+
+  @override
+  String get nearFarMissionStepsTitle => 'Yakın ve uzağı keşfet';
 
   @override
   String get nearFarMissionOpenedConfirm =>
-      'Davet açık — bir büyükle çorap ve yumuşak oyuncağı önce yakın, sonra uzak deneyin.';
+      'Bir büyükle çorap ve yumuşak oyuncak kullanarak yakın ve uzağı keşfedin.';
+
+  @override
+  String get nearFarMissionStep1 =>
+      'Büyüklerden bir çorap ve bir yumuşak oyuncak iste.';
+
+  @override
+  String get nearFarMissionStep2 => 'Onları birbirine yaklaştırın.';
+
+  @override
+  String get nearFarMissionStep3 => 'Şimdi onları uzaklaştırın.';
+
+  @override
+  String get nearFarMissionStep4 => 'Ne değişti konuşun. İşaret etmek de olur.';
+
+  @override
+  String get nearFarMissionSkipped =>
+      'Sorun değil. Başka zaman deneyebilirsiniz.';
+
+  @override
+  String get nearFarMissionCompleted => 'Birlikte güzel keşfettiniz.';
 
   @override
   String get nearFarMissionLater => 'Belki sonra';

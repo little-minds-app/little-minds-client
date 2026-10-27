@@ -122,7 +122,7 @@ void main() {
     expect(find.byKey(NearFarPlayField.fieldKey), findsOneWidget);
   });
 
-  testWidgets('TC-NF-W03 drag near then far offers mission handoff',
+  testWidgets('TC-NF-W03 drag near then far offers mission Try/Skip flow',
       (tester) async {
     var i = 0;
     final buffer = NearFarLocalEventBuffer(idFactory: () => 'drag-${i++}');
@@ -158,6 +158,7 @@ void main() {
       NearFarMissionHandoffState.offered,
     );
     expect(find.byKey(NearFarMissionHandoffPanel.openKey), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.skipKey), findsOneWidget);
     expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsNothing);
 
     await tester.tap(find.byKey(NearFarMissionHandoffPanel.openKey));
@@ -167,7 +168,9 @@ void main() {
       NearFarMissionHandoffState.opened,
     );
     expect(find.byKey(NearFarMissionHandoffPanel.openKey), findsNothing);
-    expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.stepsKey), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.doneKey), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.skipKey), findsOneWidget);
     expect(
       buffer.events.map((e) => e.eventType),
       containsAll([
@@ -394,7 +397,7 @@ void main() {
   });
 
   testWidgets(
-      'TC-NF-W11 en-US Open invitation → opened confirm; no open button',
+      'TC-NF-W11 en-US Try together → steps; Skip / Done / Back l10n',
       (tester) async {
     final activity = _demoActivity(locale: const Locale('en', 'US'));
     await _setLandscape(tester, width: 844, height: 390);
@@ -408,27 +411,28 @@ void main() {
     );
     await completeToHandoff(tester, activity);
 
-    expect(find.text('Open invitation'), findsOneWidget);
+    expect(find.text('Try together'), findsOneWidget);
+    expect(find.text('Skip'), findsOneWidget);
     expect(find.text('Maybe later'), findsOneWidget);
     expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsNothing);
 
     await tester.tap(find.byKey(NearFarMissionHandoffPanel.openKey));
     await _pumpFrames(tester, 8);
 
-    expect(find.text('Open invitation'), findsNothing);
+    expect(find.text('Try together'), findsNothing);
     expect(find.byKey(NearFarMissionHandoffPanel.openKey), findsNothing);
-    expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsOneWidget);
-    expect(
-      find.textContaining('Invitation open'),
-      findsOneWidget,
-    );
+    expect(find.byKey(NearFarMissionHandoffPanel.stepsKey), findsOneWidget);
+    expect(find.text('Explore near and far'), findsOneWidget);
+    expect(find.textContaining('Ask a grown-up'), findsWidgets);
+    expect(find.text("We're done"), findsOneWidget);
+    expect(find.text('Skip'), findsOneWidget);
     expect(find.text('Back'), findsWidgets);
     expect(find.text('Maybe later'), findsNothing);
     expect(find.textContaining('one sock'), findsAtLeastNWidgets(1));
   });
 
   testWidgets(
-      'TC-NF-W12 tr-TR Daveti aç → açık onayı; aç butonu kalkar',
+      'TC-NF-W12 tr-TR Birlikte dene → adımlar; Atla / Bitirdik / Geri',
       (tester) async {
     final activity = _demoActivity(locale: const Locale('tr', 'TR'));
     await _setLandscape(tester, width: 844, height: 390);
@@ -442,18 +446,152 @@ void main() {
     );
     await completeToHandoff(tester, activity);
 
-    expect(find.text('Daveti aç'), findsOneWidget);
+    expect(find.text('Birlikte dene'), findsOneWidget);
+    expect(find.text('Atla'), findsOneWidget);
     expect(find.text('Belki sonra'), findsOneWidget);
     expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsNothing);
 
     await tester.tap(find.byKey(NearFarMissionHandoffPanel.openKey));
     await _pumpFrames(tester, 8);
 
-    expect(find.text('Daveti aç'), findsNothing);
+    expect(find.text('Birlikte dene'), findsNothing);
     expect(find.byKey(NearFarMissionHandoffPanel.openKey), findsNothing);
-    expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsOneWidget);
-    expect(find.textContaining('Davet açık'), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.stepsKey), findsOneWidget);
+    expect(find.text('Yakın ve uzağı keşfet'), findsOneWidget);
+    expect(find.text('Bitirdik'), findsOneWidget);
+    expect(find.text('Atla'), findsOneWidget);
     expect(find.text('Geri'), findsWidgets);
     expect(find.text('Belki sonra'), findsNothing);
+  });
+
+  testWidgets('TC-NF-W13 Skip from offered shows calm exit; no photo UI',
+      (tester) async {
+    final activity = _demoActivity();
+    await _setLandscape(tester, width: 844, height: 390);
+    await tester.pumpWidget(
+      LittleMindsApp(
+        initialNearFarDemo: true,
+        nearFarActivity: activity,
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
+    await completeToHandoff(tester, activity);
+
+    expect(find.byKey(NearFarMissionHandoffPanel.skipKey), findsOneWidget);
+    await tester.tap(find.byKey(NearFarMissionHandoffPanel.skipKey));
+    await _pumpFrames(tester, 8);
+
+    expect(
+      activity.missionHandoff.handoff.state,
+      NearFarMissionHandoffState.skipped,
+    );
+    expect(find.byKey(NearFarMissionHandoffPanel.skippedKey), findsOneWidget);
+    expect(find.textContaining("That's okay"), findsOneWidget);
+    expect(find.text('Skip'), findsNothing);
+    expect(find.text('Try together'), findsNothing);
+    expect(find.textContaining('photo'), findsNothing);
+    expect(find.textContaining('camera'), findsNothing);
+
+    await tester.tap(find.byKey(NearFarMissionHandoffPanel.dismissKey));
+    await _pumpFrames(tester, 16);
+    // Calm Back dismiss exits demo to Child Hub (initialNearFarDemo path).
+    expect(find.byKey(ChildHubSurface.surfaceKey), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.panelKey), findsNothing);
+  });
+
+  testWidgets('TC-NF-W14 Start → We\'re done → Back calm completion',
+      (tester) async {
+    final activity = _demoActivity();
+    await _setLandscape(tester, width: 844, height: 390);
+    await tester.pumpWidget(
+      LittleMindsApp(
+        initialNearFarDemo: true,
+        nearFarActivity: activity,
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
+    await completeToHandoff(tester, activity);
+
+    await tester.tap(find.byKey(NearFarMissionHandoffPanel.openKey));
+    await _pumpFrames(tester, 8);
+    await tester.tap(find.byKey(NearFarMissionHandoffPanel.doneKey));
+    await _pumpFrames(tester, 8);
+
+    expect(
+      activity.missionHandoff.handoff.state,
+      NearFarMissionHandoffState.completed,
+    );
+    expect(find.byKey(NearFarMissionHandoffPanel.completedKey), findsOneWidget);
+    expect(find.text('Nice exploring together.'), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.skipKey), findsNothing);
+
+    await tester.tap(find.byKey(NearFarMissionHandoffPanel.dismissKey));
+    await _pumpFrames(tester, 16);
+    expect(find.byKey(ChildHubSurface.surfaceKey), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.panelKey), findsNothing);
+  });
+
+  testWidgets('TC-NF-W15 a11y: mission actions meet 48pt min; semantics live',
+      (tester) async {
+    final activity = _demoActivity();
+    await _setLandscape(tester, width: 844, height: 390);
+    await tester.pumpWidget(
+      LittleMindsApp(
+        initialNearFarDemo: true,
+        nearFarActivity: activity,
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
+    await completeToHandoff(tester, activity);
+
+    final trySize =
+        tester.getSize(find.byKey(NearFarMissionHandoffPanel.openKey));
+    final skipSize =
+        tester.getSize(find.byKey(NearFarMissionHandoffPanel.skipKey));
+    final laterSize =
+        tester.getSize(find.byKey(NearFarMissionHandoffPanel.dismissKey));
+    expect(trySize.height, greaterThanOrEqualTo(48));
+    expect(skipSize.height, greaterThanOrEqualTo(48));
+    expect(laterSize.height, greaterThanOrEqualTo(48));
+    expect(trySize.width, greaterThanOrEqualTo(148));
+
+    await tester.tap(find.byKey(NearFarMissionHandoffPanel.openKey));
+    await _pumpFrames(tester, 8);
+    expect(find.byKey(NearFarMissionHandoffPanel.stepsKey), findsOneWidget);
+    // Live-region semantics wrap the guidance column.
+    expect(
+      tester.getSemantics(find.byKey(NearFarMissionHandoffPanel.stepsKey)),
+      isNotNull,
+    );
+  });
+
+  testWidgets('TC-NF-W16 tablet landscape skip + restart mission lifecycle',
+      (tester) async {
+    final activity = _demoActivity();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(
+      LittleMindsApp(
+        initialNearFarDemo: true,
+        nearFarActivity: activity,
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
+    await completeToHandoff(tester, activity);
+    await tester.tap(find.byKey(NearFarMissionHandoffPanel.skipKey));
+    await _pumpFrames(tester, 8);
+    expect(find.byKey(NearFarMissionHandoffPanel.skippedKey), findsOneWidget);
+
+    await tester.tap(find.byKey(NearFarDemoSurface.restartKey));
+    await _pumpFrames(tester, 12);
+    expect(find.byKey(NearFarMissionHandoffPanel.panelKey), findsNothing);
+    expect(activity.prompt, NearFarPromptStep.makeNear);
+
+    await completeToHandoff(tester, activity);
+    expect(find.text('Try together'), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.skipKey), findsOneWidget);
   });
 }

@@ -1,7 +1,8 @@
 # Near/Far spoken labels (offline / local only)
 
 **Blueprint:** §5.2 / §22 spoken "near"/"far" · F-020 locales · ADR-015 fixtures  
-**Jira:** LMP-45
+**Jira:** LMP-45 (digital labels) · **LMP-120** (all deferred voice / SFX / offline playback)  
+**LMP-46 note:** mission handoff/skip is **on-screen text only** — no placeholder or fake mission audio.
 
 ## Path convention
 
@@ -92,3 +93,24 @@ When usable credits or packs are supplied, document in this README **before** cl
 ## Placeholder directories
 
 `en-US/` and `tr-TR/` exist so asset declarations can resolve once packs land. Only add reviewed, commercial-cleared `.wav` files (no secrets in repo).
+
+## LMP-46 → LMP-120 audio requirements (document only)
+
+LMP-46 ships the optional real-world mission Start/Try / Skip / Back / calm-done **flow without audio**. When LMP-120 resumes the final audio pass, add pedagogy-approved, commercially redistributable offline WAVs (or equivalent) for:
+
+| Cue id (proposed) | Locale | Suggested spoken text | Trigger |
+|---|---|---|---|
+| `mission_invite` | en-US | “Try it in the room with a grown-up.” | Mission offered |
+| `mission_invite` | tr-TR | “Odada bir büyükle dene.” | Mission offered |
+| `mission_try` | en-US | “Try together.” | Start/Try pressed (optional SFX/voice) |
+| `mission_try` | tr-TR | “Birlikte dene.” | Start/Try pressed |
+| `mission_step_near` | en-US | “Put the sock and soft toy near.” | Active guidance step 2 |
+| `mission_step_near` | tr-TR | “Çorabı ve yumuşak oyuncağı yaklaştırın.” | Active guidance step 2 |
+| `mission_step_far` | en-US | “Now put them far apart.” | Active guidance step 3 |
+| `mission_step_far` | tr-TR | “Şimdi onları uzaklaştırın.” | Active guidance step 3 |
+| `mission_skipped` | en-US | “That’s okay. You can try another time.” | Skip |
+| `mission_skipped` | tr-TR | “Sorun değil. Başka zaman deneyebilirsiniz.” | Skip |
+| `mission_done` | en-US | “Nice exploring together.” | Optional We’re done |
+| `mission_done` | tr-TR | “Birlikte güzel keşfettiniz.” | Optional Bitirdik |
+
+Also still required from LMP-45 carry-over: `near.wav` / `far.wav` for en-US and tr-TR, plus a real offline player with mute / pause / resume / restart / dispose. **No network TTS in Kids Mode. No fake WAVs.**
