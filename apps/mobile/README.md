@@ -19,7 +19,7 @@ Flutter + Flame Kids App with **Child Hub v1** (LMP-43), Flame lifecycle (LMP-44
 
 - Playable Hub mini-game mechanics among the six engines (F-005 engines) — Shape Matching = LMP-55 (blocked until LMP-45 Done).
 - Full Real World Mission skip/feedback UI (**LMP-46**), parent mentor card UI (**LMP-47/48**), production telemetry (**LMP-50**).
-- **Spoken near/far WAV packs** — approved licensed assets are **not** shipped; spoken-label AC is blocked until packs land. On-screen Near/Far text labels still work. See `assets/audio/near_far/README.md`.
+- **Spoken near/far WAV packs** — commercial AI TTS generation is **blocked** in Cloud Agent (no TTS API credentials); no `near.wav`/`far.wav` shipped. Spoken-label AC remains blocked. On-screen Near/Far text labels still work. See `assets/audio/near_far/README.md`.
 - **Real hub audio playback** — `LocalAssetHubAudioGuidance` only probes whether a local WAV path exists; it does not play sound.
 - Real Parent Gate OTP / auth, OpenAPI wiring into hub, store flavors (LMP-30), Crashlytics.
 - Product locks for min OS / breakpoints — numbers below remain **TECHNICAL ASSUMPTION** (see `docs/device-support-matrix.md`).
