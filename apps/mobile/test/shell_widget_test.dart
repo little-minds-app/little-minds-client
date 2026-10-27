@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/app.dart';
+import 'package:little_minds_mobile/child_hub/hub_audio_guidance.dart';
 import 'package:little_minds_mobile/config/scaffolding_assumptions.dart';
 import 'package:little_minds_mobile/game/flame_host.dart';
 import 'package:little_minds_mobile/orientation/app_surface.dart';
@@ -46,31 +47,35 @@ void main() {
       (tester) async {
     await _setSurface(
       tester,
-      width: ScaffoldingViewports.compactPhoneWidth,
-      height: ScaffoldingViewports.compactPhoneHeight,
+      // Landscape phone (ADR-018 Child Hub).
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
     );
-    await tester.pumpWidget(LittleMindsApp(game: StubLearningGame()));
+    await tester.pumpWidget(
+      LittleMindsApp(
+        game: StubLearningGame(),
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
     await _pumpFrames(tester);
 
     expect(find.byKey(ChildHubSurface.surfaceKey), findsOneWidget);
-    expect(find.byKey(ChildHubSurface.placeholderKey), findsOneWidget);
-    expect(find.byKey(const Key('nav-profile-selection')), findsOneWidget);
-    expect(find.byKey(const Key('nav-parent-gate')), findsOneWidget);
-    expect(find.byKey(FlameHostPanel.hostKey), findsOneWidget);
-    expect(find.byKey(FlameHostPanel.emptyRegistryKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.homeKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.profilesKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.parentExitKey), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('nav-profile-selection')));
+    await tester.tap(find.byKey(ChildHubSurface.profilesKey));
     await _pumpFrames(tester);
     expect(find.byKey(ProfileSelectionSurface.surfaceKey), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('nav-back-hub')));
     await _pumpFrames(tester);
-    await tester.tap(find.byKey(const Key('nav-parent-gate')));
+    await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
     await _pumpFrames(tester);
     expect(find.byKey(ParentGateSurface.surfaceKey), findsOneWidget);
   });
 
-  // TC-SHELL-002 — Compact vs expanded layout (F-034).
+  // TC-SHELL-002 — Compact vs expanded layout (F-034) on Parent Gate shell.
   testWidgets('TC-SHELL-002 compact vs expanded chrome recomposes',
       (tester) async {
     await _setSurface(
@@ -78,21 +83,31 @@ void main() {
       width: ScaffoldingViewports.compactPhoneWidth,
       height: ScaffoldingViewports.compactPhoneHeight,
     );
-    await tester.pumpWidget(LittleMindsApp(game: StubLearningGame()));
+    await tester.pumpWidget(
+      LittleMindsApp(
+        game: StubLearningGame(),
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
+    await _pumpFrames(tester);
+
+    expect(find.byKey(ChildHubSurface.parentExitKey), findsOneWidget);
+    await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
     await _pumpFrames(tester);
 
     expect(find.byKey(AdaptiveShell.compactChromeKey), findsOneWidget);
     expect(find.byKey(AdaptiveShell.expandedChromeKey), findsNothing);
     expect(find.byKey(AdaptiveShell.dualPaneKey), findsNothing);
 
+    // Stay on Parent Gate and only resize — preserves AdaptiveShell probe.
     await _setSurface(
       tester,
       width: ScaffoldingViewports.tabletWidth,
       height: ScaffoldingViewports.tabletHeight,
     );
-    await tester.pumpWidget(LittleMindsApp(game: StubLearningGame()));
     await _pumpFrames(tester);
 
+    expect(find.byKey(ParentGateSurface.surfaceKey), findsOneWidget);
     expect(find.byKey(AdaptiveShell.expandedChromeKey), findsOneWidget);
     expect(find.byKey(AdaptiveShell.dualPaneKey), findsOneWidget);
     expect(find.byKey(AdaptiveShell.compactChromeKey), findsNothing);
@@ -106,7 +121,12 @@ void main() {
       width: ScaffoldingViewports.compactPhoneHeight,
       height: ScaffoldingViewports.compactPhoneWidth,
     );
-    await tester.pumpWidget(LittleMindsApp(game: StubLearningGame()));
+    await tester.pumpWidget(
+      LittleMindsApp(
+        game: StubLearningGame(),
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
     await _pumpFrames(tester);
 
     expect(find.byKey(ChildHubSurface.surfaceKey), findsOneWidget);
@@ -116,7 +136,7 @@ void main() {
       isNot(contains(DeviceOrientation.portraitUp)),
     );
 
-    await tester.tap(find.byKey(const Key('nav-profile-selection')));
+    await tester.tap(find.byKey(ChildHubSurface.profilesKey));
     await _pumpFrames(tester);
     expect(
       OrientationPolicy.isLandscapeOnly(AppSurface.profileSelection),
@@ -132,10 +152,15 @@ void main() {
       width: ScaffoldingViewports.compactPhoneWidth,
       height: ScaffoldingViewports.compactPhoneHeight,
     );
-    await tester.pumpWidget(LittleMindsApp(game: StubLearningGame()));
+    await tester.pumpWidget(
+      LittleMindsApp(
+        game: StubLearningGame(),
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
     await _pumpFrames(tester);
 
-    await tester.tap(find.byKey(const Key('nav-parent-gate')));
+    await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
     await _pumpFrames(tester);
 
     await tester.enterText(
@@ -161,20 +186,25 @@ void main() {
 
   // TC-SHELL-005 — SafeArea / MediaQuery padding respected.
   testWidgets('TC-SHELL-005 shell respects safe-area padding', (tester) async {
-    const notch = EdgeInsets.only(top: 48, bottom: 24);
+    const notch = EdgeInsets.only(top: 48, bottom: 24, left: 12, right: 12);
     await _setSurface(
       tester,
-      width: ScaffoldingViewports.compactPhoneWidth,
-      height: ScaffoldingViewports.compactPhoneHeight,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
       padding: notch,
     );
-    await tester.pumpWidget(LittleMindsApp(game: StubLearningGame()));
+    await tester.pumpWidget(
+      LittleMindsApp(
+        game: StubLearningGame(),
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
     await _pumpFrames(tester);
 
     expect(find.byType(SafeArea), findsWidgets);
 
-    final placeholder =
-        tester.getRect(find.byKey(ChildHubSurface.placeholderKey));
-    expect(placeholder.top, greaterThanOrEqualTo(notch.top));
+    final brand = tester.getRect(find.byKey(ChildHubSurface.brandKey));
+    expect(brand.top, greaterThanOrEqualTo(notch.top));
+    expect(brand.left, greaterThanOrEqualTo(notch.left));
   });
 }

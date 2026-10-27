@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'child_hub/hub_audio_guidance.dart';
 import 'config/app_config.dart';
 import 'config/app_config_scope.dart';
 import 'game/flame_host.dart';
+import 'l10n/app_localizations.dart';
 import 'surfaces/child_hub_surface.dart';
 import 'surfaces/parent_gate_surface.dart';
 import 'surfaces/parent_settings_surface.dart';
@@ -16,12 +19,24 @@ class LittleMindsApp extends StatefulWidget {
     super.key,
     this.game,
     AppConfig? config,
+    this.locale,
+    this.audioGuidance,
+    this.forceShowEnvBadge = false,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
 
   /// Public build-time environment config (LMP-28). Defaults to development.
   final AppConfig config;
+
+  /// Optional locale override for widget tests (F-020).
+  final Locale? locale;
+
+  /// Optional Child Hub audio guidance override (tests / DI).
+  final HubAudioGuidance? audioGuidance;
+
+  /// Developer/test-only: surface LMP-28 env badge on Child Hub.
+  final bool forceShowEnvBadge;
 
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
@@ -45,8 +60,16 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
     return AppConfigScope(
       config: widget.config,
       child: MaterialApp(
-        title: 'Little Minds',
+        onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
         debugShowCheckedModeBanner: false,
+        locale: widget.locale,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
           useMaterial3: true,
@@ -57,6 +80,8 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
               case _ShellRoute.childHub:
                 return ChildHubSurface(
                   game: _game,
+                  audioGuidance: widget.audioGuidance,
+                  forceShowEnvBadge: widget.forceShowEnvBadge,
                   onOpenProfiles: () => _go(_ShellRoute.profileSelection),
                   onOpenParentGate: () => _go(_ShellRoute.parentGate),
                 );

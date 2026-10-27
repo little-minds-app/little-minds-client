@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/app.dart';
+import 'package:little_minds_mobile/child_hub/hub_audio_guidance.dart';
 import 'package:little_minds_mobile/config/app_config.dart';
 import 'package:little_minds_mobile/config/app_environment.dart';
 import 'package:little_minds_mobile/config/env_config_badge.dart';
@@ -30,12 +31,13 @@ Future<void> _setSurface(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // TC-ENV-006 — App boots with resolved development config; badge visible.
-  testWidgets('TC-ENV-006 boots with development config badge', (tester) async {
+  // TC-ENV-006 — Badge is developer/test only on Child Hub (not child-facing).
+  testWidgets('TC-ENV-006 env badge hidden by default; visible when forced',
+      (tester) async {
     await _setSurface(
       tester,
-      width: ScaffoldingViewports.compactPhoneWidth,
-      height: ScaffoldingViewports.compactPhoneHeight,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
     );
 
     final config = AppConfig.resolve(
@@ -47,11 +49,24 @@ void main() {
       LittleMindsApp(
         game: StubLearningGame(),
         config: config,
+        audioGuidance: RecordingHubAudioGuidance(),
       ),
     );
     await _pumpFrames(tester);
 
     expect(find.byKey(ChildHubSurface.surfaceKey), findsOneWidget);
+    expect(find.byKey(EnvConfigBadge.badgeKey), findsNothing);
+
+    await tester.pumpWidget(
+      LittleMindsApp(
+        game: StubLearningGame(),
+        config: config,
+        audioGuidance: RecordingHubAudioGuidance(),
+        forceShowEnvBadge: true,
+      ),
+    );
+    await _pumpFrames(tester);
+
     expect(find.byKey(EnvConfigBadge.badgeKey), findsOneWidget);
     expect(
       find.textContaining('env=${AppEnvironment.development.wireName}'),
@@ -60,8 +75,8 @@ void main() {
     expect(find.textContaining('api=http://localhost:3000'), findsOneWidget);
   });
 
-  // TC-ENV-007 — F-034 compact + expanded still compose with injected config.
-  testWidgets('TC-ENV-007 compact and expanded chrome with staging config',
+  // TC-ENV-007 — F-034 compact carousel + expanded grid with staging config.
+  testWidgets('TC-ENV-007 compact and expanded hub layout with staging config',
       (tester) async {
     final config = AppConfig.resolve(
       envName: 'staging',
@@ -70,29 +85,45 @@ void main() {
 
     await _setSurface(
       tester,
-      width: ScaffoldingViewports.compactPhoneWidth,
-      height: ScaffoldingViewports.compactPhoneHeight,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
     );
     await tester.pumpWidget(
-      LittleMindsApp(game: StubLearningGame(), config: config),
+      LittleMindsApp(
+        game: StubLearningGame(),
+        config: config,
+        audioGuidance: RecordingHubAudioGuidance(),
+        forceShowEnvBadge: true,
+      ),
     );
     await _pumpFrames(tester);
 
-    expect(find.byKey(AdaptiveShell.compactChromeKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.compactLayoutKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.activityCarouselKey), findsOneWidget);
     expect(find.textContaining('env=staging'), findsOneWidget);
 
     await _setSurface(
       tester,
-      width: ScaffoldingViewports.tabletWidth,
-      height: ScaffoldingViewports.tabletHeight,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
     );
     await tester.pumpWidget(
-      LittleMindsApp(game: StubLearningGame(), config: config),
+      LittleMindsApp(
+        game: StubLearningGame(),
+        config: config,
+        audioGuidance: RecordingHubAudioGuidance(),
+        forceShowEnvBadge: true,
+      ),
     );
     await _pumpFrames(tester);
 
-    expect(find.byKey(AdaptiveShell.expandedChromeKey), findsOneWidget);
-    expect(find.byKey(AdaptiveShell.dualPaneKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.expandedLayoutKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.activityGridKey), findsOneWidget);
     expect(find.textContaining('env=staging'), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(ChildHubSurface.parentExitKey));
+    await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
+    await _pumpFrames(tester);
+    expect(find.byKey(AdaptiveShell.expandedChromeKey), findsOneWidget);
   });
 }
