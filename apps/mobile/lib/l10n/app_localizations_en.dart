@@ -123,4 +123,58 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get activityPhaseCompleted => 'Nice work';
+
+  @override
+  String get nearFarTitle => 'Near and Far';
+
+  @override
+  String get nearFarBack => 'Back';
+
+  @override
+  String get nearFarDemoEntry => 'Try Near/Far demo';
+
+  @override
+  String get nearFarPromptNear => 'Move the sock and soft toy near each other.';
+
+  @override
+  String get nearFarPromptFar => 'Now move them far apart.';
+
+  @override
+  String get nearFarPromptDone => 'Nice exploring!';
+
+  @override
+  String get nearFarLabelNear => 'Near';
+
+  @override
+  String get nearFarLabelFar => 'Far';
+
+  @override
+  String get nearFarLabelNeither => 'Keep moving';
+
+  @override
+  String get nearFarSockLabel => 'Sock';
+
+  @override
+  String get nearFarSoftToyLabel => 'Soft toy';
+
+  @override
+  String get nearFarMissionTitle => 'Try it in the room';
+
+  @override
+  String get nearFarMissionBody =>
+      'Ask a grown-up for one sock and one soft toy. Put them near, then far. Talk about what changed.';
+
+  @override
+  String get nearFarMissionMaterials =>
+      'Materials: one sock, one soft toy. Adult supervision. No glass or small choking hazards.';
+
+  @override
+  String get nearFarMissionOpen => 'Open invitation';
+
+  @override
+  String get nearFarMissionLater => 'Maybe later';
+
+  @override
+  String get nearFarSpokenAssetsBlocked =>
+      'Spoken near/far audio packs are not installed yet. On-screen labels still work.';
 }

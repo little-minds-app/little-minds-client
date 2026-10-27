@@ -62,5 +62,28 @@
   "activityPhasePlaying": "Playing",
   "activityPhasePaused": "Paused",
   "activityPhaseBackground": "Waiting",
-  "activityPhaseCompleted": "Nice work"
+  "activityPhaseCompleted": "Nice work",
+  "nearFarTitle": "Near and Far",
+  "@nearFarTitle": {
+    "description": "Near/Far Slice B demo title (LMP-45)."
+  },
+  "nearFarBack": "Back",
+  "nearFarDemoEntry": "Try Near/Far demo",
+  "@nearFarDemoEntry": {
+    "description": "Grown-ups Parent Settings entry to the dedicated demo route — not Child Hub nav."
+  },
+  "nearFarPromptNear": "Move the sock and soft toy near each other.",
+  "nearFarPromptFar": "Now move them far apart.",
+  "nearFarPromptDone": "Nice exploring!",
+  "nearFarLabelNear": "Near",
+  "nearFarLabelFar": "Far",
+  "nearFarLabelNeither": "Keep moving",
+  "nearFarSockLabel": "Sock",
+  "nearFarSoftToyLabel": "Soft toy",
+  "nearFarMissionTitle": "Try it in the room",
+  "nearFarMissionBody": "Ask a grown-up for one sock and one soft toy. Put them near, then far. Talk about what changed.",
+  "nearFarMissionMaterials": "Materials: one sock, one soft toy. Adult supervision. No glass or small choking hazards.",
+  "nearFarMissionOpen": "Open invitation",
+  "nearFarMissionLater": "Maybe later",
+  "nearFarSpokenAssetsBlocked": "Spoken near/far audio packs are not installed yet. On-screen labels still work."
 }

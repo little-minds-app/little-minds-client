@@ -35,5 +35,22 @@
   "activityPhasePlaying": "Oynanıyor",
   "activityPhasePaused": "Duraklatıldı",
   "activityPhaseBackground": "Bekleniyor",
-  "activityPhaseCompleted": "Aferin"
+  "activityPhaseCompleted": "Aferin",
+  "nearFarTitle": "Yakın ve Uzak",
+  "nearFarBack": "Geri",
+  "nearFarDemoEntry": "Yakın/Uzak demosunu dene",
+  "nearFarPromptNear": "Çorabı ve yumuşak oyuncağı birbirine yaklaştır.",
+  "nearFarPromptFar": "Şimdi onları uzaklaştır.",
+  "nearFarPromptDone": "Güzel keşif!",
+  "nearFarLabelNear": "Yakın",
+  "nearFarLabelFar": "Uzak",
+  "nearFarLabelNeither": "Hareket ettirmeye devam",
+  "nearFarSockLabel": "Çorap",
+  "nearFarSoftToyLabel": "Yumuşak oyuncak",
+  "nearFarMissionTitle": "Odada dene",
+  "nearFarMissionBody": "Büyüklerden bir çorap ve bir yumuşak oyuncak iste. Önce yakın, sonra uzak koy. Ne değişti konuşun.",
+  "nearFarMissionMaterials": "Malzemeler: bir çorap, bir yumuşak oyuncak. Yetişkin gözetimi. Cam veya boğulma riski olan küçük nesneler yok.",
+  "nearFarMissionOpen": "Daveti aç",
+  "nearFarMissionLater": "Belki sonra",
+  "nearFarSpokenAssetsBlocked": "Konuşulan yakın/uzak ses paketleri henüz yok. Ekrandaki yazılar çalışır."
 }

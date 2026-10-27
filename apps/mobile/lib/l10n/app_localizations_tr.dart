@@ -123,4 +123,59 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get activityPhaseCompleted => 'Aferin';
+
+  @override
+  String get nearFarTitle => 'Yakın ve Uzak';
+
+  @override
+  String get nearFarBack => 'Geri';
+
+  @override
+  String get nearFarDemoEntry => 'Yakın/Uzak demosunu dene';
+
+  @override
+  String get nearFarPromptNear =>
+      'Çorabı ve yumuşak oyuncağı birbirine yaklaştır.';
+
+  @override
+  String get nearFarPromptFar => 'Şimdi onları uzaklaştır.';
+
+  @override
+  String get nearFarPromptDone => 'Güzel keşif!';
+
+  @override
+  String get nearFarLabelNear => 'Yakın';
+
+  @override
+  String get nearFarLabelFar => 'Uzak';
+
+  @override
+  String get nearFarLabelNeither => 'Hareket ettirmeye devam';
+
+  @override
+  String get nearFarSockLabel => 'Çorap';
+
+  @override
+  String get nearFarSoftToyLabel => 'Yumuşak oyuncak';
+
+  @override
+  String get nearFarMissionTitle => 'Odada dene';
+
+  @override
+  String get nearFarMissionBody =>
+      'Büyüklerden bir çorap ve bir yumuşak oyuncak iste. Önce yakın, sonra uzak koy. Ne değişti konuşun.';
+
+  @override
+  String get nearFarMissionMaterials =>
+      'Malzemeler: bir çorap, bir yumuşak oyuncak. Yetişkin gözetimi. Cam veya boğulma riski olan küçük nesneler yok.';
+
+  @override
+  String get nearFarMissionOpen => 'Daveti aç';
+
+  @override
+  String get nearFarMissionLater => 'Belki sonra';
+
+  @override
+  String get nearFarSpokenAssetsBlocked =>
+      'Konuşulan yakın/uzak ses paketleri henüz yok. Ekrandaki yazılar çalışır.';
 }

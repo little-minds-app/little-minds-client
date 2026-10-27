@@ -313,6 +313,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Nice work'**
   String get activityPhaseCompleted;
+
+  /// Near/Far Slice B demo title (LMP-45).
+  ///
+  /// In en, this message translates to:
+  /// **'Near and Far'**
+  String get nearFarTitle;
+
+  /// No description provided for @nearFarBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get nearFarBack;
+
+  /// Grown-ups Parent Settings entry to the dedicated demo route — not Child Hub nav.
+  ///
+  /// In en, this message translates to:
+  /// **'Try Near/Far demo'**
+  String get nearFarDemoEntry;
+
+  /// No description provided for @nearFarPromptNear.
+  ///
+  /// In en, this message translates to:
+  /// **'Move the sock and soft toy near each other.'**
+  String get nearFarPromptNear;
+
+  /// No description provided for @nearFarPromptFar.
+  ///
+  /// In en, this message translates to:
+  /// **'Now move them far apart.'**
+  String get nearFarPromptFar;
+
+  /// No description provided for @nearFarPromptDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Nice exploring!'**
+  String get nearFarPromptDone;
+
+  /// No description provided for @nearFarLabelNear.
+  ///
+  /// In en, this message translates to:
+  /// **'Near'**
+  String get nearFarLabelNear;
+
+  /// No description provided for @nearFarLabelFar.
+  ///
+  /// In en, this message translates to:
+  /// **'Far'**
+  String get nearFarLabelFar;
+
+  /// No description provided for @nearFarLabelNeither.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep moving'**
+  String get nearFarLabelNeither;
+
+  /// No description provided for @nearFarSockLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sock'**
+  String get nearFarSockLabel;
+
+  /// No description provided for @nearFarSoftToyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Soft toy'**
+  String get nearFarSoftToyLabel;
+
+  /// No description provided for @nearFarMissionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Try it in the room'**
+  String get nearFarMissionTitle;
+
+  /// No description provided for @nearFarMissionBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a grown-up for one sock and one soft toy. Put them near, then far. Talk about what changed.'**
+  String get nearFarMissionBody;
+
+  /// No description provided for @nearFarMissionMaterials.
+  ///
+  /// In en, this message translates to:
+  /// **'Materials: one sock, one soft toy. Adult supervision. No glass or small choking hazards.'**
+  String get nearFarMissionMaterials;
+
+  /// No description provided for @nearFarMissionOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open invitation'**
+  String get nearFarMissionOpen;
+
+  /// No description provided for @nearFarMissionLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Maybe later'**
+  String get nearFarMissionLater;
+
+  /// No description provided for @nearFarSpokenAssetsBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Spoken near/far audio packs are not installed yet. On-screen labels still work.'**
+  String get nearFarSpokenAssetsBlocked;
 }
 
 class _AppLocalizationsDelegate
