@@ -311,4 +311,60 @@ void main() {
     expect(registry.findById(activity.id), isNull);
     expect(registry.isEmpty, isTrue);
   });
+
+  testWidgets(
+      'TC-NF-W10 iPhone landscape completion: card readable, no overlap/chrome',
+      (tester) async {
+    final activity = _demoActivity();
+    // iPhone 15 logical landscape (~844×390) with notched side insets.
+    await _setLandscape(tester, width: 844, height: 390);
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(
+          size: Size(844, 390),
+          padding: EdgeInsets.fromLTRB(47, 0, 47, 21),
+          textScaler: TextScaler.linear(1.3),
+        ),
+        child: LittleMindsApp(
+          initialNearFarDemo: true,
+          nearFarActivity: activity,
+          audioGuidance: RecordingHubAudioGuidance(),
+        ),
+      ),
+    );
+    await _pumpFrames(tester, 20);
+
+    final near = NearFarRelationLogic.nearPositions();
+    activity.moveSock(near.sock);
+    activity.moveSoftToy(near.softToy);
+    final far = NearFarRelationLogic.initialFarPositions();
+    activity.moveSock(far.sock);
+    activity.moveSoftToy(far.softToy);
+    await _pumpFrames(tester, 16);
+
+    expect(tester.takeException(), isNull);
+
+    // Mission card present; play-field prompt / objects / lifecycle label gone.
+    expect(find.byKey(NearFarMissionHandoffPanel.panelKey), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.cardKey), findsOneWidget);
+    expect(find.text('Try it in the room'), findsOneWidget);
+    expect(find.text('Nice exploring!'), findsNothing);
+    expect(find.text('Nice work'), findsNothing);
+    expect(find.byKey(NearFarPlayField.fieldKey), findsNothing);
+    expect(find.byKey(NearFarPlayField.sockKey), findsNothing);
+    expect(find.byKey(NearFarPlayField.softToyKey), findsNothing);
+    expect(find.byKey(NearFarDemoSurface.phaseKey), findsNothing);
+
+    final cardSize = tester.getSize(find.byKey(NearFarMissionHandoffPanel.cardKey));
+    expect(cardSize.width, lessThanOrEqualTo(NearFarMissionHandoffPanel.maxCardWidth + 1));
+    expect(cardSize.height, lessThanOrEqualTo(390));
+    expect(cardSize.width, greaterThan(200));
+    expect(cardSize.height, greaterThan(80));
+
+    // Opaque panel paints the calm fill (no black gutter behind the card).
+    final panel =
+        tester.widget<ColoredBox>(find.byKey(NearFarMissionHandoffPanel.panelKey));
+    expect(panel.color, isNot(equals(const Color(0xFF000000))));
+    expect(panel.color.a, equals(1.0));
+  });
 }

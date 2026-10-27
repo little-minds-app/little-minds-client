@@ -42,6 +42,10 @@ class NearFarDemoSurface extends StatefulWidget {
   static const Key phaseKey = Key('near-far-demo-phase');
   static const Key loadingKey = Key('near-far-demo-loading');
   static const Key spokenBlockedKey = Key('near-far-spoken-blocked');
+  static const Key bodyKey = Key('near-far-demo-body');
+
+  /// Edge-to-edge fill — avoids black letterbox gutters on notched phones.
+  static const Color canvasColor = Color(0xFFE8F5E9);
 
   @override
   State<NearFarDemoSurface> createState() => _NearFarDemoSurfaceState();
@@ -170,6 +174,16 @@ class _NearFarDemoSurfaceState extends State<NearFarDemoSurface>
     }
   }
 
+  bool _showHandoff(NearFarActivity activity) {
+    final state = activity.missionHandoff.handoff.state;
+    if (state == NearFarMissionHandoffState.dismissed) {
+      return false;
+    }
+    return state == NearFarMissionHandoffState.offered ||
+        state == NearFarMissionHandoffState.opened ||
+        _controller.lastOutcome is ActivityCompletedOutcome;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -178,31 +192,43 @@ class _NearFarDemoSurfaceState extends State<NearFarDemoSurface>
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final activity = _activity;
     if (activity == null) {
-      return const SizedBox.shrink(key: NearFarDemoSurface.surfaceKey);
+      return const ColoredBox(
+        key: NearFarDemoSurface.surfaceKey,
+        color: NearFarDemoSurface.canvasColor,
+      );
     }
-    final showHandoff = activity.missionHandoff.handoff.state ==
-            NearFarMissionHandoffState.offered ||
-        activity.missionHandoff.handoff.state ==
-            NearFarMissionHandoffState.opened ||
-        (_controller.lastOutcome is ActivityCompletedOutcome);
+    final showHandoff = _showHandoff(activity);
+    // Hide redundant lifecycle "Nice work" while the mission card is up.
+    final showPhaseLabel =
+        !showHandoff && phase != GameLifecyclePhase.completed;
+    final showSpokenBanner = !activity.spokenLabelsReady &&
+        !showHandoff &&
+        phase != GameLifecyclePhase.preparing &&
+        phase != GameLifecyclePhase.idle;
 
     return OrientationBinder(
       surface: AppSurface.miniGame,
-      child: KeyedSubtree(
+      // Edge-to-edge paint first so notched landscape never shows a black gutter.
+      child: ColoredBox(
         key: NearFarDemoSurface.surfaceKey,
+        color: NearFarDemoSurface.canvasColor,
         child: Column(
           children: [
-            _DemoChrome(
-              l10n: l10n,
-              phase: phase,
-              onClose: _onClose,
-              onPause: _controller.pause,
-              onResume: _controller.resume,
-              onRestart: _onRestart,
+            Material(
+              color: NearFarDemoSurface.canvasColor,
+              child: SafeArea(
+                bottom: false,
+                child: _DemoChrome(
+                  l10n: l10n,
+                  phase: phase,
+                  onClose: _onClose,
+                  onPause: _controller.pause,
+                  onResume: _controller.resume,
+                  onRestart: _onRestart,
+                ),
+              ),
             ),
-            if (!activity.spokenLabelsReady &&
-                phase != GameLifecyclePhase.preparing &&
-                phase != GameLifecyclePhase.idle)
+            if (showSpokenBanner)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
@@ -215,41 +241,48 @@ class _NearFarDemoSurfaceState extends State<NearFarDemoSurface>
                 ),
               ),
             Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (phase == GameLifecyclePhase.preparing ||
-                      phase == GameLifecyclePhase.idle)
-                    const Center(
-                      key: NearFarDemoSurface.loadingKey,
-                      child: CircularProgressIndicator.adaptive(),
-                    )
-                  else
-                    NearFarPlayField(
-                      activity: activity,
-                      reduceMotion: reduceMotion,
-                    ),
-                  if (showHandoff &&
-                      activity.missionHandoff.handoff.state !=
-                          NearFarMissionHandoffState.dismissed)
-                    NearFarMissionHandoffPanel(
-                      activity: activity,
-                      onDismiss: _onClose,
-                    ),
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(
-                        key: NearFarDemoSurface.phaseKey,
-                        _phaseLabel(l10n, phase),
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: Colors.black54,
-                            ),
+              child: KeyedSubtree(
+                key: NearFarDemoSurface.bodyKey,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (phase == GameLifecyclePhase.preparing ||
+                        phase == GameLifecyclePhase.idle)
+                      const Center(
+                        key: NearFarDemoSurface.loadingKey,
+                        child: CircularProgressIndicator.adaptive(),
+                      )
+                    else if (!showHandoff)
+                      NearFarPlayField(
+                        activity: activity,
+                        reduceMotion: reduceMotion,
                       ),
-                    ),
-                  ),
-                ],
+                    // Handoff replaces the play field entirely — no overlapping
+                    // "Nice exploring!" prompt or sock/toy behind the card.
+                    if (showHandoff)
+                      NearFarMissionHandoffPanel(
+                        activity: activity,
+                        onDismiss: _onClose,
+                      ),
+                    if (showPhaseLabel)
+                      Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Text(
+                            key: NearFarDemoSurface.phaseKey,
+                            _phaseLabel(l10n, phase),
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: Colors.black54,
+                                ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -301,51 +334,45 @@ class _DemoChrome extends StatelessWidget {
     final canResume = phase == GameLifecyclePhase.paused;
     final canRestart = phase.canRestart;
 
-    return Material(
-      color: const Color(0xFFE8F5E9),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 8, 0),
-          child: Row(
-            children: [
-              TextButton.icon(
-                key: NearFarDemoSurface.closeKey,
-                onPressed: onClose,
-                icon: const Icon(Icons.arrow_back_rounded),
-                label: Text(l10n.nearFarBack),
-              ),
-              Expanded(
-                child: Text(
-                  l10n.nearFarTitle,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              if (canPause)
-                IconButton(
-                  key: NearFarDemoSurface.pauseKey,
-                  tooltip: l10n.activityPause,
-                  onPressed: onPause,
-                  icon: const Icon(Icons.pause_circle_outline_rounded),
-                ),
-              if (canResume)
-                IconButton(
-                  key: NearFarDemoSurface.resumeKey,
-                  tooltip: l10n.activityResume,
-                  onPressed: onResume,
-                  icon: const Icon(Icons.play_circle_outline_rounded),
-                ),
-              if (canRestart)
-                IconButton(
-                  key: NearFarDemoSurface.restartKey,
-                  tooltip: l10n.activityRestart,
-                  onPressed: onRestart,
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 8, 0),
+      child: Row(
+        children: [
+          TextButton.icon(
+            key: NearFarDemoSurface.closeKey,
+            onPressed: onClose,
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: Text(l10n.nearFarBack),
           ),
-        ),
+          Expanded(
+            child: Text(
+              l10n.nearFarTitle,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          if (canPause)
+            IconButton(
+              key: NearFarDemoSurface.pauseKey,
+              tooltip: l10n.activityPause,
+              onPressed: onPause,
+              icon: const Icon(Icons.pause_circle_outline_rounded),
+            ),
+          if (canResume)
+            IconButton(
+              key: NearFarDemoSurface.resumeKey,
+              tooltip: l10n.activityResume,
+              onPressed: onResume,
+              icon: const Icon(Icons.play_circle_outline_rounded),
+            ),
+          if (canRestart)
+            IconButton(
+              key: NearFarDemoSurface.restartKey,
+              tooltip: l10n.activityRestart,
+              onPressed: onRestart,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+        ],
       ),
     );
   }
