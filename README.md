@@ -22,15 +22,16 @@ Backend owns OpenAPI. This repo pins a **backend commit SHA** and regenerates cl
 | Backend | `little-minds-app/little-minds-backend` |
 | Pin file | [`contracts/pin.json`](contracts/pin.json) |
 | Artifact | `contracts/openapi.yaml` (vendored from pin) |
+| Blob SHA | `artifactBlobSha` in pin (`git hash-object` of vendored YAML) |
 | Surface | `GET /health` only |
 
 ```bash
 npm ci
-npm run contracts:check   # validate + compat + generate + drift
-npm test                  # contract unit tests
+npm run contracts:check   # blob pin + validate + compat + generate + drift
+npm test                  # contract unit + negative tests
 ```
 
-See [`contracts/README.md`](contracts/README.md). Java 11+ required for Dart generation.
+See [`contracts/README.md`](contracts/README.md). Java 11+ required for Dart generation. Offline pin+vendored verification does **not** require live backend clone access.
 
 ## Mobile (Flutter + Flame)
 
