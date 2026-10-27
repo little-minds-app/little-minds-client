@@ -7,10 +7,14 @@
 library;
 
 export 'daily_policy.dart';
+export 'kids_mode_calm_boundary.dart';
 export 'monotonic_clock.dart';
 export 'persistent_store.dart';
 export 'screen_time_accountant.dart';
+export 'screen_time_coordinator.dart';
+export 'screen_time_scope.dart';
 export 'screen_time_snapshot.dart';
+export 'shared_preferences_persistent_store.dart';
 export 'snapshot_load_result.dart';
 export 'trust_recovery.dart';
 export 'trust_state.dart';

@@ -655,6 +655,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof.'**
   String get mentorCardOpenMissionHint;
+
+  /// Calm daily screen-time boundary title (LMP-49 / K06-lite). No pressure copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Time for a break'**
+  String get screenTimeCalmTitle;
+
+  /// Calm body copy when the local daily cap is reached. No 'one more' language.
+  ///
+  /// In en, this message translates to:
+  /// **'That\'s enough screen time for today. Ask a grown-up when you\'re ready.'**
+  String get screenTimeCalmBody;
+
+  /// Optional Parent Gate exit from the calm screen-time boundary.
+  ///
+  /// In en, this message translates to:
+  /// **'Grown-ups'**
+  String get screenTimeCalmGrownUps;
 }
 
 class _AppLocalizationsDelegate

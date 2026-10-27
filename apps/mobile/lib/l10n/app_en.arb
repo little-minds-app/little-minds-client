@@ -190,5 +190,17 @@
   "@mentorCardOpenMission": {
     "description": "Optional CTA from mentor card to existing Near/Far demo + mission handoff (LMP-48). Not a duplicate mission UI."
   },
-  "mentorCardOpenMissionHint": "Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof."
+  "mentorCardOpenMissionHint": "Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof.",
+  "screenTimeCalmTitle": "Time for a break",
+  "@screenTimeCalmTitle": {
+    "description": "Calm daily screen-time boundary title (LMP-49 / K06-lite). No pressure copy."
+  },
+  "screenTimeCalmBody": "That's enough screen time for today. Ask a grown-up when you're ready.",
+  "@screenTimeCalmBody": {
+    "description": "Calm body copy when the local daily cap is reached. No 'one more' language."
+  },
+  "screenTimeCalmGrownUps": "Grown-ups",
+  "@screenTimeCalmGrownUps": {
+    "description": "Optional Parent Gate exit from the calm screen-time boundary."
+  }
 }

@@ -5,6 +5,7 @@ import '../config/env_config_badge.dart';
 import '../l10n/app_localizations.dart';
 import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
+import '../screen_time/screen_time.dart';
 import 'activity_session_controller.dart';
 import 'activity_session_snapshot.dart';
 import 'flame_host.dart';
@@ -85,6 +86,15 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
     if (!mounted || _controller.isDisposed) {
       return;
     }
+    ScreenTimeScope.maybeOf(context)?.setGameplayPhase(_controller.phase);
+    final screenTime = ScreenTimeScope.maybeOf(context);
+    if (screenTime != null &&
+        !screenTime.allowsChildPlay &&
+        _controller.phase == GameLifecyclePhase.running) {
+      // Cap / trust fail-closed mid-session — pause; do not resume.
+      // ignore: discarded_futures
+      _controller.pause();
+    }
     setState(() {});
   }
 
@@ -128,7 +138,13 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
 
   Future<void> _onPause() => _controller.pause();
 
-  Future<void> _onResume() => _controller.resume();
+  Future<void> _onResume() async {
+    final screenTime = ScreenTimeScope.maybeOf(context);
+    if (screenTime != null && !screenTime.allowsChildPlay) {
+      return;
+    }
+    await _controller.resume();
+  }
 
   Future<void> _onRestart() => _controller.restart();
 

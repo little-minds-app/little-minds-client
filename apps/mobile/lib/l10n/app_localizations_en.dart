@@ -311,4 +311,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mentorCardOpenMissionHint =>
       'Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof.';
+
+  @override
+  String get screenTimeCalmTitle => 'Time for a break';
+
+  @override
+  String get screenTimeCalmBody =>
+      'That\'s enough screen time for today. Ask a grown-up when you\'re ready.';
+
+  @override
+  String get screenTimeCalmGrownUps => 'Grown-ups';
 }

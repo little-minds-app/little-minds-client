@@ -92,5 +92,8 @@
   "mentorCardRetry": "Yeniden dene",
   "mentorCardSemanticsLabel": "Ebeveyn Oyun Rehberi kartı: {title}",
   "mentorCardOpenMission": "Yakın ve uzak görevini dene",
-  "mentorCardOpenMissionHint": "Mevcut Yakın/Uzak oyunu ve gerçek dünya görevini açar. İstediğiniz zaman atlayabilirsiniz. Fotoğraf veya kanıt yok."
+  "mentorCardOpenMissionHint": "Mevcut Yakın/Uzak oyunu ve gerçek dünya görevini açar. İstediğiniz zaman atlayabilirsiniz. Fotoğraf veya kanıt yok.",
+  "screenTimeCalmTitle": "Mola zamanı",
+  "screenTimeCalmBody": "Bugünlük ekran süresi doldu. Hazır olduğunda bir büyüğe sor.",
+  "screenTimeCalmGrownUps": "Büyükler"
 }

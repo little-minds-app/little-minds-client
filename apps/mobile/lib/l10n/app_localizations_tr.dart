@@ -312,4 +312,14 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get mentorCardOpenMissionHint =>
       'Mevcut Yakın/Uzak oyunu ve gerçek dünya görevini açar. İstediğiniz zaman atlayabilirsiniz. Fotoğraf veya kanıt yok.';
+
+  @override
+  String get screenTimeCalmTitle => 'Mola zamanı';
+
+  @override
+  String get screenTimeCalmBody =>
+      'Bugünlük ekran süresi doldu. Hazır olduğunda bir büyüğe sor.';
+
+  @override
+  String get screenTimeCalmGrownUps => 'Büyükler';
 }
