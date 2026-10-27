@@ -1,8 +1,10 @@
 import 'near_far_constants.dart';
 
-/// Safe mission handoff contract for LMP-45 (F-008 adjacency).
+/// Optional real-world mission handoff lifecycle (LMP-46 / F-008 / LM-005).
 ///
-/// Full skip / reflection / feedback UX is **LMP-46** — do not expand here.
+/// Digital play → calm invitation → optional Start/Try → Skip or calm done →
+/// Back/exit. Never requires photos, proof, permissions, timers, or scoring.
+/// Parent mentor UI / caregiver reflection dashboards remain LMP-47/48.
 enum NearFarMissionHandoffState {
   /// Digital play still in progress — handoff not yet available.
   unavailable,
@@ -10,10 +12,16 @@ enum NearFarMissionHandoffState {
   /// Calm real-world invitation is available after digital play.
   offered,
 
-  /// Caregiver opened the handoff surface (still no skip/feedback UI).
+  /// Caregiver/child started the optional off-screen mission guidance.
   opened,
 
-  /// Child / caregiver returned without starting the off-screen mission.
+  /// Optional calm acknowledgment after exploring together (no proof).
+  completed,
+
+  /// Explicit skip — never penalized.
+  skipped,
+
+  /// Child / caregiver returned without starting, or exited after terminal state.
   dismissed,
 }
 
@@ -37,9 +45,18 @@ class NearFarMissionHandoff {
   final List<String> safetyNotes;
   final String linkedActivityId;
 
+  /// Invitation or in-progress guidance is on screen.
   bool get isAvailable =>
       state == NearFarMissionHandoffState.offered ||
       state == NearFarMissionHandoffState.opened;
+
+  /// Terminal calm states that still show an exit surface until dismiss.
+  bool get isTerminalCalm =>
+      state == NearFarMissionHandoffState.completed ||
+      state == NearFarMissionHandoffState.skipped;
+
+  /// Panel should remain visible (including calm done/skip until Back/dismiss).
+  bool get showsPanel => isAvailable || isTerminalCalm;
 
   NearFarMissionHandoff copyWith({NearFarMissionHandoffState? state}) {
     return NearFarMissionHandoff(
@@ -52,7 +69,9 @@ class NearFarMissionHandoff {
   }
 }
 
-/// Offers / opens / dismisses the safe handoff without LMP-46 skip flow.
+/// Offers / starts / skips / completes / dismisses the optional mission.
+///
+/// All transitions are idempotent and never force completion.
 class NearFarMissionHandoffController {
   NearFarMissionHandoff _handoff = const NearFarMissionHandoff();
 
@@ -60,18 +79,55 @@ class NearFarMissionHandoffController {
 
   /// Marks the calm invitation available after digital completion.
   NearFarMissionHandoff offer() {
+    if (_handoff.state != NearFarMissionHandoffState.unavailable &&
+        _handoff.state != NearFarMissionHandoffState.dismissed) {
+      return _handoff;
+    }
     _handoff = _handoff.copyWith(state: NearFarMissionHandoffState.offered);
     return _handoff;
   }
 
-  /// Caregiver opened the invitation (event stub only — no skip UI).
+  /// Starts optional off-screen guidance (Start / Try together).
   ///
   /// Idempotent: only [NearFarMissionHandoffState.offered] → opened.
-  NearFarMissionHandoff open() {
+  NearFarMissionHandoff start() {
     if (_handoff.state != NearFarMissionHandoffState.offered) {
       return _handoff;
     }
     _handoff = _handoff.copyWith(state: NearFarMissionHandoffState.opened);
+    return _handoff;
+  }
+
+  /// Alias for [start] — keeps LMP-45 call sites working.
+  NearFarMissionHandoff open() => start();
+
+  /// Explicit skip from invitation or active guidance — never penalized.
+  ///
+  /// Idempotent once already [skipped] / [completed] / [dismissed].
+  NearFarMissionHandoff skip() {
+    final state = _handoff.state;
+    if (state == NearFarMissionHandoffState.skipped ||
+        state == NearFarMissionHandoffState.completed ||
+        state == NearFarMissionHandoffState.dismissed ||
+        state == NearFarMissionHandoffState.unavailable) {
+      return _handoff;
+    }
+    if (state != NearFarMissionHandoffState.offered &&
+        state != NearFarMissionHandoffState.opened) {
+      return _handoff;
+    }
+    _handoff = _handoff.copyWith(state: NearFarMissionHandoffState.skipped);
+    return _handoff;
+  }
+
+  /// Optional calm "we're done" — no proof, timer, or score required.
+  ///
+  /// Only from [opened]; never forced.
+  NearFarMissionHandoff completeOptionally() {
+    if (_handoff.state != NearFarMissionHandoffState.opened) {
+      return _handoff;
+    }
+    _handoff = _handoff.copyWith(state: NearFarMissionHandoffState.completed);
     return _handoff;
   }
 

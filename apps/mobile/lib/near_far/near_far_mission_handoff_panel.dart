@@ -6,14 +6,15 @@ import '../l10n/app_localizations.dart';
 import 'near_far_activity.dart';
 import 'near_far_mission_handoff.dart';
 
-/// Calm safe mission invitation after digital play (LMP-45 handoff only).
+/// Optional sock + soft-toy real-world mission surface (LMP-46 / K05 / F-008).
 ///
-/// Full-bleed opaque scrim + constrained readable card so play-field chrome
-/// cannot overlap ("Nice exploring!" vs "Try it in the room"). No skip /
-/// feedback / photo proof — those belong to LMP-46.
+/// Full-bleed opaque scrim + constrained readable card. Start/Try, Skip, Back,
+/// and calm completion/exit — never photos, proof, permissions, timers, or
+/// scoring. Parent mentor card UI stays LMP-47/48. Spoken mission prompts are
+/// deferred to LMP-120 (on-screen copy only here).
 ///
-/// Open invitation is actionable only while [NearFarMissionHandoffState.offered].
-/// After [opened], a localized confirmation replaces the button (no repeat tap).
+/// Action buttons stay in a pinned footer so short phone landscape never hides
+/// Skip / Done / Back behind scrolled steps.
 class NearFarMissionHandoffPanel extends StatelessWidget {
   const NearFarMissionHandoffPanel({
     super.key,
@@ -27,7 +28,12 @@ class NearFarMissionHandoffPanel extends StatelessWidget {
   static const Key panelKey = Key('near-far-mission-handoff');
   static const Key cardKey = Key('near-far-mission-handoff-card');
   static const Key openKey = Key('near-far-mission-open');
+  static const Key skipKey = Key('near-far-mission-skip');
+  static const Key doneKey = Key('near-far-mission-done');
   static const Key openedConfirmKey = Key('near-far-mission-opened-confirm');
+  static const Key skippedKey = Key('near-far-mission-skipped');
+  static const Key completedKey = Key('near-far-mission-completed');
+  static const Key stepsKey = Key('near-far-mission-steps');
   static const Key dismissKey = Key('near-far-mission-dismiss');
 
   /// Readable card width on phone landscape / tablet.
@@ -39,11 +45,12 @@ class NearFarMissionHandoffPanel extends StatelessWidget {
     final handoff = activity.missionHandoff.handoff;
     final media = MediaQuery.of(context);
     final textScale = media.textScaler.scale(1).clamp(1.0, 1.6);
-    final isOffered = handoff.state == NearFarMissionHandoffState.offered;
-    final isOpened = handoff.state == NearFarMissionHandoffState.opened;
+    final state = handoff.state;
+    final isOffered = state == NearFarMissionHandoffState.offered;
+    final isOpened = state == NearFarMissionHandoffState.opened;
+    final isSkipped = state == NearFarMissionHandoffState.skipped;
+    final isCompleted = state == NearFarMissionHandoffState.completed;
 
-    // Opaque scrim — play field is not shown underneath during handoff, but
-    // keep a solid calm fill so no game chrome bleeds through.
     return ColoredBox(
       key: panelKey,
       color: const Color(0xFFFFF6E0),
@@ -55,13 +62,13 @@ class NearFarMissionHandoffPanel extends StatelessWidget {
               maxCardWidth,
               math.max(200.0, constraints.maxWidth - 24),
             );
+            final padH = 20 * textScale.clamp(1.0, 1.2);
+            // Bound height so Expanded+scroll + pinned footer layout is valid
+            // on short phone landscape (actions never off-screen).
             return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: maxW,
-                  maxHeight: maxH,
-                  minWidth: math.min(280, maxW),
-                ),
+              child: SizedBox(
+                width: maxW,
+                height: maxH,
                 child: Material(
                   key: cardKey,
                   color: Colors.white,
@@ -69,92 +76,61 @@ class NearFarMissionHandoffPanel extends StatelessWidget {
                   shadowColor: const Color(0x33000000),
                   borderRadius: BorderRadius.circular(20),
                   clipBehavior: Clip.antiAlias,
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 20 * textScale.clamp(1.0, 1.2),
-                      vertical: 16,
-                    ),
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(padH, 14, padH, 12),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          l10n.nearFarMissionTitle,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          l10n.nearFarMissionBody,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          l10n.nearFarMissionMaterials,
-                          textAlign: TextAlign.center,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Colors.black54,
-                                  ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (isOpened) ...[
-                          Semantics(
-                            liveRegion: true,
-                            child: Text(
-                              key: openedConfirmKey,
-                              l10n.nearFarMissionOpenedConfirm,
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    color: const Color(0xFF2E7D32),
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: _MissionBody(
+                              l10n: l10n,
+                              isOffered: isOffered,
+                              isOpened: isOpened,
+                              isSkipped: isSkipped,
+                              isCompleted: isCompleted,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                        ],
+                        ),
+                        const SizedBox(height: 10),
                         Wrap(
                           alignment: WrapAlignment.center,
                           spacing: 12,
                           runSpacing: 8,
                           children: [
-                            // Actionable open only while offered — never after opened.
                             if (isOffered)
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  minHeight: 48,
-                                  minWidth: 148,
-                                ),
-                                child: FilledButton(
-                                  key: openKey,
-                                  onPressed: () =>
-                                      activity.openMissionHandoff(),
-                                  child: Text(l10n.nearFarMissionOpen),
-                                ),
+                              _ActionButton(
+                                key: openKey,
+                                filled: true,
+                                label: l10n.nearFarMissionTry,
+                                onPressed: () =>
+                                    activity.startMissionHandoff(),
                               ),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                minHeight: 48,
-                                minWidth: 148,
+                            if (isOpened)
+                              _ActionButton(
+                                key: doneKey,
+                                filled: true,
+                                label: l10n.nearFarMissionDone,
+                                onPressed: () =>
+                                    activity.completeMissionOptionally(),
                               ),
-                              child: TextButton(
-                                key: dismissKey,
-                                onPressed: () {
-                                  activity.missionHandoff.dismiss();
-                                  onDismiss();
-                                },
-                                child: Text(
-                                  isOpened
-                                      ? l10n.nearFarMissionBack
-                                      : l10n.nearFarMissionLater,
-                                ),
+                            if (isOffered || isOpened)
+                              _ActionButton(
+                                key: skipKey,
+                                filled: false,
+                                label: l10n.nearFarMissionSkip,
+                                onPressed: () =>
+                                    activity.skipMissionHandoff(),
                               ),
+                            _ActionButton(
+                              key: dismissKey,
+                              filled: false,
+                              label: isOffered
+                                  ? l10n.nearFarMissionLater
+                                  : l10n.nearFarMissionBack,
+                              onPressed: () {
+                                activity.dismissMissionHandoff();
+                                onDismiss();
+                              },
                             ),
                           ],
                         ),
@@ -167,6 +143,164 @@ class NearFarMissionHandoffPanel extends StatelessWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+class _MissionBody extends StatelessWidget {
+  const _MissionBody({
+    required this.l10n,
+    required this.isOffered,
+    required this.isOpened,
+    required this.isSkipped,
+    required this.isCompleted,
+  });
+
+  final AppLocalizations l10n;
+  final bool isOffered;
+  final bool isOpened;
+  final bool isSkipped;
+  final bool isCompleted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          isOpened ? l10n.nearFarMissionStepsTitle : l10n.nearFarMissionTitle,
+          textAlign: TextAlign.center,
+          style: Theme.of(context)
+              .textTheme
+              .titleLarge
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        if (isOffered) ...[
+          Text(
+            l10n.nearFarMissionBody,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            l10n.nearFarMissionMaterials,
+            textAlign: TextAlign.center,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: Colors.black54),
+          ),
+        ],
+        if (isOpened)
+          Semantics(
+            liveRegion: true,
+            child: Column(
+              key: NearFarMissionHandoffPanel.stepsKey,
+              children: [
+                Text(
+                  key: NearFarMissionHandoffPanel.openedConfirmKey,
+                  l10n.nearFarMissionOpenedConfirm,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                _MissionStep(text: l10n.nearFarMissionStep1),
+                _MissionStep(text: l10n.nearFarMissionStep2),
+                _MissionStep(text: l10n.nearFarMissionStep3),
+                _MissionStep(text: l10n.nearFarMissionStep4),
+                const SizedBox(height: 6),
+                Text(
+                  l10n.nearFarMissionMaterials,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+        if (isSkipped)
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              key: NearFarMissionHandoffPanel.skippedKey,
+              l10n.nearFarMissionSkipped,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF455A64),
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+        if (isCompleted)
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              key: NearFarMissionHandoffPanel.completedKey,
+              l10n.nearFarMissionCompleted,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF2E7D32),
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _MissionStep extends StatelessWidget {
+  const _MissionStep({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('•  ', style: TextStyle(fontWeight: FontWeight.w700)),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    required this.filled,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Text(label);
+    const constraints = BoxConstraints(minHeight: 48, minWidth: 148);
+    return ConstrainedBox(
+      constraints: constraints,
+      child: filled
+          ? FilledButton(onPressed: onPressed, child: child)
+          : TextButton(onPressed: onPressed, child: child),
     );
   }
 }

@@ -175,13 +175,15 @@ class _NearFarDemoSurfaceState extends State<NearFarDemoSurface>
   }
 
   bool _showHandoff(NearFarActivity activity) {
-    final state = activity.missionHandoff.handoff.state;
-    if (state == NearFarMissionHandoffState.dismissed) {
+    final handoff = activity.missionHandoff.handoff;
+    if (handoff.state == NearFarMissionHandoffState.dismissed) {
       return false;
     }
-    return state == NearFarMissionHandoffState.offered ||
-        state == NearFarMissionHandoffState.opened ||
-        _controller.lastOutcome is ActivityCompletedOutcome;
+    // LMP-46: keep calm skip/complete surfaces until Back dismisses.
+    if (handoff.showsPanel) {
+      return true;
+    }
+    return _controller.lastOutcome is ActivityCompletedOutcome;
   }
 
   @override

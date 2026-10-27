@@ -56,6 +56,7 @@ class NearFarActivity extends LearningActivity {
   var _startedEmitted = false;
   var _abandonedEmitted = false;
   var _missionOpenedEmitted = false;
+  var _missionFeedbackEmitted = false;
   var _interactionsEnabled = true;
   NearFarRelation? _lastEmittedRelation;
   Offset _sock = NearFarRelationLogic.initialFarPositions().sock;
@@ -180,6 +181,7 @@ class NearFarActivity extends LearningActivity {
     _startedEmitted = false;
     _abandonedEmitted = false;
     _missionOpenedEmitted = false;
+    _missionFeedbackEmitted = false;
     missionHandoff.reset();
     if (emitStarted) {
       _emitStartedIfNeeded(restart: true);
@@ -371,10 +373,12 @@ class NearFarActivity extends LearningActivity {
     );
   }
 
-  /// Caregiver opens the safe handoff invitation (no skip/feedback UI).
-  NearFarMissionHandoff openMissionHandoff() {
+  /// Starts the optional real-world mission guidance (Start / Try together).
+  ///
+  /// Emits [NearFarEventType.realWorldMissionOpened] once. Idempotent.
+  NearFarMissionHandoff startMissionHandoff() {
     final before = missionHandoff.handoff.state;
-    final opened = missionHandoff.open();
+    final opened = missionHandoff.start();
     if (before == NearFarMissionHandoffState.offered &&
         opened.state == NearFarMissionHandoffState.opened &&
         !_missionOpenedEmitted) {
@@ -391,5 +395,62 @@ class NearFarActivity extends LearningActivity {
       _notify();
     }
     return opened;
+  }
+
+  /// Alias for [startMissionHandoff] — LMP-45 call-site compatibility.
+  NearFarMissionHandoff openMissionHandoff() => startMissionHandoff();
+
+  /// Explicit skip — calm, optional, never penalized; no proof demanded.
+  ///
+  /// Emits local [NearFarEventType.missionFeedbackSubmitted] once with
+  /// `status=skipped` / `source=caregiver_report` (Blueprint §5.2). Not
+  /// production telemetry (LMP-50).
+  NearFarMissionHandoff skipMissionHandoff() {
+    final before = missionHandoff.handoff.state;
+    final skipped = missionHandoff.skip();
+    if ((before == NearFarMissionHandoffState.offered ||
+            before == NearFarMissionHandoffState.opened) &&
+        skipped.state == NearFarMissionHandoffState.skipped) {
+      _emitMissionFeedbackOnce(status: 'skipped');
+      _notify();
+    }
+    return skipped;
+  }
+
+  /// Optional calm "we're done" after starting guidance — never forced.
+  NearFarMissionHandoff completeMissionOptionally() {
+    final before = missionHandoff.handoff.state;
+    final completed = missionHandoff.completeOptionally();
+    if (before == NearFarMissionHandoffState.opened &&
+        completed.state == NearFarMissionHandoffState.completed) {
+      _emitMissionFeedbackOnce(status: 'tried_together');
+      _notify();
+    }
+    return completed;
+  }
+
+  /// Calm dismiss / Back exit from any handoff surface.
+  NearFarMissionHandoff dismissMissionHandoff() {
+    final dismissed = missionHandoff.dismiss();
+    _notify();
+    return dismissed;
+  }
+
+  void _emitMissionFeedbackOnce({required String status}) {
+    if (_missionFeedbackEmitted) {
+      return;
+    }
+    _missionFeedbackEmitted = true;
+    eventBuffer.emit(
+      playSessionId: playSessionId,
+      type: NearFarEventType.missionFeedbackSubmitted,
+      payload: {
+        'mission_id': NearFarConstants.missionId,
+        'status': status,
+        'source': 'caregiver_report',
+        // Local offline fixture only — no photo / proof / permissions.
+        'proof_required': false,
+      },
+    );
   }
 }
