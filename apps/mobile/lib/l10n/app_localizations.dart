@@ -182,6 +182,18 @@ abstract class AppLocalizations {
   /// **'Opening grown-ups gate'**
   String get hubAudioParentExitCue;
 
+  /// No description provided for @hubCarouselPageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity {current} of {total}'**
+  String hubCarouselPageLabel(int current, int total);
+
+  /// No description provided for @hubCarouselDotLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to activity {index}'**
+  String hubCarouselDotLabel(int index);
+
   /// No description provided for @activityShapeMatching.
   ///
   /// In en, this message translates to:

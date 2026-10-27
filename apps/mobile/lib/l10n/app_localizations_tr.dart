@@ -52,6 +52,16 @@ class AppLocalizationsTr extends AppLocalizations {
   String get hubAudioParentExitCue => 'Büyükler kapısı açılıyor';
 
   @override
+  String hubCarouselPageLabel(int current, int total) {
+    return 'Etkinlik $current / $total';
+  }
+
+  @override
+  String hubCarouselDotLabel(int index) {
+    return '$index. etkinliğe git';
+  }
+
+  @override
   String get activityShapeMatching => 'Şekil Eşleştirme';
 
   @override

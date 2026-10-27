@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
 import '../child_hub/hub_activity_card.dart';
+import '../child_hub/hub_activity_carousel.dart';
 import '../child_hub/hub_activity_catalog.dart';
 import '../child_hub/hub_audio_guidance.dart';
 import '../child_hub/hub_theme.dart';
@@ -46,7 +47,8 @@ class ChildHubSurface extends StatefulWidget {
   static const Key brandKey = Key('child-hub-brand');
   static const Key emptyPlayableKey = Key('child-hub-empty-playable');
   static const Key activityGridKey = Key('child-hub-activity-grid');
-  static const Key activityCarouselKey = Key('child-hub-activity-carousel');
+  static const Key activityCarouselKey = HubActivityCarousel.carouselKey;
+  static const Key carouselIndicatorKey = HubActivityCarousel.indicatorKey;
   static const Key compactLayoutKey = Key('child-hub-compact-layout');
   static const Key expandedLayoutKey = Key('child-hub-expanded-layout');
   static const Key parentExitKey = Key('nav-parent-gate');
@@ -292,7 +294,7 @@ class _HubHome extends StatelessWidget {
                 onPassiveTap: onPassiveTap,
                 onPlay: onPlay,
               )
-            : _PhoneCarousel(
+            : HubActivityCarousel(
                 tiles: tiles,
                 onPassiveTap: onPassiveTap,
                 onPlay: onPlay,
@@ -326,56 +328,6 @@ class _HubHome extends StatelessWidget {
                 ),
               Expanded(child: board),
             ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _PhoneCarousel extends StatelessWidget {
-  const _PhoneCarousel({
-    required this.tiles,
-    required this.onPassiveTap,
-    required this.onPlay,
-  });
-
-  final List<HubActivityTile> tiles;
-  final Future<void> Function(HubActivityTile tile) onPassiveTap;
-  final Future<void> Function(HubActivityTile tile) onPlay;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // ~3 cards visible: card ≈ 32% of width + gutters.
-        // Eager children so a11y/tests see all six offline catalog tiles.
-        final cardWidth = constraints.maxWidth * 0.32;
-        final cardHeight = constraints.maxHeight * 0.92;
-        return SingleChildScrollView(
-          key: ChildHubSurface.activityCarouselKey,
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < tiles.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 14),
-                  SizedBox(
-                    width: cardWidth.clamp(150.0, 280.0),
-                    height: cardHeight,
-                    child: HubActivityCard(
-                      tile: tiles[i],
-                      onPassiveTap: () => onPassiveTap(tiles[i]),
-                      onPlay: tiles[i].isPlayable
-                          ? () => onPlay(tiles[i])
-                          : null,
-                    ),
-                  ),
-                ],
-              ],
-            ),
           ),
         );
       },

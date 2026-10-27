@@ -52,6 +52,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hubAudioParentExitCue => 'Opening grown-ups gate';
 
   @override
+  String hubCarouselPageLabel(int current, int total) {
+    return 'Activity $current of $total';
+  }
+
+  @override
+  String hubCarouselDotLabel(int index) {
+    return 'Go to activity $index';
+  }
+
+  @override
   String get activityShapeMatching => 'Shape Matching';
 
   @override

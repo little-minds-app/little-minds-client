@@ -1,8 +1,11 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/app.dart';
 import 'package:little_minds_mobile/child_hub/hub_activity_art.dart';
 import 'package:little_minds_mobile/child_hub/hub_activity_card.dart';
+import 'package:little_minds_mobile/child_hub/hub_activity_carousel.dart';
 import 'package:little_minds_mobile/child_hub/hub_activity_catalog.dart';
 import 'package:little_minds_mobile/child_hub/hub_audio_guidance.dart';
 import 'package:little_minds_mobile/config/env_config_badge.dart';
@@ -129,7 +132,11 @@ void main() {
     );
     await _pumpFrames(tester);
 
-    for (final id in HubCatalogActivityId.values) {
+    final ids = HubCatalogActivityId.values;
+    for (var i = 0; i < ids.length; i++) {
+      await tester.tap(find.byKey(HubActivityCarousel.dotKey(i)));
+      await tester.pumpAndSettle();
+      final id = ids[i];
       expect(find.byKey(HubActivityCard.cardKey(id.id)), findsOneWidget);
       expect(find.byKey(HubActivityCard.passiveBadgeKey(id.id)), findsOneWidget);
       expect(find.byKey(HubActivityArt.artKey(id.id)), findsOneWidget);
@@ -139,11 +146,11 @@ void main() {
       );
     }
 
-    final shapeCard = find.byKey(
-      HubActivityCard.cardKey(HubCatalogActivityId.shapeMatching.id),
+    await tester.tap(find.byKey(HubActivityCarousel.dotKey(0)));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(HubActivityCard.cardKey(HubCatalogActivityId.shapeMatching.id)),
     );
-    await tester.ensureVisible(shapeCard);
-    await tester.tap(shapeCard);
     await _pumpFrames(tester);
 
     expect(find.byKey(ChildHubSurface.playHostKey), findsNothing);
@@ -169,14 +176,15 @@ void main() {
 
     expect(find.byKey(ChildHubSurface.compactLayoutKey), findsOneWidget);
     expect(find.byKey(ChildHubSurface.activityCarouselKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.carouselIndicatorKey), findsOneWidget);
     expect(find.byKey(ChildHubSurface.activityGridKey), findsNothing);
     expect(find.byKey(ChildHubSurface.expandedLayoutKey), findsNothing);
+    expect(find.byType(PageView), findsOneWidget);
 
-    // ~3 cards visible width budget on compact phone landscape.
     final first = tester.getRect(
       find.byKey(HubActivityCard.cardKey(HubCatalogActivityId.shapeMatching.id)),
     );
-    expect(first.width, lessThan(ScaffoldingViewports.compactPhoneHeight * 0.4));
+    expect(first.width, lessThan(ScaffoldingViewports.compactPhoneHeight * 0.5));
 
     await _setLandscape(
       tester,
@@ -194,7 +202,81 @@ void main() {
     expect(find.byKey(ChildHubSurface.expandedLayoutKey), findsOneWidget);
     expect(find.byKey(ChildHubSurface.activityGridKey), findsOneWidget);
     expect(find.byKey(ChildHubSurface.activityCarouselKey), findsNothing);
+    expect(find.byKey(ChildHubSurface.carouselIndicatorKey), findsNothing);
     expect(find.byKey(ChildHubSurface.compactLayoutKey), findsNothing);
+  });
+
+  testWidgets('TC-HUB-012 carousel snap, dots, reachability, small landscape',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    try {
+      // iPhone SE-class landscape (smaller than iPhone 15).
+      await _setLandscape(tester, width: 667, height: 375);
+      await tester.pumpWidget(
+        LittleMindsApp(
+          game: StubLearningGame(),
+          audioGuidance: RecordingHubAudioGuidance(),
+        ),
+      );
+      await _pumpFrames(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(ChildHubSurface.activityCarouselKey), findsOneWidget);
+      expect(HubActivityCarousel.viewportFractionForWidth(667), 0.42);
+
+      // First card fully inside the viewport (padEnds).
+      final firstRect = tester.getRect(
+        find.byKey(
+          HubActivityCard.cardKey(HubCatalogActivityId.shapeMatching.id),
+        ),
+      );
+      expect(firstRect.left, greaterThanOrEqualTo(-1));
+      expect(firstRect.right, lessThanOrEqualTo(667 + 1));
+
+      // Snap indicator sync: jump to last via dot.
+      await tester.tap(find.byKey(HubActivityCarousel.dotKey(5)));
+      await tester.pumpAndSettle();
+
+      final lastDot = tester.getSemantics(
+        find.byKey(HubActivityCarousel.dotKey(5)),
+      );
+      expect(lastDot.flagsCollection.isSelected, Tristate.isTrue);
+      final firstDot = tester.getSemantics(
+        find.byKey(HubActivityCarousel.dotKey(0)),
+      );
+      expect(firstDot.flagsCollection.isSelected, isNot(Tristate.isTrue));
+
+      final lastRect = tester.getRect(
+        find.byKey(
+          HubActivityCard.cardKey(HubCatalogActivityId.objectCategories.id),
+        ),
+      );
+      expect(lastRect.left, greaterThanOrEqualTo(-1));
+      expect(lastRect.right, lessThanOrEqualTo(667 + 1));
+
+      // All six pages reachable via dots without overflow.
+      for (var i = 0; i < HubCatalogActivityId.values.length; i++) {
+        await tester.tap(find.byKey(HubActivityCarousel.dotKey(i)));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byKey(
+            HubActivityCard.cardKey(HubCatalogActivityId.values[i].id),
+          ),
+          findsOneWidget,
+        );
+      }
+
+      // iPhone 15-class landscape fraction.
+      expect(
+        HubActivityCarousel.viewportFractionForWidth(
+          ScaffoldingViewports.compactPhoneHeight,
+        ),
+        0.34,
+      );
+    } finally {
+      handle.dispose();
+    }
   });
 
   testWidgets('TC-HUB-005 localizes hub strings en-US and tr-TR',
@@ -291,6 +373,8 @@ void main() {
       );
       await _pumpFrames(tester);
 
+      await tester.tap(find.byKey(HubActivityCarousel.dotKey(3)));
+      await tester.pumpAndSettle();
       final passiveFinder = find.byKey(
         HubActivityCard.cardKey(HubCatalogActivityId.counting.id),
       );
@@ -300,6 +384,8 @@ void main() {
       expect(passiveData.label, contains('Coming Soon'));
       expect(passiveData.label, isNot(contains('Play')));
 
+      await tester.tap(find.byKey(HubActivityCarousel.dotKey(0)));
+      await tester.pumpAndSettle();
       final playableFinder = find.byKey(
         HubActivityCard.cardKey(HubCatalogActivityId.shapeMatching.id),
       );
@@ -308,7 +394,8 @@ void main() {
       expect(playableData.label, 'Shape Matching');
       expect(playableData.hint, 'Play');
 
-      await tester.ensureVisible(passiveFinder);
+      await tester.tap(find.byKey(HubActivityCarousel.dotKey(3)));
+      await tester.pumpAndSettle();
       await tester.tap(passiveFinder);
       await _pumpFrames(tester);
       expect(find.byKey(ChildHubSurface.playHostKey), findsNothing);

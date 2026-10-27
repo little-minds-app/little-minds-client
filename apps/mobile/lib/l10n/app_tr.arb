@@ -14,6 +14,8 @@
   "hubAudioPassiveCue": "Bu oyun yakında gelecek",
   "hubAudioPlayableCue": "Hadi oynayalım",
   "hubAudioParentExitCue": "Büyükler kapısı açılıyor",
+  "hubCarouselPageLabel": "Etkinlik {current} / {total}",
+  "hubCarouselDotLabel": "{index}. etkinliğe git",
   "activityShapeMatching": "Şekil Eşleştirme",
   "activityColorSorting": "Renk Sıralama",
   "activityAnimalSounds": "Hayvan Sesleri",

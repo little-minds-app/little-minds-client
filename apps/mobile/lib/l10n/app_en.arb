@@ -20,6 +20,19 @@
   "hubAudioPassiveCue": "This game is coming soon",
   "hubAudioPlayableCue": "Let's play",
   "hubAudioParentExitCue": "Opening grown-ups gate",
+  "hubCarouselPageLabel": "Activity {current} of {total}",
+  "@hubCarouselPageLabel": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "hubCarouselDotLabel": "Go to activity {index}",
+  "@hubCarouselDotLabel": {
+    "placeholders": {
+      "index": {"type": "int"}
+    }
+  },
   "activityShapeMatching": "Shape Matching",
   "activityColorSorting": "Color Sorting",
   "activityAnimalSounds": "Animal Sounds",
