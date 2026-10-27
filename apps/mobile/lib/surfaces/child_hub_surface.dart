@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/env_config_badge.dart';
 import '../game/flame_host.dart';
 import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
@@ -12,11 +13,15 @@ class ChildHubSurface extends StatelessWidget {
     required this.game,
     this.onOpenProfiles,
     this.onOpenParentGate,
+    this.forceShowEnvBadge = false,
   });
 
   final StubLearningGame game;
   final VoidCallback? onOpenProfiles;
   final VoidCallback? onOpenParentGate;
+
+  /// When true, always show the LMP-28 env badge (widget tests).
+  final bool forceShowEnvBadge;
 
   static const Key surfaceKey = Key('surface-child-hub');
   static const Key placeholderKey = Key('child-hub-placeholder');
@@ -55,6 +60,10 @@ class ChildHubSurface extends StatelessWidget {
                   'Kids home placeholder — accessible navigation arrives in later tasks (F-004).',
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: EnvConfigBadge(forceVisible: forceShowEnvBadge),
               ),
               Expanded(child: FlameHostPanel(game: game)),
             ],
