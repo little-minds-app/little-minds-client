@@ -11,15 +11,16 @@ Flutter + Flame Kids App with **Child Hub v1** (LMP-43), Flame lifecycle (LMP-44
 - Parent exit → **Parent Gate** only; settings stay behind the gate.
 - Flame host + `ActivityRegistry` retained for future playable launches.
 - **LMP-44** reusable Flame activity session lifecycle (enter/exit, pause/resume, foreground/background, restart/dispose, orientation state preserve, hitbox scaling, scoring-neutral outcomes). Production registry stays empty — Hub cards remain Coming Soon.
-- **LMP-45 Near/Far** — dedicated Kids Mode demo route (not a Hub catalog / seventh game): 32-month offline drag-position sock + soft toy, versioned local §14 event fixtures, safe mission handoff contract, F-009 mentor adjacency metadata only. Entry: Parent Settings → “Try Near/Far demo”.
+- **LMP-45 Near/Far** — dedicated Kids Mode demo route (not a Hub catalog / seventh game): 32-month offline drag-position sock + soft toy, versioned local §14 event fixtures, safe mission handoff contract, F-009 mentor adjacency metadata. Entry: Parent Settings → “Try Near/Far demo”.
 - **LMP-46 mission handoff/skip** — optional sock + soft-toy real-world mission: Start/Try, Skip, Back, calm completion/exit; en-US/tr-TR; no proof/photo/permissions/timers/scoring. Local §14 `mission_feedback_submitted` fixtures only.
+- **LMP-47 mentor card schema consumption** — thin Dart models/validators + pinned Near/Far `en-US`/`tr-TR` fixtures mirroring backend content contract (no parent UI). Canonical schema owned by `little-minds-backend`; see [`content/mentor-card/PIN.md`](../../content/mentor-card/PIN.md).
 - LMP-28 public env config badge (non-release / tests).
 - QA-UI-001 widget tests under `test/`.
 
 ## What this is not
 
 - Playable Hub mini-game mechanics among the six engines (F-005 engines) — Shape Matching = LMP-55 (sequence gated).
-- Parent mentor card UI (**LMP-47/48**), production telemetry (**LMP-50**).
+- Parent mentor card **UI** (**LMP-48**), production telemetry (**LMP-50**). Client does **not** own the mentor JSON Schema (backend LMP-47).
 - **Spoken near/far WAV packs / mission voice prompts** — deferred to **LMP-120**. No fake audio. On-screen Near/Far + mission text labels still work. See `assets/audio/near_far/README.md`.
 - **Real hub audio playback** — `LocalAssetHubAudioGuidance` only probes whether a local WAV path exists; it does not play sound.
 - Real Parent Gate OTP / auth, OpenAPI wiring into hub, store flavors (LMP-30), Crashlytics.
