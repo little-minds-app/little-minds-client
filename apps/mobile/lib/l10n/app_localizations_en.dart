@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -15,15 +16,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hubGreeting => 'Let\'s play!';
 
   @override
-  String get hubSubtitle =>
-      'Choose something calm and fun. Grown-ups can leave safely.';
+  String get hubSubtitle => 'Pick a calm activity.';
 
   @override
-  String get hubEmptyPlayable =>
-      'No games are ready to play yet. Soft tiles below are coming soon.';
+  String get hubEmptyPlayable => 'New games are on the way.';
 
   @override
-  String get hubPassiveBadge => 'Soon';
+  String get hubPassiveBadge => 'Coming Soon';
 
   @override
   String get hubPassiveHint => 'Not ready yet';
@@ -53,22 +52,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hubAudioParentExitCue => 'Opening grown-ups gate';
 
   @override
-  String get activityShapeMatching => 'Shape matching';
+  String get activityShapeMatching => 'Shape Matching';
 
   @override
-  String get activityColorSorting => 'Color sorting';
+  String get activityColorSorting => 'Color Sorting';
 
   @override
-  String get activityAnimalSounds => 'Animal sounds';
+  String get activityAnimalSounds => 'Animal Sounds';
 
   @override
   String get activityCounting => 'Counting';
 
   @override
-  String get activityMemoryMatching => 'Memory matching';
+  String get activityMemoryMatching => 'Memory Matching';
 
   @override
-  String get activityObjectCategories => 'Object categories';
+  String get activityObjectCategories => 'Object Categories';
 
   @override
   String get flameHostReady => 'Flame host ready';

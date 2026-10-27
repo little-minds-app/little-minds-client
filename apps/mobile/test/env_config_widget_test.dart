@@ -31,8 +31,9 @@ Future<void> _setSurface(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // TC-ENV-006 — App boots with resolved development config; badge visible.
-  testWidgets('TC-ENV-006 boots with development config badge', (tester) async {
+  // TC-ENV-006 — Badge is developer/test only on Child Hub (not child-facing).
+  testWidgets('TC-ENV-006 env badge hidden by default; visible when forced',
+      (tester) async {
     await _setSurface(
       tester,
       width: ScaffoldingViewports.compactPhoneHeight,
@@ -54,6 +55,18 @@ void main() {
     await _pumpFrames(tester);
 
     expect(find.byKey(ChildHubSurface.surfaceKey), findsOneWidget);
+    expect(find.byKey(EnvConfigBadge.badgeKey), findsNothing);
+
+    await tester.pumpWidget(
+      LittleMindsApp(
+        game: StubLearningGame(),
+        config: config,
+        audioGuidance: RecordingHubAudioGuidance(),
+        forceShowEnvBadge: true,
+      ),
+    );
+    await _pumpFrames(tester);
+
     expect(find.byKey(EnvConfigBadge.badgeKey), findsOneWidget);
     expect(
       find.textContaining('env=${AppEnvironment.development.wireName}'),
@@ -62,7 +75,7 @@ void main() {
     expect(find.textContaining('api=http://localhost:3000'), findsOneWidget);
   });
 
-  // TC-ENV-007 — F-034 compact + expanded still compose with injected config.
+  // TC-ENV-007 — F-034 compact carousel + expanded grid with staging config.
   testWidgets('TC-ENV-007 compact and expanded hub layout with staging config',
       (tester) async {
     final config = AppConfig.resolve(
@@ -70,7 +83,6 @@ void main() {
       apiBaseUrl: 'https://api.staging.example.test',
     );
 
-    // Phone landscape: wide but short → compact Kids Mode pane.
     await _setSurface(
       tester,
       width: ScaffoldingViewports.compactPhoneHeight,
@@ -81,14 +93,15 @@ void main() {
         game: StubLearningGame(),
         config: config,
         audioGuidance: RecordingHubAudioGuidance(),
+        forceShowEnvBadge: true,
       ),
     );
     await _pumpFrames(tester);
 
     expect(find.byKey(ChildHubSurface.compactLayoutKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.activityCarouselKey), findsOneWidget);
     expect(find.textContaining('env=staging'), findsOneWidget);
 
-    // Tablet landscape: wide + tall enough for dual-pane hub.
     await _setSurface(
       tester,
       width: ScaffoldingViewports.tabletHeight,
@@ -99,14 +112,15 @@ void main() {
         game: StubLearningGame(),
         config: config,
         audioGuidance: RecordingHubAudioGuidance(),
+        forceShowEnvBadge: true,
       ),
     );
     await _pumpFrames(tester);
 
     expect(find.byKey(ChildHubSurface.expandedLayoutKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.activityGridKey), findsOneWidget);
     expect(find.textContaining('env=staging'), findsOneWidget);
 
-    // Parent Gate AdaptiveShell still available after safe exit.
     await tester.ensureVisible(find.byKey(ChildHubSurface.parentExitKey));
     await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
     await _pumpFrames(tester);

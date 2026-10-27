@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
 import '../child_hub/hub_activity_card.dart';
 import '../child_hub/hub_activity_catalog.dart';
 import '../child_hub/hub_audio_guidance.dart';
+import '../child_hub/hub_theme.dart';
 import '../config/env_config_badge.dart';
 import '../game/flame_host.dart';
 import '../game/learning_activity.dart';
@@ -12,11 +14,11 @@ import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
 import '../shell/window_size_class.dart';
 
-/// Kids Mode Child Hub v1 — landscape-only home (F-004, F-020, F-034, ADR-018).
+/// Kids Mode Child Hub v1 — landscape preschool home (F-004, F-020, F-034, ADR-018).
 ///
-/// Offline-safe: no external navigation. Only [LearningActivity.isPlayable]
-/// registry entries launch the Flame host. Unimplemented catalog engines stay
-/// passive. Parent exit routes exclusively through Parent Gate.
+/// Phone landscape: horizontal carousel (~3 visible).
+/// Tablet landscape: responsive 3×2 grid.
+/// Only [LearningActivity.isPlayable] launches Flame; Parent Gate is the safe exit.
 class ChildHubSurface extends StatefulWidget {
   const ChildHubSurface({
     super.key,
@@ -32,13 +34,10 @@ class ChildHubSurface extends StatefulWidget {
   final VoidCallback? onOpenProfiles;
   final VoidCallback? onOpenParentGate;
 
-  /// When true, always show the LMP-28 env badge (widget tests).
+  /// When true, show LMP-28 env badge (widget tests / developer reveal).
   final bool forceShowEnvBadge;
 
-  /// Injectable audio guidance (defaults to local-asset graceful stub).
   final HubAudioGuidance? audioGuidance;
-
-  /// Explicit sound-off (also respects MediaQuery accessibility / tests).
   final bool soundOff;
 
   static const Key surfaceKey = Key('surface-child-hub');
@@ -47,13 +46,14 @@ class ChildHubSurface extends StatefulWidget {
   static const Key brandKey = Key('child-hub-brand');
   static const Key emptyPlayableKey = Key('child-hub-empty-playable');
   static const Key activityGridKey = Key('child-hub-activity-grid');
+  static const Key activityCarouselKey = Key('child-hub-activity-carousel');
   static const Key compactLayoutKey = Key('child-hub-compact-layout');
   static const Key expandedLayoutKey = Key('child-hub-expanded-layout');
   static const Key parentExitKey = Key('nav-parent-gate');
   static const Key profilesKey = Key('nav-profile-selection');
   static const Key playHostKey = Key('child-hub-play-host');
+  static const Key worldBackdropKey = Key('child-hub-world-backdrop');
 
-  /// Legacy key kept so older tests fail loudly if placeholder regresses.
   @Deprecated('Use homeKey — placeholder removed in LMP-43')
   static const Key placeholderKey = Key('child-hub-placeholder');
 
@@ -66,6 +66,7 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
       widget.audioGuidance ?? LocalAssetHubAudioGuidance();
   LearningActivity? _activePlayable;
   var _didWelcome = false;
+  var _developerBadgeVisible = false;
 
   @override
   void didChangeDependencies() {
@@ -83,6 +84,9 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
   }
 
   bool get _effectiveSoundOff => widget.soundOff;
+
+  bool get _showEnvBadge =>
+      widget.forceShowEnvBadge || (kDebugMode && _developerBadgeVisible);
 
   Future<void> _playCue(HubAudioCue cue) {
     final locale = Localizations.localeOf(context);
@@ -127,6 +131,13 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
     setState(() => _activePlayable = null);
   }
 
+  void _onBrandLongPress() {
+    if (!kDebugMode) {
+      return;
+    }
+    setState(() => _developerBadgeVisible = !_developerBadgeVisible);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -137,34 +148,32 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
       child: KeyedSubtree(
         key: ChildHubSurface.surfaceKey,
         child: DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFE8F5E9),
-                Color(0xFFFFF8E7),
-                Color(0xFFE3F2FD),
-              ],
-            ),
-          ),
-          child: SafeArea(
-            child: _activePlayable != null
-                ? _PlayHost(
-                    game: widget.game,
-                    onClose: _closePlayHost,
-                    forceShowEnvBadge: widget.forceShowEnvBadge,
-                  )
-                : _HubHome(
-                    game: widget.game,
-                    reduceMotion: reduceMotion,
-                    forceShowEnvBadge: widget.forceShowEnvBadge,
-                    onOpenProfiles: widget.onOpenProfiles,
-                    onParentExit: _onParentExit,
-                    onPassiveTap: _onPassiveTap,
-                    onPlay: _onPlay,
-                    l10n: l10n,
-                  ),
+          key: ChildHubSurface.worldBackdropKey,
+          decoration: const BoxDecoration(gradient: HubTheme.worldGradient),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              const _WorldDecor(),
+              SafeArea(
+                child: _activePlayable != null
+                    ? _PlayHost(
+                        game: widget.game,
+                        onClose: _closePlayHost,
+                        showEnvBadge: _showEnvBadge,
+                      )
+                    : _HubHome(
+                        game: widget.game,
+                        reduceMotion: reduceMotion,
+                        showEnvBadge: _showEnvBadge,
+                        onBrandLongPress: _onBrandLongPress,
+                        onOpenProfiles: widget.onOpenProfiles,
+                        onParentExit: _onParentExit,
+                        onPassiveTap: _onPassiveTap,
+                        onPlay: _onPlay,
+                        l10n: l10n,
+                      ),
+              ),
+            ],
           ),
         ),
       ),
@@ -172,11 +181,72 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
   }
 }
 
+class _WorldDecor extends StatelessWidget {
+  const _WorldDecor();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: _SoftHillsPainter(),
+        child: const SizedBox.expand(),
+      ),
+    );
+  }
+}
+
+class _SoftHillsPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final hill = Path()
+      ..moveTo(0, size.height * 0.78)
+      ..quadraticBezierTo(
+        size.width * 0.25,
+        size.height * 0.68,
+        size.width * 0.5,
+        size.height * 0.76,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.75,
+        size.height * 0.84,
+        size.width,
+        size.height * 0.72,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      hill,
+      Paint()..color = HubTheme.meadow.withValues(alpha: 0.55),
+    );
+
+    final dot = Paint()..color = Colors.white.withValues(alpha: 0.55);
+    const spots = [
+      Offset(0.12, 0.18),
+      Offset(0.28, 0.12),
+      Offset(0.72, 0.16),
+      Offset(0.88, 0.22),
+      Offset(0.55, 0.1),
+    ];
+    for (final o in spots) {
+      canvas.drawCircle(
+        Offset(size.width * o.dx, size.height * o.dy),
+        3.5,
+        dot,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _HubHome extends StatelessWidget {
   const _HubHome({
     required this.game,
     required this.reduceMotion,
-    required this.forceShowEnvBadge,
+    required this.showEnvBadge,
+    required this.onBrandLongPress,
     required this.onOpenProfiles,
     required this.onParentExit,
     required this.onPassiveTap,
@@ -186,7 +256,8 @@ class _HubHome extends StatelessWidget {
 
   final StubLearningGame game;
   final bool reduceMotion;
-  final bool forceShowEnvBadge;
+  final bool showEnvBadge;
+  final VoidCallback onBrandLongPress;
   final VoidCallback? onOpenProfiles;
   final VoidCallback onParentExit;
   final Future<void> Function(HubActivityTile tile) onPassiveTap;
@@ -203,102 +274,57 @@ class _HubHome extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Landscape phones are often "wide" by width-only breakpoints but short
-        // in height — keep single-pane Kids Mode until both axes have room
-        // for a side rail (F-034 adaptive, not stretched phone chrome).
         final sizeClass = windowSizeClassForWidth(constraints.maxWidth);
-        final expanded = sizeClass.isExpandedLike && constraints.maxHeight >= 560;
-        final crossAxisCount = expanded ? 3 : 2;
+        final useTabletGrid =
+            sizeClass.isExpandedLike && constraints.maxHeight >= 560;
 
         final header = _HubHeader(
           l10n: l10n,
           reduceMotion: reduceMotion,
+          onBrandLongPress: onBrandLongPress,
           onOpenProfiles: onOpenProfiles,
           onParentExit: onParentExit,
         );
 
-        // Six catalog tiles — build eagerly (not lazy) so offline/a11y tests and
-        // Kids Mode always expose every passive/playable choice.
-        final grid = KeyedSubtree(
-          key: ChildHubSurface.activityGridKey,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-            child: LayoutBuilder(
-              builder: (context, gridConstraints) {
-                const spacing = 16.0;
-                final aspect = expanded ? 1.35 : 1.2;
-                final tileWidth = (gridConstraints.maxWidth -
-                        spacing * (crossAxisCount - 1)) /
-                    crossAxisCount;
-                final tileHeight = tileWidth / aspect;
-                return SingleChildScrollView(
-                  child: Wrap(
-                    spacing: spacing,
-                    runSpacing: spacing,
-                    children: [
-                      for (final tile in tiles)
-                        SizedBox(
-                          width: tileWidth,
-                          height: tileHeight,
-                          child: HubActivityCard(
-                            tile: tile,
-                            onPassiveTap: () => onPassiveTap(tile),
-                            onPlay:
-                                tile.isPlayable ? () => onPlay(tile) : null,
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-
-        final body = Column(
-          key: ChildHubSurface.homeKey,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            header,
-            if (!hasPlayable)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  key: ChildHubSurface.emptyPlayableKey,
-                  l10n.hubEmptyPlayable,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: EnvConfigBadge(forceVisible: forceShowEnvBadge),
-            ),
-            Expanded(child: grid),
-          ],
-        );
-
-        if (!expanded) {
-          return KeyedSubtree(
-            key: ChildHubSurface.compactLayoutKey,
-            child: body,
-          );
-        }
+        final board = useTabletGrid
+            ? _TabletGrid(
+                tiles: tiles,
+                onPassiveTap: onPassiveTap,
+                onPlay: onPlay,
+              )
+            : _PhoneCarousel(
+                tiles: tiles,
+                onPassiveTap: onPassiveTap,
+                onPlay: onPlay,
+              );
 
         return KeyedSubtree(
-          key: ChildHubSurface.expandedLayoutKey,
-          child: Row(
+          key: useTabletGrid
+              ? ChildHubSurface.expandedLayoutKey
+              : ChildHubSurface.compactLayoutKey,
+          child: Column(
+            key: ChildHubSurface.homeKey,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                width: 220,
-                child: _HubSideRail(
-                  l10n: l10n,
-                  onOpenProfiles: onOpenProfiles,
-                  onParentExit: onParentExit,
+              header,
+              if (!hasPlayable)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    key: ChildHubSurface.emptyPlayableKey,
+                    l10n.hubEmptyPlayable,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: HubTheme.ink.withValues(alpha: 0.7),
+                        ),
+                  ),
                 ),
-              ),
-              const VerticalDivider(width: 1),
-              Expanded(child: body),
+              if (showEnvBadge)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                  child: EnvConfigBadge(forceVisible: true),
+                ),
+              Expanded(child: board),
             ],
           ),
         );
@@ -307,104 +333,188 @@ class _HubHome extends StatelessWidget {
   }
 }
 
+class _PhoneCarousel extends StatelessWidget {
+  const _PhoneCarousel({
+    required this.tiles,
+    required this.onPassiveTap,
+    required this.onPlay,
+  });
+
+  final List<HubActivityTile> tiles;
+  final Future<void> Function(HubActivityTile tile) onPassiveTap;
+  final Future<void> Function(HubActivityTile tile) onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // ~3 cards visible: card ≈ 32% of width + gutters.
+        // Eager children so a11y/tests see all six offline catalog tiles.
+        final cardWidth = constraints.maxWidth * 0.32;
+        final cardHeight = constraints.maxHeight * 0.92;
+        return SingleChildScrollView(
+          key: ChildHubSurface.activityCarouselKey,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < tiles.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 14),
+                  SizedBox(
+                    width: cardWidth.clamp(150.0, 280.0),
+                    height: cardHeight,
+                    child: HubActivityCard(
+                      tile: tiles[i],
+                      onPassiveTap: () => onPassiveTap(tiles[i]),
+                      onPlay: tiles[i].isPlayable
+                          ? () => onPlay(tiles[i])
+                          : null,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TabletGrid extends StatelessWidget {
+  const _TabletGrid({
+    required this.tiles,
+    required this.onPassiveTap,
+    required this.onPlay,
+  });
+
+  final List<HubActivityTile> tiles;
+  final Future<void> Function(HubActivityTile tile) onPassiveTap;
+  final Future<void> Function(HubActivityTile tile) onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: ChildHubSurface.activityGridKey,
+      padding: const EdgeInsets.fromLTRB(28, 8, 28, 24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const cols = 3;
+          const rows = 2;
+          const spacing = 18.0;
+          final tileWidth =
+              (constraints.maxWidth - spacing * (cols - 1)) / cols;
+          final tileHeight =
+              (constraints.maxHeight - spacing * (rows - 1)) / rows;
+          return Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            children: [
+              for (final tile in tiles)
+                SizedBox(
+                  width: tileWidth,
+                  height: tileHeight,
+                  child: HubActivityCard(
+                    tile: tile,
+                    onPassiveTap: () => onPassiveTap(tile),
+                    onPlay: tile.isPlayable ? () => onPlay(tile) : null,
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _HubHeader extends StatelessWidget {
   const _HubHeader({
     required this.l10n,
     required this.reduceMotion,
+    required this.onBrandLongPress,
     required this.onOpenProfiles,
     required this.onParentExit,
   });
 
   final AppLocalizations l10n;
   final bool reduceMotion;
+  final VoidCallback onBrandLongPress;
   final VoidCallback? onOpenProfiles;
   final VoidCallback onParentExit;
 
   @override
   Widget build(BuildContext context) {
-    final titleStyle = Theme.of(context).textTheme.headlineMedium?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: const Color(0xFF1B5E20),
-        );
-
-    final brand = Text(
-      key: ChildHubSurface.brandKey,
-      l10n.appTitle,
-      style: titleStyle,
+    final brand = GestureDetector(
+      onLongPress: onBrandLongPress,
+      child: Text(
+        key: ChildHubSurface.brandKey,
+        l10n.appTitle,
+        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: HubTheme.brand,
+              letterSpacing: -0.3,
+            ),
+      ),
     );
 
     final greeting = Text(
       key: ChildHubSurface.greetingKey,
       l10n.hubGreeting,
-      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
+            color: HubTheme.ink.withValues(alpha: 0.9),
           ),
     );
 
-    final brandBlock = reduceMotion
+    final titles = reduceMotion
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              brand,
-              const SizedBox(height: 4),
-              greeting,
-              const SizedBox(height: 4),
-              Text(
-                l10n.hubSubtitle,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
+            children: [brand, const SizedBox(height: 2), greeting],
           )
         : TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 480),
+            duration: const Duration(milliseconds: 420),
             curve: Curves.easeOutCubic,
             builder: (context, value, child) {
               return Opacity(
                 opacity: value.clamp(0.0, 1.0),
                 child: Transform.translate(
-                  offset: Offset(0, (1 - value) * 12),
+                  offset: Offset(0, (1 - value) * 10),
                   child: child,
                 ),
               );
             },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                brand,
-                const SizedBox(height: 4),
-                greeting,
-                const SizedBox(height: 4),
-                Text(
-                  l10n.hubSubtitle,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
+              children: [brand, const SizedBox(height: 2), greeting],
             ),
           );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
+      padding: const EdgeInsets.fromLTRB(20, 10, 12, 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: brandBlock),
-          const SizedBox(width: 8),
-          _HubIconButton(
+          Expanded(child: titles),
+          _HubBubbleButton(
             key: ChildHubSurface.profilesKey,
             tooltip: l10n.hubProfiles,
             semanticLabel: l10n.hubProfiles,
             semanticHint: l10n.hubProfilesHint,
             icon: Icons.face_rounded,
+            color: const Color(0xFF64B5F6),
             onPressed: onOpenProfiles,
           ),
-          const SizedBox(width: 8),
-          _HubIconButton(
+          const SizedBox(width: 10),
+          _HubBubbleButton(
             key: ChildHubSurface.parentExitKey,
             tooltip: l10n.hubParentExit,
             semanticLabel: l10n.hubParentExit,
             semanticHint: l10n.hubAudioParentExitCue,
             icon: Icons.family_restroom_rounded,
+            color: const Color(0xFFFF8A65),
             onPressed: onParentExit,
           ),
         ],
@@ -413,54 +523,14 @@ class _HubHeader extends StatelessWidget {
   }
 }
 
-class _HubSideRail extends StatelessWidget {
-  const _HubSideRail({
-    required this.l10n,
-    required this.onOpenProfiles,
-    required this.onParentExit,
-  });
-
-  final AppLocalizations l10n;
-  final VoidCallback? onOpenProfiles;
-  final VoidCallback onParentExit;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.55),
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            l10n.appTitle,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-          ),
-          const SizedBox(height: 16),
-          ListTile(
-            leading: const Icon(Icons.face_rounded),
-            title: Text(l10n.hubProfiles),
-            onTap: onOpenProfiles,
-          ),
-          ListTile(
-            leading: const Icon(Icons.family_restroom_rounded),
-            title: Text(l10n.hubParentExit),
-            onTap: onParentExit,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HubIconButton extends StatelessWidget {
-  const _HubIconButton({
+class _HubBubbleButton extends StatelessWidget {
+  const _HubBubbleButton({
     super.key,
     required this.tooltip,
     required this.semanticLabel,
     required this.semanticHint,
     required this.icon,
+    required this.color,
     required this.onPressed,
   });
 
@@ -468,6 +538,7 @@ class _HubIconButton extends StatelessWidget {
   final String semanticLabel;
   final String semanticHint;
   final IconData icon;
+  final Color color;
   final VoidCallback? onPressed;
 
   @override
@@ -481,16 +552,17 @@ class _HubIconButton extends StatelessWidget {
       child: ExcludeSemantics(
         child: Tooltip(
           message: tooltip,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 56, minHeight: 56),
-            child: Material(
-              color:
-                  Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
-              shape: const CircleBorder(),
-              child: IconButton(
-                iconSize: 28,
-                onPressed: onPressed,
-                icon: Icon(icon),
+          child: Material(
+            color: color.withValues(alpha: 0.22),
+            shape: const CircleBorder(),
+            elevation: 0,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onPressed,
+              child: SizedBox(
+                width: 56,
+                height: 56,
+                child: Icon(icon, color: HubTheme.ink.withValues(alpha: 0.85)),
               ),
             ),
           ),
@@ -504,12 +576,12 @@ class _PlayHost extends StatelessWidget {
   const _PlayHost({
     required this.game,
     required this.onClose,
-    required this.forceShowEnvBadge,
+    required this.showEnvBadge,
   });
 
   final StubLearningGame game;
   final VoidCallback onClose;
-  final bool forceShowEnvBadge;
+  final bool showEnvBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -526,7 +598,7 @@ class _PlayHost extends StatelessWidget {
             label: Text(l10n.hubGreeting),
           ),
         ),
-        EnvConfigBadge(forceVisible: forceShowEnvBadge),
+        if (showEnvBadge) EnvConfigBadge(forceVisible: true),
         Expanded(child: FlameHostPanel(game: game)),
       ],
     );

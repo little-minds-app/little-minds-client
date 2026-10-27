@@ -4,9 +4,10 @@ Flutter + Flame Kids App with **Child Hub v1** (LMP-43) on top of the LMP-24 boo
 
 ## What this is
 
-- **Child Hub v1** — calm Kids Mode home: landscape-only (ADR-018), adaptive phone/tablet (F-034), `tr-TR` / `en-US` (F-020), large touch targets, safe areas, reduced-motion aware.
-- Activity catalog for the six V1 engines as **passive** tiles until a playable `LearningActivity` is registered (no fake games / progress).
+- **Child Hub v1** — calm Kids Mode preschool home: landscape-only (ADR-018), phone **carousel** / tablet **3×2** (F-034), `tr-TR` / `en-US` (F-020), original CustomPainter card art, large targets, reduced-motion aware.
+- Activity catalog for the six V1 engines as **Coming Soon / Yakında** passive tiles until a playable `LearningActivity` is registered (no fake games / progress).
 - Offline-safe **audio cue hook** (asset-path probe + graceful no-op). See `assets/audio/hub/README.md` — **not** full spoken playback in V1.
+- Env/API diagnostics are **not** child-facing; reveal only via `forceShowEnvBadge` / debug long-press on brand.
 - Parent exit → **Parent Gate** only; settings stay behind the gate.
 - Flame host + `ActivityRegistry` retained for future playable launches.
 - LMP-28 public env config badge (non-release / tests).

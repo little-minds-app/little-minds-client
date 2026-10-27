@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -15,12 +16,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String get hubGreeting => 'Hadi oynayalım!';
 
   @override
-  String get hubSubtitle =>
-      'Sakin ve eğlenceli bir şey seç. Büyükler güvenle çıkabilir.';
+  String get hubSubtitle => 'Sakin bir etkinlik seç.';
 
   @override
-  String get hubEmptyPlayable =>
-      'Henüz oynanabilir oyun yok. Aşağıdaki yumuşak kutular yakında gelecek.';
+  String get hubEmptyPlayable => 'Yeni oyunlar yakında.';
 
   @override
   String get hubPassiveBadge => 'Yakında';
@@ -53,22 +52,22 @@ class AppLocalizationsTr extends AppLocalizations {
   String get hubAudioParentExitCue => 'Büyükler kapısı açılıyor';
 
   @override
-  String get activityShapeMatching => 'Şekil eşleştirme';
+  String get activityShapeMatching => 'Şekil Eşleştirme';
 
   @override
-  String get activityColorSorting => 'Renk sıralama';
+  String get activityColorSorting => 'Renk Sıralama';
 
   @override
-  String get activityAnimalSounds => 'Hayvan sesleri';
+  String get activityAnimalSounds => 'Hayvan Sesleri';
 
   @override
   String get activityCounting => 'Sayma';
 
   @override
-  String get activityMemoryMatching => 'Hafıza eşleştirme';
+  String get activityMemoryMatching => 'Hafıza Eşleştirme';
 
   @override
-  String get activityObjectCategories => 'Nesne grupları';
+  String get activityObjectCategories => 'Nesne Grupları';
 
   @override
   String get flameHostReady => 'Flame hazır';

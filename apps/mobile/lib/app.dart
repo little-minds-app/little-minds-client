@@ -21,6 +21,7 @@ class LittleMindsApp extends StatefulWidget {
     AppConfig? config,
     this.locale,
     this.audioGuidance,
+    this.forceShowEnvBadge = false,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -33,6 +34,9 @@ class LittleMindsApp extends StatefulWidget {
 
   /// Optional Child Hub audio guidance override (tests / DI).
   final HubAudioGuidance? audioGuidance;
+
+  /// Developer/test-only: surface LMP-28 env badge on Child Hub.
+  final bool forceShowEnvBadge;
 
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
@@ -77,6 +81,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
                 return ChildHubSurface(
                   game: _game,
                   audioGuidance: widget.audioGuidance,
+                  forceShowEnvBadge: widget.forceShowEnvBadge,
                   onOpenProfiles: () => _go(_ShellRoute.profileSelection),
                   onOpenParentGate: () => _go(_ShellRoute.parentGate),
                 );

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/app.dart';
+import 'package:little_minds_mobile/child_hub/hub_activity_art.dart';
 import 'package:little_minds_mobile/child_hub/hub_activity_card.dart';
 import 'package:little_minds_mobile/child_hub/hub_activity_catalog.dart';
 import 'package:little_minds_mobile/child_hub/hub_audio_guidance.dart';
+import 'package:little_minds_mobile/config/env_config_badge.dart';
 import 'package:little_minds_mobile/config/scaffolding_assumptions.dart';
 import 'package:little_minds_mobile/game/activity_registry.dart';
 import 'package:little_minds_mobile/game/flame_host.dart';
@@ -13,7 +15,6 @@ import 'package:little_minds_mobile/surfaces/child_hub_surface.dart';
 import 'package:little_minds_mobile/surfaces/parent_gate_surface.dart';
 import 'package:little_minds_mobile/surfaces/parent_settings_surface.dart';
 
-/// Flame's GameWidget schedules continuous frames; avoid pumpAndSettle.
 Future<void> _pumpFrames(WidgetTester tester, [int times = 5]) async {
   for (var i = 0; i < times; i++) {
     await tester.pump(const Duration(milliseconds: 16));
@@ -37,7 +38,7 @@ class _PlayableShapeMatching extends LearningActivity {
   String get id => HubCatalogActivityId.shapeMatching.id;
 
   @override
-  String get displayName => 'Shape matching';
+  String get displayName => 'Shape Matching';
 
   @override
   bool get isPlayable => true;
@@ -63,7 +64,6 @@ class _PassiveRegistered extends LearningActivity {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // TC-HUB-001 — Hub renders landscape kid home (greeting, brand).
   testWidgets('TC-HUB-001 renders Child Hub v1 home', (tester) async {
     final audio = RecordingHubAudioGuidance();
     await _setLandscape(
@@ -80,16 +80,17 @@ void main() {
     expect(find.byKey(ChildHubSurface.homeKey), findsOneWidget);
     expect(find.byKey(ChildHubSurface.brandKey), findsOneWidget);
     expect(find.byKey(ChildHubSurface.greetingKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.worldBackdropKey), findsOneWidget);
     expect(find.text('Little Minds'), findsWidgets);
     expect(find.text("Let's play!"), findsOneWidget);
     expect(find.byKey(const Key('child-hub-placeholder')), findsNothing);
+    expect(find.byKey(EnvConfigBadge.badgeKey), findsNothing);
     expect(
       audio.plays.any((p) => p.cue == HubAudioCue.welcome),
       isTrue,
     );
   });
 
-  // TC-HUB-002 — Empty registry → empty playable banner; no play host.
   testWidgets('TC-HUB-002 empty registry shows empty playable state',
       (tester) async {
     await _setLandscape(
@@ -110,7 +111,6 @@ void main() {
     expect(find.byKey(FlameHostPanel.hostKey), findsNothing);
   });
 
-  // TC-HUB-003 — Passive catalog cards present and non-launching.
   testWidgets('TC-HUB-003 passive cards do not launch Flame host',
       (tester) async {
     final audio = RecordingHubAudioGuidance();
@@ -132,6 +132,7 @@ void main() {
     for (final id in HubCatalogActivityId.values) {
       expect(find.byKey(HubActivityCard.cardKey(id.id)), findsOneWidget);
       expect(find.byKey(HubActivityCard.passiveBadgeKey(id.id)), findsOneWidget);
+      expect(find.byKey(HubActivityArt.artKey(id.id)), findsOneWidget);
       expect(
         find.byKey(HubActivityCard.playableBadgeKey(id.id)),
         findsNothing,
@@ -152,10 +153,7 @@ void main() {
     );
   });
 
-  // TC-HUB-004 — Landscape compact phone + tablet layouts recompose.
-  testWidgets('TC-HUB-004 compact phone vs tablet hub layouts', (tester) async {
-    // iPhone-class landscape: width may exceed expanded breakpoint, but height
-    // stays short → single-pane Kids Mode.
+  testWidgets('TC-HUB-004 phone carousel vs tablet 3x2 grid', (tester) async {
     await _setLandscape(
       tester,
       width: ScaffoldingViewports.compactPhoneHeight,
@@ -170,9 +168,16 @@ void main() {
     await _pumpFrames(tester);
 
     expect(find.byKey(ChildHubSurface.compactLayoutKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.activityCarouselKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.activityGridKey), findsNothing);
     expect(find.byKey(ChildHubSurface.expandedLayoutKey), findsNothing);
 
-    // iPad-class landscape: width + height allow dual-pane hub.
+    // ~3 cards visible width budget on compact phone landscape.
+    final first = tester.getRect(
+      find.byKey(HubActivityCard.cardKey(HubCatalogActivityId.shapeMatching.id)),
+    );
+    expect(first.width, lessThan(ScaffoldingViewports.compactPhoneHeight * 0.4));
+
     await _setLandscape(
       tester,
       width: ScaffoldingViewports.tabletHeight,
@@ -187,10 +192,11 @@ void main() {
     await _pumpFrames(tester);
 
     expect(find.byKey(ChildHubSurface.expandedLayoutKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.activityGridKey), findsOneWidget);
+    expect(find.byKey(ChildHubSurface.activityCarouselKey), findsNothing);
     expect(find.byKey(ChildHubSurface.compactLayoutKey), findsNothing);
   });
 
-  // TC-HUB-005 — en-US / tr-TR string swap.
   testWidgets('TC-HUB-005 localizes hub strings en-US and tr-TR',
       (tester) async {
     await _setLandscape(
@@ -209,7 +215,8 @@ void main() {
     await _pumpFrames(tester);
     expect(find.text("Let's play!"), findsOneWidget);
     expect(find.byTooltip('Grown-ups'), findsOneWidget);
-    expect(find.text('Shape matching'), findsOneWidget);
+    expect(find.text('Shape Matching'), findsOneWidget);
+    expect(find.text('Coming Soon'), findsWidgets);
 
     await tester.pumpWidget(
       LittleMindsApp(
@@ -221,10 +228,10 @@ void main() {
     await _pumpFrames(tester);
     expect(find.text('Hadi oynayalım!'), findsOneWidget);
     expect(find.byTooltip('Büyükler'), findsOneWidget);
-    expect(find.text('Şekil eşleştirme'), findsOneWidget);
+    expect(find.text('Şekil Eşleştirme'), findsOneWidget);
+    expect(find.text('Yakında'), findsWidgets);
   });
 
-  // TC-HUB-006 — Semantics / a11y labels on parent exit + passive cards.
   testWidgets('TC-HUB-006 exposes accessibility labels', (tester) async {
     final handle = tester.ensureSemantics();
     try {
@@ -251,9 +258,8 @@ void main() {
         HubActivityCard.cardKey(HubCatalogActivityId.shapeMatching.id),
       );
       final shapeData = tester.getSemantics(shapeFinder);
-      // Passive cards: informative label, NOT a game-launch button.
-      expect(shapeData.label, contains('Shape matching'));
-      expect(shapeData.label, contains('Soon'));
+      expect(shapeData.label, contains('Shape Matching'));
+      expect(shapeData.label, contains('Coming Soon'));
       expect(shapeData.label, contains('Not ready yet'));
       expect(shapeData.flagsCollection.isButton, isFalse);
     } finally {
@@ -261,7 +267,6 @@ void main() {
     }
   });
 
-  // TC-HUB-011 — Regression: passive semantics ≠ playable button; tap ≠ Flame.
   testWidgets(
       'TC-HUB-011 passive cards are not playable buttons and never open Flame',
       (tester) async {
@@ -292,7 +297,7 @@ void main() {
       final passiveData = tester.getSemantics(passiveFinder);
       expect(passiveData.flagsCollection.isButton, isFalse);
       expect(passiveData.label, contains('Counting'));
-      expect(passiveData.label, contains('Soon'));
+      expect(passiveData.label, contains('Coming Soon'));
       expect(passiveData.label, isNot(contains('Play')));
 
       final playableFinder = find.byKey(
@@ -300,10 +305,9 @@ void main() {
       );
       final playableData = tester.getSemantics(playableFinder);
       expect(playableData.flagsCollection.isButton, isTrue);
-      expect(playableData.label, 'Shape matching');
+      expect(playableData.label, 'Shape Matching');
       expect(playableData.hint, 'Play');
 
-      // Passive tap informs only — Flame host must stay closed.
       await tester.ensureVisible(passiveFinder);
       await tester.tap(passiveFinder);
       await _pumpFrames(tester);
@@ -318,7 +322,6 @@ void main() {
     }
   });
 
-  // TC-HUB-007 — Navigation bounds: Parent exit → gate; settings only via gate.
   testWidgets('TC-HUB-007 navigation bounds keep settings behind Parent Gate',
       (tester) async {
     await _setLandscape(
@@ -346,7 +349,6 @@ void main() {
     expect(find.byKey(ParentSettingsSurface.surfaceKey), findsOneWidget);
   });
 
-  // TC-HUB-008 — Reduced-motion skips decorative tween; audio stub still works.
   testWidgets('TC-HUB-008 reduced-motion and audio stub remain safe',
       (tester) async {
     final audio = RecordingHubAudioGuidance();
@@ -383,7 +385,6 @@ void main() {
     );
   });
 
-  // TC-HUB-009 — Playable registry entry can open Flame host; passive cannot.
   testWidgets('TC-HUB-009 only playable registry activities launch host',
       (tester) async {
     final audio = RecordingHubAudioGuidance();
@@ -427,7 +428,6 @@ void main() {
     );
   });
 
-  // TC-HUB-010 — Audio asset path contract stays locale-tagged and offline.
   test('TC-HUB-010 audio asset paths are locale-tagged and local-only', () {
     expect(
       HubAudioGuidance.assetPath(HubAudioCue.welcome, 'en-US'),

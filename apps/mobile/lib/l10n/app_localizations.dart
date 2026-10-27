@@ -104,7 +104,7 @@ abstract class AppLocalizations {
   /// **'Little Minds'**
   String get appTitle;
 
-  /// Calm Child Hub greeting shown under the brand.
+  /// Short Child Hub greeting under the brand.
   ///
   /// In en, this message translates to:
   /// **'Let\'s play!'**
@@ -113,19 +113,19 @@ abstract class AppLocalizations {
   /// No description provided for @hubSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Choose something calm and fun. Grown-ups can leave safely.'**
+  /// **'Pick a calm activity.'**
   String get hubSubtitle;
 
   /// No description provided for @hubEmptyPlayable.
   ///
   /// In en, this message translates to:
-  /// **'No games are ready to play yet. Soft tiles below are coming soon.'**
+  /// **'New games are on the way.'**
   String get hubEmptyPlayable;
 
   /// No description provided for @hubPassiveBadge.
   ///
   /// In en, this message translates to:
-  /// **'Soon'**
+  /// **'Coming Soon'**
   String get hubPassiveBadge;
 
   /// No description provided for @hubPassiveHint.
@@ -185,19 +185,19 @@ abstract class AppLocalizations {
   /// No description provided for @activityShapeMatching.
   ///
   /// In en, this message translates to:
-  /// **'Shape matching'**
+  /// **'Shape Matching'**
   String get activityShapeMatching;
 
   /// No description provided for @activityColorSorting.
   ///
   /// In en, this message translates to:
-  /// **'Color sorting'**
+  /// **'Color Sorting'**
   String get activityColorSorting;
 
   /// No description provided for @activityAnimalSounds.
   ///
   /// In en, this message translates to:
-  /// **'Animal sounds'**
+  /// **'Animal Sounds'**
   String get activityAnimalSounds;
 
   /// No description provided for @activityCounting.
@@ -209,13 +209,13 @@ abstract class AppLocalizations {
   /// No description provided for @activityMemoryMatching.
   ///
   /// In en, this message translates to:
-  /// **'Memory matching'**
+  /// **'Memory Matching'**
   String get activityMemoryMatching;
 
   /// No description provided for @activityObjectCategories.
   ///
   /// In en, this message translates to:
-  /// **'Object categories'**
+  /// **'Object Categories'**
   String get activityObjectCategories;
 
   /// No description provided for @flameHostReady.

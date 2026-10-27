@@ -1,27 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import 'hub_activity_art.dart';
 import 'hub_activity_catalog.dart';
+import 'hub_theme.dart';
 
-/// Large, calm activity tile for Child Hub (F-004 / F-034 / F-020).
+/// Illustrated Child Hub activity card (F-004 / F-034 / F-020).
 ///
-/// Playable tiles are announced as buttons and may invoke [onPlay].
-/// Passive tiles are **not** presented as game-launch buttons: they remain
-/// focusable for "coming soon" information only and never open the Flame host.
+/// Playable → button semantics + optional Flame launch.
+/// Passive → **not** a game button; Coming Soon / Yakında; tap informs only.
 class HubActivityCard extends StatelessWidget {
   const HubActivityCard({
     super.key,
     required this.tile,
     required this.onPassiveTap,
     this.onPlay,
-    this.minSize = 72,
+    this.minSize = HubTheme.minTouch,
   });
 
   final HubActivityTile tile;
   final VoidCallback onPassiveTap;
   final VoidCallback? onPlay;
-
-  /// Kids Mode minimum touch target edge (logical px). Prefer ≥64.
   final double minSize;
 
   static Key cardKey(String id) => Key('hub-activity-card-$id');
@@ -31,59 +30,68 @@ class HubActivityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     final playable = tile.isPlayable;
-    final colorScheme = theme.colorScheme;
-
-    final background = playable
-        ? colorScheme.primaryContainer
-        : colorScheme.surfaceContainerHighest.withValues(alpha: 0.72);
-    final foreground = playable
-        ? colorScheme.onPrimaryContainer
-        : colorScheme.onSurfaceVariant;
+    final fill = HubTheme.cardFillFor(tile.catalogId, playable: playable);
 
     final visual = ExcludeSemantics(
       child: ConstrainedBox(
         constraints: BoxConstraints(minWidth: minSize, minHeight: minSize),
         child: Material(
-          color: background,
-          borderRadius: BorderRadius.circular(24),
+          color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            // Sighted tap: playable launches; passive only informs (never Flame).
+            borderRadius: BorderRadius.circular(HubTheme.cardRadius),
             onTap: playable ? onPlay : onPassiveTap,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: playable
-                        ? _StatusChip(
-                            key: playableBadgeKey(tile.id),
-                            label: l10n.hubPlayableHint,
-                            foreground: foreground,
-                            emphasized: true,
-                          )
-                        : _StatusChip(
-                            key: passiveBadgeKey(tile.id),
-                            label: l10n.hubPassiveBadge,
-                            foreground: foreground,
-                            emphasized: false,
-                          ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    tile.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: foreground,
-                      fontWeight: FontWeight.w700,
+            child: Ink(
+              decoration: BoxDecoration(
+                color: fill,
+                borderRadius: BorderRadius.circular(HubTheme.cardRadius),
+                border: Border.all(
+                  color: HubTheme.accentFor(tile.catalogId)
+                      .withValues(alpha: playable ? 0.45 : 0.22),
+                  width: 2,
+                ),
+                boxShadow: HubTheme.cardShadow(passive: !playable),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: playable
+                          ? _StatusChip(
+                              key: playableBadgeKey(tile.id),
+                              label: l10n.hubPlayableHint,
+                              emphasized: true,
+                            )
+                          : _StatusChip(
+                              key: passiveBadgeKey(tile.id),
+                              label: l10n.hubPassiveBadge,
+                              emphasized: false,
+                            ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: HubActivityArt(
+                        catalogId: tile.catalogId,
+                        playable: playable,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      tile.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: HubTheme.ink,
+                            fontWeight: FontWeight.w800,
+                            height: 1.15,
+                          ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -103,9 +111,6 @@ class HubActivityCard extends StatelessWidget {
       );
     }
 
-    // Passive / not ready: do NOT use the button role — screen readers must not
-    // hear an active game control. Label states "Soon" / not ready; onTap only
-    // informs (Parent/Hub handlers must not open Flame for these tiles).
     return Semantics(
       key: cardKey(tile.id),
       button: false,
@@ -121,12 +126,10 @@ class _StatusChip extends StatelessWidget {
   const _StatusChip({
     super.key,
     required this.label,
-    required this.foreground,
     required this.emphasized,
   });
 
   final String label;
-  final Color foreground;
   final bool emphasized;
 
   @override
@@ -134,8 +137,8 @@ class _StatusChip extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: emphasized
-            ? foreground.withValues(alpha: 0.16)
-            : foreground.withValues(alpha: 0.08),
+            ? HubTheme.brand.withValues(alpha: 0.14)
+            : HubTheme.ink.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
@@ -143,8 +146,8 @@ class _StatusChip extends StatelessWidget {
         child: Text(
           label,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: foreground,
-                fontWeight: FontWeight.w600,
+                color: HubTheme.ink.withValues(alpha: 0.85),
+                fontWeight: FontWeight.w700,
               ),
         ),
       ),
