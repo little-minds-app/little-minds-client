@@ -82,6 +82,9 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
+      - name: Test
+        run: flutter test
+
   nextjs-check:
     name: Next.js Build
     needs: detect-projects
