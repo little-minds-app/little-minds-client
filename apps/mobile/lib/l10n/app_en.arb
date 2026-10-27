@@ -88,6 +88,14 @@
   "nearFarMissionBody": "Ask a grown-up for one sock and one soft toy. Put them near, then far. Talk about what changed.",
   "nearFarMissionMaterials": "Materials: one sock, one soft toy. Adult supervision. No glass or small choking hazards.",
   "nearFarMissionOpen": "Open invitation",
+  "nearFarMissionOpenedConfirm": "Invitation open — try sock and soft toy near, then far, with a grown-up.",
+  "@nearFarMissionOpenedConfirm": {
+    "description": "Calm confirmation after caregiver opens the safe real-world invitation (LMP-45). Not mentor UI / not LMP-46 skip flow."
+  },
   "nearFarMissionLater": "Maybe later",
+  "nearFarMissionBack": "Back",
+  "@nearFarMissionBack": {
+    "description": "Obvious exit from the mission handoff panel after the invitation is open."
+  },
   "nearFarSpokenAssetsBlocked": "Spoken near/far audio is blocked until approved offline voice packs and a working player are installed. On-screen labels still work."
 }

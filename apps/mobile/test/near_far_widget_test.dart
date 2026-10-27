@@ -52,6 +52,20 @@ NearFarActivity _demoActivity({
   );
 }
 
+Future<void> completeToHandoff(
+  WidgetTester tester,
+  NearFarActivity activity,
+) async {
+  await _pumpFrames(tester, 20);
+  final near = NearFarRelationLogic.nearPositions();
+  activity.moveSock(near.sock);
+  activity.moveSoftToy(near.softToy);
+  final far = NearFarRelationLogic.initialFarPositions();
+  activity.moveSock(far.sock);
+  activity.moveSoftToy(far.softToy);
+  await _pumpFrames(tester, 12);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -143,6 +157,8 @@ void main() {
       activity.missionHandoff.handoff.state,
       NearFarMissionHandoffState.offered,
     );
+    expect(find.byKey(NearFarMissionHandoffPanel.openKey), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsNothing);
 
     await tester.tap(find.byKey(NearFarMissionHandoffPanel.openKey));
     await _pumpFrames(tester, 8);
@@ -150,6 +166,8 @@ void main() {
       activity.missionHandoff.handoff.state,
       NearFarMissionHandoffState.opened,
     );
+    expect(find.byKey(NearFarMissionHandoffPanel.openKey), findsNothing);
+    expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsOneWidget);
     expect(
       buffer.events.map((e) => e.eventType),
       containsAll([
@@ -157,6 +175,13 @@ void main() {
         'real_world_mission_offered',
         'real_world_mission_opened',
       ]),
+    );
+    // Repeat open path must not emit again (button gone; API still idempotent).
+    activity.openMissionHandoff();
+    await _pumpFrames(tester, 4);
+    expect(
+      buffer.events.where((e) => e.eventType == 'real_world_mission_opened').length,
+      1,
     );
   });
 
@@ -366,5 +391,69 @@ void main() {
         tester.widget<ColoredBox>(find.byKey(NearFarMissionHandoffPanel.panelKey));
     expect(panel.color, isNot(equals(const Color(0xFF000000))));
     expect(panel.color.a, equals(1.0));
+  });
+
+  testWidgets(
+      'TC-NF-W11 en-US Open invitation → opened confirm; no open button',
+      (tester) async {
+    final activity = _demoActivity(locale: const Locale('en', 'US'));
+    await _setLandscape(tester, width: 844, height: 390);
+    await tester.pumpWidget(
+      LittleMindsApp(
+        initialNearFarDemo: true,
+        nearFarActivity: activity,
+        locale: const Locale('en', 'US'),
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
+    await completeToHandoff(tester, activity);
+
+    expect(find.text('Open invitation'), findsOneWidget);
+    expect(find.text('Maybe later'), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsNothing);
+
+    await tester.tap(find.byKey(NearFarMissionHandoffPanel.openKey));
+    await _pumpFrames(tester, 8);
+
+    expect(find.text('Open invitation'), findsNothing);
+    expect(find.byKey(NearFarMissionHandoffPanel.openKey), findsNothing);
+    expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsOneWidget);
+    expect(
+      find.textContaining('Invitation open'),
+      findsOneWidget,
+    );
+    expect(find.text('Back'), findsWidgets);
+    expect(find.text('Maybe later'), findsNothing);
+    expect(find.textContaining('one sock'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets(
+      'TC-NF-W12 tr-TR Daveti aç → açık onayı; aç butonu kalkar',
+      (tester) async {
+    final activity = _demoActivity(locale: const Locale('tr', 'TR'));
+    await _setLandscape(tester, width: 844, height: 390);
+    await tester.pumpWidget(
+      LittleMindsApp(
+        initialNearFarDemo: true,
+        nearFarActivity: activity,
+        locale: const Locale('tr', 'TR'),
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
+    await completeToHandoff(tester, activity);
+
+    expect(find.text('Daveti aç'), findsOneWidget);
+    expect(find.text('Belki sonra'), findsOneWidget);
+    expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsNothing);
+
+    await tester.tap(find.byKey(NearFarMissionHandoffPanel.openKey));
+    await _pumpFrames(tester, 8);
+
+    expect(find.text('Daveti aç'), findsNothing);
+    expect(find.byKey(NearFarMissionHandoffPanel.openKey), findsNothing);
+    expect(find.byKey(NearFarMissionHandoffPanel.openedConfirmKey), findsOneWidget);
+    expect(find.textContaining('Davet açık'), findsOneWidget);
+    expect(find.text('Geri'), findsWidgets);
+    expect(find.text('Belki sonra'), findsNothing);
   });
 }

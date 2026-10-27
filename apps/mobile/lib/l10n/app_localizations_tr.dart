@@ -177,7 +177,14 @@ class AppLocalizationsTr extends AppLocalizations {
   String get nearFarMissionOpen => 'Daveti aç';
 
   @override
+  String get nearFarMissionOpenedConfirm =>
+      'Davet açık — bir büyükle çorap ve yumuşak oyuncağı önce yakın, sonra uzak deneyin.';
+
+  @override
   String get nearFarMissionLater => 'Belki sonra';
+
+  @override
+  String get nearFarMissionBack => 'Geri';
 
   @override
   String get nearFarSpokenAssetsBlocked =>

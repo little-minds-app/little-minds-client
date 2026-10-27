@@ -410,11 +410,23 @@ abstract class AppLocalizations {
   /// **'Open invitation'**
   String get nearFarMissionOpen;
 
+  /// Calm confirmation after caregiver opens the safe real-world invitation (LMP-45). Not mentor UI / not LMP-46 skip flow.
+  ///
+  /// In en, this message translates to:
+  /// **'Invitation open — try sock and soft toy near, then far, with a grown-up.'**
+  String get nearFarMissionOpenedConfirm;
+
   /// No description provided for @nearFarMissionLater.
   ///
   /// In en, this message translates to:
   /// **'Maybe later'**
   String get nearFarMissionLater;
+
+  /// Obvious exit from the mission handoff panel after the invitation is open.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get nearFarMissionBack;
 
   /// No description provided for @nearFarSpokenAssetsBlocked.
   ///

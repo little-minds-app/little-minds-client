@@ -176,7 +176,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nearFarMissionOpen => 'Open invitation';
 
   @override
+  String get nearFarMissionOpenedConfirm =>
+      'Invitation open — try sock and soft toy near, then far, with a grown-up.';
+
+  @override
   String get nearFarMissionLater => 'Maybe later';
+
+  @override
+  String get nearFarMissionBack => 'Back';
 
   @override
   String get nearFarSpokenAssetsBlocked =>

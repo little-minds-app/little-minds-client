@@ -11,6 +11,9 @@ import 'near_far_mission_handoff.dart';
 /// Full-bleed opaque scrim + constrained readable card so play-field chrome
 /// cannot overlap ("Nice exploring!" vs "Try it in the room"). No skip /
 /// feedback / photo proof — those belong to LMP-46.
+///
+/// Open invitation is actionable only while [NearFarMissionHandoffState.offered].
+/// After [opened], a localized confirmation replaces the button (no repeat tap).
 class NearFarMissionHandoffPanel extends StatelessWidget {
   const NearFarMissionHandoffPanel({
     super.key,
@@ -24,6 +27,7 @@ class NearFarMissionHandoffPanel extends StatelessWidget {
   static const Key panelKey = Key('near-far-mission-handoff');
   static const Key cardKey = Key('near-far-mission-handoff-card');
   static const Key openKey = Key('near-far-mission-open');
+  static const Key openedConfirmKey = Key('near-far-mission-opened-confirm');
   static const Key dismissKey = Key('near-far-mission-dismiss');
 
   /// Readable card width on phone landscape / tablet.
@@ -35,6 +39,8 @@ class NearFarMissionHandoffPanel extends StatelessWidget {
     final handoff = activity.missionHandoff.handoff;
     final media = MediaQuery.of(context);
     final textScale = media.textScaler.scale(1).clamp(1.0, 1.6);
+    final isOffered = handoff.state == NearFarMissionHandoffState.offered;
+    final isOpened = handoff.state == NearFarMissionHandoffState.opened;
 
     // Opaque scrim — play field is not shown underneath during handoff, but
     // keep a solid calm fill so no game chrome bleeds through.
@@ -95,15 +101,31 @@ class NearFarMissionHandoffPanel extends StatelessWidget {
                                   ),
                         ),
                         const SizedBox(height: 16),
+                        if (isOpened) ...[
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              key: openedConfirmKey,
+                              l10n.nearFarMissionOpenedConfirm,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFF2E7D32),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                         Wrap(
                           alignment: WrapAlignment.center,
                           spacing: 12,
                           runSpacing: 8,
                           children: [
-                            if (handoff.state ==
-                                    NearFarMissionHandoffState.offered ||
-                                handoff.state ==
-                                    NearFarMissionHandoffState.opened)
+                            // Actionable open only while offered — never after opened.
+                            if (isOffered)
                               ConstrainedBox(
                                 constraints: const BoxConstraints(
                                   minHeight: 48,
@@ -127,7 +149,11 @@ class NearFarMissionHandoffPanel extends StatelessWidget {
                                   activity.missionHandoff.dismiss();
                                   onDismiss();
                                 },
-                                child: Text(l10n.nearFarMissionLater),
+                                child: Text(
+                                  isOpened
+                                      ? l10n.nearFarMissionBack
+                                      : l10n.nearFarMissionLater,
+                                ),
                               ),
                             ),
                           ],
