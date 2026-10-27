@@ -17,6 +17,9 @@ import 'surfaces/profile_selection_surface.dart';
 /// Root application — MaterialApp + shell navigation (Flutter built-ins only).
 ///
 /// State-management choice is a **scaffolding assumption** until ADR-003.
+///
+/// Parent path (preserve Gate): Hub → Parent Gate → Parent Settings →
+/// mentor card / Near/Far demo. Near/Far is never a seventh Kids Hub tile.
 class LittleMindsApp extends StatefulWidget {
   LittleMindsApp({
     super.key,
@@ -67,7 +70,26 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
   late _ShellRoute _route =
       widget.initialNearFarDemo ? _ShellRoute.nearFarDemo : _ShellRoute.childHub;
 
+  /// Where Near/Far demo should return (mentor card or Parent Settings).
+  _ShellRoute _nearFarDemoReturn = _ShellRoute.parentSettings;
+
   void _go(_ShellRoute route) => setState(() => _route = route);
+
+  void _openNearFarDemo({required _ShellRoute returnTo}) {
+    setState(() {
+      _nearFarDemoReturn = returnTo;
+      _route = _ShellRoute.nearFarDemo;
+    });
+  }
+
+  void _closeNearFarDemo() {
+    if (widget.initialNearFarDemo &&
+        _nearFarDemoReturn == _ShellRoute.parentSettings) {
+      _go(_ShellRoute.childHub);
+      return;
+    }
+    _go(_nearFarDemoReturn);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,22 +133,23 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
               case _ShellRoute.parentSettings:
                 return ParentSettingsSurface(
                   onBack: () => _go(_ShellRoute.parentGate),
-                  onOpenNearFarDemo: () => _go(_ShellRoute.nearFarDemo),
+                  onOpenNearFarDemo: () => _openNearFarDemo(
+                    returnTo: _ShellRoute.parentSettings,
+                  ),
                   onOpenNearFarMentor: () => _go(_ShellRoute.nearFarMentor),
                 );
               case _ShellRoute.nearFarDemo:
                 return NearFarDemoSurface(
                   game: _game,
                   activity: widget.nearFarActivity,
-                  onClose: () => _go(
-                    widget.initialNearFarDemo
-                        ? _ShellRoute.childHub
-                        : _ShellRoute.parentSettings,
-                  ),
+                  onClose: _closeNearFarDemo,
                 );
               case _ShellRoute.nearFarMentor:
                 return NearFarMentorSurface(
                   onBack: () => _go(_ShellRoute.parentSettings),
+                  onOpenNearFarMission: () => _openNearFarDemo(
+                    returnTo: _ShellRoute.nearFarMentor,
+                  ),
                 );
             }
           },

@@ -185,5 +185,10 @@
     "placeholders": {
       "title": {"type": "String"}
     }
-  }
+  },
+  "mentorCardOpenMission": "Try the near and far mission",
+  "@mentorCardOpenMission": {
+    "description": "Optional CTA from mentor card to existing Near/Far demo + mission handoff (LMP-48). Not a duplicate mission UI."
+  },
+  "mentorCardOpenMissionHint": "Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof."
 }

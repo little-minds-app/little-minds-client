@@ -304,4 +304,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String mentorCardSemanticsLabel(String title) {
     return 'Parent Play Mentor card: $title';
   }
+
+  @override
+  String get mentorCardOpenMission => 'Try the near and far mission';
+
+  @override
+  String get mentorCardOpenMissionHint =>
+      'Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof.';
 }

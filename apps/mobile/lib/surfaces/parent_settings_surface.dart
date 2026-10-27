@@ -7,9 +7,9 @@ import '../shell/adaptive_shell.dart';
 
 /// Native Parent Settings placeholder — portrait + landscape (ADR-018).
 ///
-/// Temporary developer entry to the LMP-45 Near/Far demo (not child-facing Hub
-/// nav). **Does not** imply a secure, authenticated Parent Gate — Gate/Settings
-/// remain scaffolding until real auth lands.
+/// Reached only via Parent Gate (Hub → Gate → Settings). Temporary developer
+/// entries: LMP-48 Near/Far mentor card and LMP-45 Near/Far demo — never Kids
+/// Hub tiles. Gate/Settings remain scaffolding until real auth lands.
 class ParentSettingsSurface extends StatelessWidget {
   const ParentSettingsSurface({
     super.key,

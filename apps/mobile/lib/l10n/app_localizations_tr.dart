@@ -305,4 +305,11 @@ class AppLocalizationsTr extends AppLocalizations {
   String mentorCardSemanticsLabel(String title) {
     return 'Ebeveyn Oyun Rehberi kartı: $title';
   }
+
+  @override
+  String get mentorCardOpenMission => 'Yakın ve uzak görevini dene';
+
+  @override
+  String get mentorCardOpenMissionHint =>
+      'Mevcut Yakın/Uzak oyunu ve gerçek dünya görevini açar. İstediğiniz zaman atlayabilirsiniz. Fotoğraf veya kanıt yok.';
 }

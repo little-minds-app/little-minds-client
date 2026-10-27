@@ -90,5 +90,7 @@
   "mentorCardLoading": "Mentor rehberliği yükleniyor",
   "mentorCardLoadError": "Mentor rehberliği yüklenemedi. Yeniden deneyin.",
   "mentorCardRetry": "Yeniden dene",
-  "mentorCardSemanticsLabel": "Ebeveyn Oyun Rehberi kartı: {title}"
+  "mentorCardSemanticsLabel": "Ebeveyn Oyun Rehberi kartı: {title}",
+  "mentorCardOpenMission": "Yakın ve uzak görevini dene",
+  "mentorCardOpenMissionHint": "Mevcut Yakın/Uzak oyunu ve gerçek dünya görevini açar. İstediğiniz zaman atlayabilirsiniz. Fotoğraf veya kanıt yok."
 }

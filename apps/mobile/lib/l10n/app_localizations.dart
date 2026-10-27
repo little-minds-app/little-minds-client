@@ -643,6 +643,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Parent Play Mentor card: {title}'**
   String mentorCardSemanticsLabel(String title);
+
+  /// Optional CTA from mentor card to existing Near/Far demo + mission handoff (LMP-48). Not a duplicate mission UI.
+  ///
+  /// In en, this message translates to:
+  /// **'Try the near and far mission'**
+  String get mentorCardOpenMission;
+
+  /// No description provided for @mentorCardOpenMissionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof.'**
+  String get mentorCardOpenMissionHint;
 }
 
 class _AppLocalizationsDelegate

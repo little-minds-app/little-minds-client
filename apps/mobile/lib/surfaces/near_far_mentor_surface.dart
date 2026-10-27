@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../config/app_config_scope.dart';
+import '../config/app_environment.dart';
 import '../l10n/app_localizations.dart';
 import '../mentor/mentor_card.dart';
 import '../mentor/mentor_card_fixtures.dart';
@@ -10,18 +12,19 @@ import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
 import '../shell/adaptive_shell.dart';
 
-/// Parent Near/Far mentor card surface (LMP-48 Step 1 — UI only).
+/// Parent Near/Far mentor card surface (LMP-48).
 ///
 /// Loads pinned localized fixtures via [MentorCardFixtureLoader]. Caregiver-
 /// ready presentation is gated by [MentorCardReviewGate]; draft fixtures use
-/// an explicit debug/test preview only ([kDebugMode] or [forceDraftPreview]).
+/// an explicit debug/development preview only — never on staging/production.
 ///
-/// Does **not** navigate to the Near/Far mission (deferred). Does **not** add
-/// a Kids Hub tile.
+/// Optional [onOpenNearFarMission] opens the existing Near/Far demo + mission
+/// handoff (no duplicate mission UI, no Kids Hub tile).
 class NearFarMentorSurface extends StatefulWidget {
   const NearFarMentorSurface({
     super.key,
     this.onBack,
+    this.onOpenNearFarMission,
     this.loader,
     this.forceDraftPreview = false,
     this.childAgeMonths,
@@ -30,10 +33,13 @@ class NearFarMentorSurface extends StatefulWidget {
 
   final VoidCallback? onBack;
 
+  /// Opens the existing Near/Far Kids Mode demo (digital play + mission).
+  final VoidCallback? onOpenNearFarMission;
+
   /// Optional fixture loader override (tests / DI).
   final MentorCardFixtureLoader? loader;
 
-  /// Test-only override to preview draft without relying on [kDebugMode].
+  /// Test-only override to preview draft without relying on debug/dev gates.
   final bool forceDraftPreview;
 
   /// Optional child age for age-applicability messaging.
@@ -61,7 +67,14 @@ class _NearFarMentorSurfaceState extends State<NearFarMentorSurface> {
   String? _loadedLocaleTag;
   bool _loadStarted = false;
 
-  bool get _allowDraftPreview => widget.forceDraftPreview || kDebugMode;
+  /// Draft preview is isolated to debug + development (or explicit test force).
+  /// Staging/production never treat draft as caregiver-ready content.
+  bool _allowDraftPreview(BuildContext context) {
+    if (widget.forceDraftPreview) return true;
+    if (!kDebugMode) return false;
+    final env = AppConfigScope.maybeOf(context)?.environment;
+    return env == null || env == AppEnvironment.development;
+  }
 
   @override
   void initState() {
@@ -106,6 +119,7 @@ class _NearFarMentorSurfaceState extends State<NearFarMentorSurface> {
       if (_loadedLocaleTag != localeTag) return;
       setState(() {
         _error = error;
+        _card = null;
         _loading = false;
       });
     }
@@ -190,7 +204,8 @@ class _NearFarMentorSurfaceState extends State<NearFarMentorSurface> {
             child: MentorCardView(
               card: _card!,
               childAgeMonths: widget.childAgeMonths,
-              allowDraftPreview: _allowDraftPreview,
+              allowDraftPreview: _allowDraftPreview(context),
+              onOpenMission: widget.onOpenNearFarMission,
             ),
           ),
         ),

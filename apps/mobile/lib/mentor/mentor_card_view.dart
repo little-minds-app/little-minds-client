@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../near_far/near_far_constants.dart';
 import 'mentor_card.dart';
+import 'mentor_card_near_far_links.dart';
 import 'mentor_card_review.dart';
 import 'mentor_card_validator.dart';
 
@@ -15,12 +17,17 @@ import 'mentor_card_validator.dart';
 /// [MentorCardReviewGate.mayRenderOnParentMentorSurface]. Draft fixtures stay
 /// blocked unless [allowDraftPreview] is true (dev/test only). Preview still
 /// shows an explicit draft banner and never claims approved status.
+///
+/// Optional [onOpenMission] opens the existing Near/Far mission flow when
+/// [MentorCardNearFarLinks.resolveMissionId] resolves — never a duplicate
+/// mission UI.
 class MentorCardView extends StatelessWidget {
   const MentorCardView({
     super.key,
     required this.card,
     this.childAgeMonths,
     this.allowDraftPreview = false,
+    this.onOpenMission,
   });
 
   final MentorCardV1 card;
@@ -31,6 +38,11 @@ class MentorCardView extends StatelessWidget {
   /// Dev/test-only: render draft/non-approved copy with an explicit banner.
   /// Production parent surfaces must leave this `false`.
   final bool allowDraftPreview;
+
+  /// Opens the existing Near/Far real-world mission flow (LMP-45/46 demo).
+  /// Shown only when content is visible and the card links the canonical
+  /// mission id (`near_far_sock_soft_toy_v1`).
+  final VoidCallback? onOpenMission;
 
   static const Key viewKey = Key('mentor-card-view');
   static const Key titleKey = Key('mentor-card-title');
@@ -47,11 +59,20 @@ class MentorCardView extends StatelessWidget {
   static const Key adaptationsKey = Key('mentor-card-adaptations');
   static const Key observedKey = Key('mentor-card-observed-vs-suggested');
   static const Key disclaimerKey = Key('mentor-card-not-assessment');
+  static const Key openMissionKey = Key('mentor-card-open-mission');
+  static const Key openMissionHintKey = Key('mentor-card-open-mission-hint');
 
   bool get _caregiverReady =>
       MentorCardReviewGate.mayRenderOnParentMentorSurface(card);
 
   bool get _showContent => _caregiverReady || allowDraftPreview;
+
+  /// Mission CTA only when the card links the canonical Near/Far mission.
+  bool get _canOfferMission {
+    if (onOpenMission == null || !_showContent) return false;
+    return MentorCardNearFarLinks.resolveMissionId(card) ==
+        NearFarConstants.missionId;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +89,8 @@ class MentorCardView extends StatelessWidget {
                 card: card,
                 childAgeMonths: childAgeMonths,
                 showDraftBanner: !_caregiverReady && allowDraftPreview,
+                showMissionAction: _canOfferMission,
+                onOpenMission: onOpenMission,
                 l10n: l10n,
                 theme: theme,
               )
@@ -128,6 +151,8 @@ class _MentorCardBody extends StatelessWidget {
     required this.card,
     required this.childAgeMonths,
     required this.showDraftBanner,
+    required this.showMissionAction,
+    required this.onOpenMission,
     required this.l10n,
     required this.theme,
   });
@@ -135,6 +160,8 @@ class _MentorCardBody extends StatelessWidget {
   final MentorCardV1 card;
   final int? childAgeMonths;
   final bool showDraftBanner;
+  final bool showMissionAction;
+  final VoidCallback? onOpenMission;
   final AppLocalizations l10n;
   final ThemeData theme;
 
@@ -290,6 +317,26 @@ class _MentorCardBody extends StatelessWidget {
             ),
           ),
         ),
+        if (showMissionAction && onOpenMission != null) ...[
+          const SizedBox(height: 12),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48, minWidth: 200),
+            child: FilledButton(
+              key: MentorCardView.openMissionKey,
+              onPressed: onOpenMission,
+              child: Text(l10n.mentorCardOpenMission),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            key: MentorCardView.openMissionHintKey,
+            l10n.mentorCardOpenMissionHint,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ],
     );
   }
