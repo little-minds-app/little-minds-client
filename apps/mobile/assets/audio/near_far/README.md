@@ -24,29 +24,48 @@ assets/audio/near_far/<locale>/<stem>.wav
 
 ## Current status — **BLOCKED for spoken AC**
 
-Approved commercial AI TTS generation **could not run** in this Cloud Agent environment
-(2026-10-27). **No** `near.wav` / `far.wav` files are committed. Do **not** treat empty
-locale directories or `.gitkeep` as spoken readiness.
+`OPENAI_API_KEY` is **present** in the Cloud Agent environment (2026-10-27 fresh
+boot), but OpenAI Audio Speech generation **failed** with HTTP **429**
+`insufficient_quota` / `credit_balance_exhausted`. **No** `near.wav` / `far.wav`
+files are committed. Do **not** treat empty locale directories or `.gitkeep` as
+spoken readiness.
 
 ### Exact blocker
 
 | Need | Status in this environment |
 |---|---|
-| `OPENAI_API_KEY` (OpenAI Audio Speech) | **unset** |
+| `OPENAI_API_KEY` (OpenAI Audio Speech) | **present** — auth OK (`GET /v1/models`); Speech `POST /v1/audio/speech` → **429 `credit_balance_exhausted`** |
+| OpenAI organization billing / usable Speech credits | **exhausted** — add credits at platform.openai.com billing |
 | `AZURE_SPEECH_KEY` / Azure Speech region | **unset** |
 | `GOOGLE_APPLICATION_CREDENTIALS` / Cloud TTS | **unset** |
 | `AWS_ACCESS_KEY_ID` (+ Polly) | **unset** |
 | `ELEVENLABS_API_KEY` / `CARTESIA_API_KEY` / `DEEPGRAM_API_KEY` | **unset** |
 | Pedagogy-approved pre-licensed voice packs in repo | **absent** |
 
-Without a commercial-cleared TTS credential (or reviewed licensed packs), agents must
+Without usable commercial TTS credits (or reviewed licensed packs), agents must
 **not** invent/fake WAV recordings or claim the spoken-label AC.
 
-### Options evaluated (not used — rights or quality not verified for ship)
+### Commercial terms verified (OpenAI API Speech — preferred path)
+
+Intended provider once billing is restored:
+
+| Field | Value |
+|---|---|
+| Provider | OpenAI **API** Audio Speech (`POST /v1/audio/speech`) — **not** ChatGPT Voice |
+| Planned model | `gpt-4o-mini-tts` (or `tts-1-hd` fallback) |
+| Planned voice | `nova` (calm built-in voice; adult voice only) |
+| Planned texts | en-US: “Near” / “Far”; tr-TR: “Yakın” / “Uzak” |
+| Output ownership | OpenAI Business / Services Agreement: customer **owns Output** from the API (`Customer Content` / Output assignment). Distribution in a commercial app is permitted subject to the Agreement and Usage Policies. |
+| Terms (cite) | [OpenAI Service Terms](https://openai.com/policies/service-terms/) (updated 2026-10-16); [Business terms](https://openai.com/policies/aug-2023-business-terms/) §3.1 (customer owns Output); TTS guide disclosure requirement |
+| **Not** used | **ChatGPT Voice Output** — Service Terms §8: non-commercial; may not be distributed/repackaged as standalone audio |
+| AI disclosure | Usage Policies / TTS docs require clear disclosure that the voice is **AI-generated** (not a human recording). Preserve any OpenAI AI-origin indicators. Do not impersonate a real person’s voice. |
+| Provenance | SHA-256 + generation metadata will be filled in this README **after** successful Speech generation |
+
+### Options evaluated (not used — rights, quality, or credits)
 
 | Candidate | Why not used |
 |---|---|
-| **OpenAI Audio Speech** (`tts-1-hd` / `gpt-4o-mini-tts`) | Preferable commercial API path under OpenAI Service Terms (API customers own Output; AI-voice disclosure required). **Blocked: no API key.** |
+| **OpenAI Audio Speech** (`gpt-4o-mini-tts` / `tts-1-hd`) | Preferred commercial API path (customer owns Output; AI-voice disclosure). **Blocked: org credit balance exhausted (429).** |
 | **Azure AI Speech / Amazon Polly / Google Cloud TTS** | Commercial cloud TTS with paid redistribution under provider agreements. **Blocked: no credentials.** |
 | **Microsoft Edge / `edge-tts` unofficial client** | Not an approved commercial redistribution path for shipped app audio; consumer Edge Read Aloud terms are not a verified commercial license. **Not used.** |
 | **Piper `tr_TR-dfki-medium`** | Dataset license **CC BY-NC-SA 4.0** + Lessac fine-tune lineage → **non-commercial risk**. **Not used.** |
@@ -54,13 +73,13 @@ Without a commercial-cleared TTS credential (or reviewed licensed packs), agents
 
 ### Provenance policy (when unblocked)
 
-When credentials or packs are supplied, document in this README **before** claiming spoken AC:
+When usable credits or packs are supplied, document in this README **before** claiming spoken AC:
 
 1. Provider + model / voice id  
 2. License / terms URL + commercial redistribution statement (verbatim cite; no unverified claims)  
 3. Generation date, locale, prompt text, sample rate, SHA-256 of each WAV  
 4. Offline player wiring + tests green  
-5. AI-disclosure note if required by provider terms (e.g. OpenAI TTS)
+5. AI-disclosure note (required for OpenAI TTS)
 
 ### Runtime readiness (code)
 
