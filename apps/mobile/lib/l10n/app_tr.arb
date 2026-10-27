@@ -38,7 +38,8 @@
   "activityPhaseCompleted": "Aferin",
   "nearFarTitle": "Yakın ve Uzak",
   "nearFarBack": "Geri",
-  "nearFarDemoEntry": "Yakın/Uzak demosunu dene",
+  "nearFarDemoEntry": "Geçici Yakın/Uzak demosu (geliştirici)",
+  "nearFarDemoEntryHint": "Geçici Slice B demosunu açar. Buradaki Büyükler Kapısı yer tutucudur — henüz güvenli giriş yoktur.",
   "nearFarPromptNear": "Çorabı ve yumuşak oyuncağı birbirine yaklaştır.",
   "nearFarPromptFar": "Şimdi onları uzaklaştır.",
   "nearFarPromptDone": "Güzel keşif!",
@@ -52,5 +53,5 @@
   "nearFarMissionMaterials": "Malzemeler: bir çorap, bir yumuşak oyuncak. Yetişkin gözetimi. Cam veya boğulma riski olan küçük nesneler yok.",
   "nearFarMissionOpen": "Daveti aç",
   "nearFarMissionLater": "Belki sonra",
-  "nearFarSpokenAssetsBlocked": "Konuşulan yakın/uzak ses paketleri henüz yok. Ekrandaki yazılar çalışır."
+  "nearFarSpokenAssetsBlocked": "Onaylı çevrimdışı ses paketleri ve çalışan bir oynatıcı gelene kadar konuşulan yakın/uzak sesleri engellidir. Ekrandaki yazılar çalışır."
 }

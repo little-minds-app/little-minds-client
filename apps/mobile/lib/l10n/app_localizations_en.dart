@@ -131,7 +131,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nearFarBack => 'Back';
 
   @override
-  String get nearFarDemoEntry => 'Try Near/Far demo';
+  String get nearFarDemoEntry => 'Temporary Near/Far demo (dev)';
+
+  @override
+  String get nearFarDemoEntryHint =>
+      'Opens a temporary Slice B demo. Parent Gate here is a placeholder — not secure sign-in yet.';
 
   @override
   String get nearFarPromptNear => 'Move the sock and soft toy near each other.';
@@ -176,5 +180,5 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nearFarSpokenAssetsBlocked =>
-      'Spoken near/far audio packs are not installed yet. On-screen labels still work.';
+      'Spoken near/far audio is blocked until approved offline voice packs and a working player are installed. On-screen labels still work.';
 }

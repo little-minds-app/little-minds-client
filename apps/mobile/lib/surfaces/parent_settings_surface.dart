@@ -7,7 +7,9 @@ import '../shell/adaptive_shell.dart';
 
 /// Native Parent Settings placeholder — portrait + landscape (ADR-018).
 ///
-/// Grown-ups-only entry to the LMP-45 Near/Far demo (not child-facing Hub nav).
+/// Temporary developer entry to the LMP-45 Near/Far demo (not child-facing Hub
+/// nav). **Does not** imply a secure, authenticated Parent Gate — Gate/Settings
+/// remain scaffolding until real auth lands.
 class ParentSettingsSurface extends StatelessWidget {
   const ParentSettingsSurface({
     super.key,
@@ -18,11 +20,14 @@ class ParentSettingsSurface extends StatelessWidget {
   final VoidCallback? onBack;
 
   /// Opens the dedicated Near/Far Kids Mode demo route (LMP-45).
+  ///
+  /// Temporary demo affordance only — not an authenticated caregiver control.
   final VoidCallback? onOpenNearFarDemo;
 
   static const Key surfaceKey = Key('surface-parent-settings');
   static const Key placeholderKey = Key('parent-settings-placeholder');
   static const Key nearFarDemoKey = Key('parent-settings-near-far-demo');
+  static const Key nearFarDemoHintKey = Key('parent-settings-near-far-demo-hint');
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +69,15 @@ class ParentSettingsSurface extends StatelessWidget {
                         onPressed: onOpenNearFarDemo,
                         child: Text(l10n.nearFarDemoEntry),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      key: nearFarDemoHintKey,
+                      l10n.nearFarDemoEntryHint,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.black54,
+                          ),
                     ),
                   ],
                 ],

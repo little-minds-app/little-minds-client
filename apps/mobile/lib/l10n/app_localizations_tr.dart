@@ -131,7 +131,11 @@ class AppLocalizationsTr extends AppLocalizations {
   String get nearFarBack => 'Geri';
 
   @override
-  String get nearFarDemoEntry => 'Yakın/Uzak demosunu dene';
+  String get nearFarDemoEntry => 'Geçici Yakın/Uzak demosu (geliştirici)';
+
+  @override
+  String get nearFarDemoEntryHint =>
+      'Geçici Slice B demosunu açar. Buradaki Büyükler Kapısı yer tutucudur — henüz güvenli giriş yoktur.';
 
   @override
   String get nearFarPromptNear =>
@@ -177,5 +181,5 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get nearFarSpokenAssetsBlocked =>
-      'Konuşulan yakın/uzak ses paketleri henüz yok. Ekrandaki yazılar çalışır.';
+      'Onaylı çevrimdışı ses paketleri ve çalışan bir oynatıcı gelene kadar konuşulan yakın/uzak sesleri engellidir. Ekrandaki yazılar çalışır.';
 }

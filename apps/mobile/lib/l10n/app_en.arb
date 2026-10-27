@@ -68,9 +68,13 @@
     "description": "Near/Far Slice B demo title (LMP-45)."
   },
   "nearFarBack": "Back",
-  "nearFarDemoEntry": "Try Near/Far demo",
+  "nearFarDemoEntry": "Temporary Near/Far demo (dev)",
   "@nearFarDemoEntry": {
-    "description": "Grown-ups Parent Settings entry to the dedicated demo route — not Child Hub nav."
+    "description": "Temporary developer/demo entry on Parent Settings placeholder. Does not imply a secure authenticated Parent Gate — real auth is not implemented yet. Not Child Hub nav."
+  },
+  "nearFarDemoEntryHint": "Opens a temporary Slice B demo. Parent Gate here is a placeholder — not secure sign-in yet.",
+  "@nearFarDemoEntryHint": {
+    "description": "Clarifies that Parent Settings / Gate are scaffolding, not authenticated caregiver security."
   },
   "nearFarPromptNear": "Move the sock and soft toy near each other.",
   "nearFarPromptFar": "Now move them far apart.",
@@ -85,5 +89,5 @@
   "nearFarMissionMaterials": "Materials: one sock, one soft toy. Adult supervision. No glass or small choking hazards.",
   "nearFarMissionOpen": "Open invitation",
   "nearFarMissionLater": "Maybe later",
-  "nearFarSpokenAssetsBlocked": "Spoken near/far audio packs are not installed yet. On-screen labels still work."
+  "nearFarSpokenAssetsBlocked": "Spoken near/far audio is blocked until approved offline voice packs and a working player are installed. On-screen labels still work."
 }

@@ -65,9 +65,10 @@ class NearFarMissionHandoffController {
   }
 
   /// Caregiver opened the invitation (event stub only — no skip UI).
+  ///
+  /// Idempotent: only [NearFarMissionHandoffState.offered] → opened.
   NearFarMissionHandoff open() {
-    if (!_handoff.isAvailable &&
-        _handoff.state != NearFarMissionHandoffState.offered) {
+    if (_handoff.state != NearFarMissionHandoffState.offered) {
       return _handoff;
     }
     _handoff = _handoff.copyWith(state: NearFarMissionHandoffState.opened);

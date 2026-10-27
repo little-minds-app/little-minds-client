@@ -10,8 +10,8 @@ import 'near_far_relation.dart';
 /// Examples: `assets/audio/near_far/en-US/near.wav`, `…/tr-TR/far.wav`
 ///
 /// **Licensing:** only pedagogy-approved, licensed WAV packs may be committed.
-/// Missing packs → spoken-label AC is **blocked** — do not fake speech or claim
-/// the spoken AC is met.
+/// Spoken-label AC stays **BLOCKED** until approved en-US/tr-TR assets **and** a
+/// working offline WAV player are integrated and tested. Do not fake speech.
 enum NearFarSpokenStem {
   near('near'),
   far('far');
@@ -33,19 +33,24 @@ enum NearFarSpokenStem {
 
 /// Plays a local asset path when approved packs exist.
 ///
-/// Production must wire a real offline WAV player once licensed assets land.
-/// This interface exists so tests can inject a recorder without claiming
-/// speakers worked.
+/// [canPlay] distinguishes a real offline player from the unavailable stub.
+/// Asset presence alone must never imply spoken-label readiness.
 abstract class NearFarLabelPlayer {
+  /// True only when this player can actually play offline WAV assets.
+  bool get canPlay;
+
   Future<bool> playAsset(String assetPath);
 }
 
-/// Default player — **does not synthesize speech**. Returns false always.
+/// Default player — **cannot play** and never satisfies spoken-label readiness.
 ///
-/// Used until licensed WAV assets + a real media player are approved. Calling
-/// this never satisfies the spoken-label acceptance criterion.
+/// Even if licensed WAV files are later dropped into the asset bundle, this
+/// stub still reports [canPlay] == false until a real offline player is wired.
 class UnavailableNearFarLabelPlayer implements NearFarLabelPlayer {
   const UnavailableNearFarLabelPlayer();
+
+  @override
+  bool get canPlay => false;
 
   @override
   Future<bool> playAsset(String assetPath) async => false;
@@ -53,17 +58,22 @@ class UnavailableNearFarLabelPlayer implements NearFarLabelPlayer {
 
 /// Test / DI double that records attempted plays.
 class RecordingNearFarLabelPlayer implements NearFarLabelPlayer {
+  RecordingNearFarLabelPlayer({this.canPlay = true});
+
+  @override
+  bool canPlay;
+
   final List<String> plays = <String>[];
   var succeed = true;
 
   @override
   Future<bool> playAsset(String assetPath) async {
     plays.add(assetPath);
-    return succeed;
+    return succeed && canPlay;
   }
 }
 
-/// Offline spoken-label readiness + play hook for Near/Far.
+/// Offline spoken-label presence + readiness + play hook for Near/Far.
 class NearFarSpokenLabels {
   NearFarSpokenLabels({
     AssetBundle? bundle,
@@ -74,6 +84,9 @@ class NearFarSpokenLabels {
   final AssetBundle _bundle;
   final NearFarLabelPlayer _player;
 
+  /// Exposed for diagnostics — never treat as spoken AC by itself.
+  NearFarLabelPlayer get player => _player;
+
   @visibleForTesting
   final Map<String, bool> presenceCache = <String, bool>{};
 
@@ -83,23 +96,35 @@ class NearFarSpokenLabels {
   static String assetPath(NearFarSpokenStem stem, String localeTag) =>
       'assets/audio/near_far/$localeTag/${stem.assetStem}.wav';
 
-  /// Probes whether both near and far assets exist for [localeTag].
-  Future<bool> areAssetsReady(String localeTag) async {
+  /// Probes whether both near and far **files** exist for [localeTag].
+  ///
+  /// File presence ≠ spoken readiness (see [areSpokenLabelsReady]).
+  Future<bool> areAssetsPresent(String localeTag) async {
     final near = await _probe(assetPath(NearFarSpokenStem.near, localeTag));
     final far = await _probe(assetPath(NearFarSpokenStem.far, localeTag));
     return near && far;
   }
 
-  /// Speaks [stem] when assets exist, sound is on, and a capable player is wired.
+  /// Spoken-label readiness requires licensed assets **and** a capable player.
   ///
-  /// Returns `true` only when a local asset was found **and** the player
-  /// reported playback. Missing assets → `false` (expected blocker today).
+  /// [UnavailableNearFarLabelPlayer] always yields false.
+  Future<bool> areSpokenLabelsReady(String localeTag) async {
+    if (!_player.canPlay) {
+      return false;
+    }
+    return areAssetsPresent(localeTag);
+  }
+
+  /// Speaks [stem] only when assets are present, sound is on, and player can play.
+  ///
+  /// Returns `true` only on actual player-reported playback. Missing assets or
+  /// an unavailable player → `false` (spoken AC remains blocked).
   Future<bool> speak(
     NearFarSpokenStem stem, {
     required String localeTag,
     bool soundOff = false,
   }) async {
-    if (soundOff) {
+    if (soundOff || !_player.canPlay) {
       return false;
     }
     final path = assetPath(stem, localeTag);

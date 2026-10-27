@@ -326,11 +326,17 @@ abstract class AppLocalizations {
   /// **'Back'**
   String get nearFarBack;
 
-  /// Grown-ups Parent Settings entry to the dedicated demo route — not Child Hub nav.
+  /// Temporary developer/demo entry on Parent Settings placeholder. Does not imply a secure authenticated Parent Gate — real auth is not implemented yet. Not Child Hub nav.
   ///
   /// In en, this message translates to:
-  /// **'Try Near/Far demo'**
+  /// **'Temporary Near/Far demo (dev)'**
   String get nearFarDemoEntry;
+
+  /// Clarifies that Parent Settings / Gate are scaffolding, not authenticated caregiver security.
+  ///
+  /// In en, this message translates to:
+  /// **'Opens a temporary Slice B demo. Parent Gate here is a placeholder — not secure sign-in yet.'**
+  String get nearFarDemoEntryHint;
 
   /// No description provided for @nearFarPromptNear.
   ///
@@ -413,7 +419,7 @@ abstract class AppLocalizations {
   /// No description provided for @nearFarSpokenAssetsBlocked.
   ///
   /// In en, this message translates to:
-  /// **'Spoken near/far audio packs are not installed yet. On-screen labels still work.'**
+  /// **'Spoken near/far audio is blocked until approved offline voice packs and a working player are installed. On-screen labels still work.'**
   String get nearFarSpokenAssetsBlocked;
 }
 

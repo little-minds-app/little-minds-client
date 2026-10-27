@@ -141,7 +141,8 @@ void main() {
         bundle: _Bundle(),
         player: RecordingNearFarLabelPlayer(),
       );
-      expect(await labels.areAssetsReady('en-US'), isFalse);
+      expect(await labels.areAssetsPresent('en-US'), isFalse);
+      expect(await labels.areSpokenLabelsReady('en-US'), isFalse);
       final played = await labels.speak(
         NearFarSpokenStem.near,
         localeTag: 'en-US',
@@ -149,7 +150,8 @@ void main() {
       expect(played, isFalse);
     });
 
-    test('TC-NF-008 present assets + player speak; soundOff skips', () async {
+    test('TC-NF-008 present assets + capable player speak; soundOff skips',
+        () async {
       final near = NearFarSpokenLabels.assetPath(NearFarSpokenStem.near, 'tr-TR');
       final far = NearFarSpokenLabels.assetPath(NearFarSpokenStem.far, 'tr-TR');
       final player = RecordingNearFarLabelPlayer();
@@ -157,7 +159,8 @@ void main() {
         bundle: _Bundle(presentPaths: {near, far}),
         player: player,
       );
-      expect(await labels.areAssetsReady('tr-TR'), isTrue);
+      expect(await labels.areAssetsPresent('tr-TR'), isTrue);
+      expect(await labels.areSpokenLabelsReady('tr-TR'), isTrue);
       expect(
         await labels.speak(NearFarSpokenStem.far, localeTag: 'tr-TR'),
         isTrue,
@@ -169,6 +172,24 @@ void main() {
           localeTag: 'tr-TR',
           soundOff: true,
         ),
+        isFalse,
+      );
+    });
+
+    test(
+        'TC-NF-013 UnavailableNearFarLabelPlayer never reports spoken readiness',
+        () async {
+      final near = NearFarSpokenLabels.assetPath(NearFarSpokenStem.near, 'en-US');
+      final far = NearFarSpokenLabels.assetPath(NearFarSpokenStem.far, 'en-US');
+      final labels = NearFarSpokenLabels(
+        bundle: _Bundle(presentPaths: {near, far}),
+        player: const UnavailableNearFarLabelPlayer(),
+      );
+      expect(await labels.areAssetsPresent('en-US'), isTrue);
+      expect(labels.player.canPlay, isFalse);
+      expect(await labels.areSpokenLabelsReady('en-US'), isFalse);
+      expect(
+        await labels.speak(NearFarSpokenStem.near, localeTag: 'en-US'),
         isFalse,
       );
     });
@@ -188,7 +209,8 @@ void main() {
       );
 
       await activity.prepare();
-      expect(activity.spokenAssetsReady, isFalse);
+      expect(activity.spokenAssetsPresent, isFalse);
+      expect(activity.spokenLabelsReady, isFalse);
       await activity.onEnter();
 
       final near = NearFarRelationLogic.nearPositions();
@@ -253,6 +275,130 @@ void main() {
       );
       expect(rect.width, greaterThanOrEqualTo(44));
       expect(rect.height, greaterThanOrEqualTo(44));
+    });
+
+    test('TC-NF-014 restart resets event-state and allows repeat completion',
+        () async {
+      var i = 0;
+      final events = NearFarLocalEventBuffer(idFactory: () => 'r-${i++}');
+      final activity = NearFarActivity(
+        eventBuffer: events,
+        playSessionId: 'restart-sess',
+        spokenLabels: NearFarSpokenLabels(bundle: _Bundle()),
+      );
+      await activity.prepare();
+      await activity.onEnter();
+
+      void completeOnce() {
+        final near = NearFarRelationLogic.nearPositions();
+        activity.moveSock(near.sock);
+        activity.moveSoftToy(near.softToy);
+        final far = NearFarRelationLogic.initialFarPositions();
+        activity.moveSock(far.sock);
+        activity.moveSoftToy(far.softToy);
+      }
+
+      completeOnce();
+      expect(activity.lastOutcome, isA<ActivityCompletedOutcome>());
+      expect(
+        events.events.where((e) => e.eventType == 'activity_completed').length,
+        1,
+      );
+
+      await activity.onRestart();
+      expect(activity.prompt, NearFarPromptStep.makeNear);
+      expect(activity.lastOutcome, isNull);
+      expect(
+        activity.missionHandoff.handoff.state,
+        NearFarMissionHandoffState.unavailable,
+      );
+      expect(activity.interactionsEnabled, isTrue);
+      expect(
+        events.events.where((e) => e.eventType == 'activity_started').length,
+        2,
+      );
+      expect(
+        events.events.lastWhere((e) => e.eventType == 'activity_started').payload,
+        containsPair('restart', true),
+      );
+
+      completeOnce();
+      expect(activity.lastOutcome, isA<ActivityCompletedOutcome>());
+      expect(
+        events.events.where((e) => e.eventType == 'activity_completed').length,
+        2,
+      );
+      expect(
+        events.events
+            .where((e) => e.eventType == 'real_world_mission_offered')
+            .length,
+        2,
+      );
+    });
+
+    test('TC-NF-015 pause/background ignore moves; close abandons once',
+        () async {
+      var i = 0;
+      final events = NearFarLocalEventBuffer(idFactory: () => 'l-${i++}');
+      final activity = NearFarActivity(
+        eventBuffer: events,
+        playSessionId: 'life-sess',
+        spokenLabels: NearFarSpokenLabels(bundle: _Bundle()),
+      );
+      await activity.prepare();
+      await activity.onEnter();
+
+      await activity.onPause();
+      expect(activity.interactionsEnabled, isFalse);
+      final before = activity.sockPosition;
+      activity.moveSock(NearFarRelationLogic.nearPositions().sock);
+      expect(activity.sockPosition, before);
+
+      await activity.onResume();
+      expect(activity.interactionsEnabled, isTrue);
+
+      await activity.onBackground();
+      expect(activity.interactionsEnabled, isFalse);
+
+      await activity.onExit();
+      expect(
+        events.events.where((e) => e.eventType == 'activity_abandoned').length,
+        1,
+      );
+      // Duplicate abandon path (controller may also report abandoned).
+      activity.onOutcome(const ActivityAbandonedOutcome());
+      expect(
+        events.events.where((e) => e.eventType == 'activity_abandoned').length,
+        1,
+      );
+    });
+
+    test('TC-NF-016 mission open is idempotent (no duplicate opened events)',
+        () async {
+      var i = 0;
+      final events = NearFarLocalEventBuffer(idFactory: () => 'm-${i++}');
+      final activity = NearFarActivity(
+        eventBuffer: events,
+        playSessionId: 'mission-sess',
+        spokenLabels: NearFarSpokenLabels(bundle: _Bundle()),
+      );
+      await activity.prepare();
+      await activity.onEnter();
+      final near = NearFarRelationLogic.nearPositions();
+      activity.moveSock(near.sock);
+      activity.moveSoftToy(near.softToy);
+      final far = NearFarRelationLogic.initialFarPositions();
+      activity.moveSock(far.sock);
+      activity.moveSoftToy(far.softToy);
+
+      activity.openMissionHandoff();
+      activity.openMissionHandoff();
+      expect(
+        events.events
+            .where((e) => e.eventType == 'real_world_mission_opened')
+            .length,
+        1,
+      );
     });
   });
 }

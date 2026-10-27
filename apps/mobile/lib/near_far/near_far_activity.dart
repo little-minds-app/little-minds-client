@@ -51,8 +51,12 @@ class NearFarActivity extends LearningActivity {
   var _prompt = NearFarPromptStep.makeNear;
   var _achievedNear = false;
   var _achievedFar = false;
-  var _spokenAssetsReady = false;
+  var _spokenAssetsPresent = false;
+  var _spokenLabelsReady = false;
   var _startedEmitted = false;
+  var _abandonedEmitted = false;
+  var _missionOpenedEmitted = false;
+  var _interactionsEnabled = true;
   NearFarRelation? _lastEmittedRelation;
   Offset _sock = NearFarRelationLogic.initialFarPositions().sock;
   Offset _softToy = NearFarRelationLogic.initialFarPositions().softToy;
@@ -62,7 +66,20 @@ class NearFarActivity extends LearningActivity {
   NearFarPromptStep get prompt => _prompt;
   bool get achievedNear => _achievedNear;
   bool get achievedFar => _achievedFar;
-  bool get spokenAssetsReady => _spokenAssetsReady;
+
+  /// Licensed WAV **files** present in the bundle (not spoken AC).
+  bool get spokenAssetsPresent => _spokenAssetsPresent;
+
+  /// Spoken-label readiness: assets present **and** capable offline player.
+  ///
+  /// Default [UnavailableNearFarLabelPlayer] always keeps this false.
+  bool get spokenLabelsReady => _spokenLabelsReady;
+
+  /// Back-compat alias — prefer [spokenLabelsReady] for AC / UI gating.
+  @Deprecated('Use spokenLabelsReady — assets alone never satisfy spoken AC')
+  bool get spokenAssetsReady => _spokenLabelsReady;
+
+  bool get interactionsEnabled => _interactionsEnabled;
   Offset get sockPosition => _sock;
   Offset get softToyPosition => _softToy;
   ScoringNeutralOutcome? get lastOutcome => _lastOutcome;
@@ -78,6 +95,15 @@ class NearFarActivity extends LearningActivity {
     for (final listener in List<void Function()>.from(_listeners)) {
       listener();
     }
+  }
+
+  /// Host gates drag while paused / backgrounded / completed / preparing.
+  void setInteractionsEnabled(bool enabled) {
+    if (_interactionsEnabled == enabled) {
+      return;
+    }
+    _interactionsEnabled = enabled;
+    _notify();
   }
 
   @override
@@ -98,20 +124,69 @@ class NearFarActivity extends LearningActivity {
         '${NearFarConstants.ageMinMonths}–${NearFarConstants.ageMaxMonths} months',
       );
     }
-    // Offline gate: relation math + fixtures are local. Spoken WAV packs are
-    // probed but missing packs do NOT fail prepare — they block spoken AC only.
-    _spokenAssetsReady = await spokenLabels.areAssetsReady(localeTag);
+    // Offline gate: relation math + fixtures are local. Spoken WAV readiness
+    // is probed but never fails prepare — spoken AC stays blocked until
+    // licensed assets + a real offline player are integrated.
+    _spokenAssetsPresent = await spokenLabels.areAssetsPresent(localeTag);
+    _spokenLabelsReady = await spokenLabels.areSpokenLabelsReady(localeTag);
+    _resetPlayProgress(emitStarted: false);
+  }
+
+  @override
+  Future<void> onEnter() async {
+    _emitStartedIfNeeded();
+  }
+
+  @override
+  Future<void> onPause() async {
+    setInteractionsEnabled(false);
+  }
+
+  @override
+  Future<void> onResume() async {
+    if (_prompt != NearFarPromptStep.complete &&
+        _lastOutcome is! ActivityCompletedOutcome) {
+      setInteractionsEnabled(true);
+    }
+  }
+
+  @override
+  Future<void> onBackground() async {
+    setInteractionsEnabled(false);
+  }
+
+  @override
+  Future<void> onForeground() async {
+    // Resume path decides whether interactions re-enable after foreground.
+  }
+
+  @override
+  Future<void> onRestart() async {
+    // Full event-state reset so replay does not inherit stale flags.
+    _resetPlayProgress(emitStarted: true);
+    setInteractionsEnabled(true);
+    _notify();
+  }
+
+  void _resetPlayProgress({required bool emitStarted}) {
     final initial = NearFarRelationLogic.initialFarPositions();
     _sock = initial.sock;
     _softToy = initial.softToy;
     _prompt = NearFarPromptStep.makeNear;
     _achievedNear = false;
     _achievedFar = false;
+    _lastOutcome = null;
+    _lastEmittedRelation = null;
+    _startedEmitted = false;
+    _abandonedEmitted = false;
+    _missionOpenedEmitted = false;
     missionHandoff.reset();
+    if (emitStarted) {
+      _emitStartedIfNeeded(restart: true);
+    }
   }
 
-  @override
-  Future<void> onEnter() async {
+  void _emitStartedIfNeeded({bool restart = false}) {
     if (_startedEmitted) {
       return;
     }
@@ -122,34 +197,26 @@ class NearFarActivity extends LearningActivity {
       payload: {
         'activity_variant_id': NearFarConstants.activityId,
         'age_months': ageMonths,
-        'spoken_assets_ready': _spokenAssetsReady,
+        'spoken_assets_present': _spokenAssetsPresent,
+        'spoken_labels_ready': _spokenLabelsReady,
+        if (restart) 'restart': true,
       },
     );
   }
 
   @override
-  Future<void> onRestart() async {
-    final initial = NearFarRelationLogic.initialFarPositions();
-    _sock = initial.sock;
-    _softToy = initial.softToy;
-    _prompt = NearFarPromptStep.makeNear;
-    _achievedNear = false;
-    _achievedFar = false;
-    _lastOutcome = null;
-    missionHandoff.reset();
-    _notify();
-  }
-
-  @override
   Future<void> onExit() async {
-    if (_lastOutcome is! ActivityCompletedOutcome &&
-        _lastOutcome is! ActivityAbandonedOutcome) {
-      eventBuffer.emit(
-        playSessionId: playSessionId,
-        type: NearFarEventType.activityAbandoned,
-        payload: const {'completion_status': 'abandoned'},
-      );
+    if (_lastOutcome is ActivityCompletedOutcome ||
+        _lastOutcome is ActivityAbandonedOutcome ||
+        _abandonedEmitted) {
+      return;
     }
+    _abandonedEmitted = true;
+    eventBuffer.emit(
+      playSessionId: playSessionId,
+      type: NearFarEventType.activityAbandoned,
+      payload: const {'completion_status': 'abandoned'},
+    );
   }
 
   @override
@@ -202,6 +269,7 @@ class NearFarActivity extends LearningActivity {
     }
     _lastOutcome = outcome;
     if (outcome is ActivityCompletedOutcome) {
+      setInteractionsEnabled(false);
       eventBuffer.emit(
         playSessionId: playSessionId,
         type: NearFarEventType.activityCompleted,
@@ -221,6 +289,10 @@ class NearFarActivity extends LearningActivity {
         },
       );
     } else if (outcome is ActivityAbandonedOutcome) {
+      if (_abandonedEmitted) {
+        return;
+      }
+      _abandonedEmitted = true;
       eventBuffer.emit(
         playSessionId: playSessionId,
         type: NearFarEventType.activityAbandoned,
@@ -237,16 +309,25 @@ class NearFarActivity extends LearningActivity {
   }
 
   void moveSock(Offset designPosition) {
+    if (!_interactionsEnabled) {
+      return;
+    }
     _sock = designPosition;
     _onPositionsChanged();
   }
 
   void moveSoftToy(Offset designPosition) {
+    if (!_interactionsEnabled) {
+      return;
+    }
     _softToy = designPosition;
     _onPositionsChanged();
   }
 
   void _onPositionsChanged() {
+    if (!_interactionsEnabled || _prompt == NearFarPromptStep.complete) {
+      return;
+    }
     final relation = currentRelation;
     // Emit coarse relation changes only — never raw pointer streams (§14).
     if (relation != _lastEmittedRelation &&
@@ -292,8 +373,12 @@ class NearFarActivity extends LearningActivity {
 
   /// Caregiver opens the safe handoff invitation (no skip/feedback UI).
   NearFarMissionHandoff openMissionHandoff() {
+    final before = missionHandoff.handoff.state;
     final opened = missionHandoff.open();
-    if (opened.state == NearFarMissionHandoffState.opened) {
+    if (before == NearFarMissionHandoffState.offered &&
+        opened.state == NearFarMissionHandoffState.opened &&
+        !_missionOpenedEmitted) {
+      _missionOpenedEmitted = true;
       eventBuffer.emit(
         playSessionId: playSessionId,
         type: NearFarEventType.realWorldMissionOpened,

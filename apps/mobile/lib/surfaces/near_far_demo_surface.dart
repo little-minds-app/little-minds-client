@@ -108,15 +108,38 @@ class _NearFarDemoSurfaceState extends State<NearFarDemoSurface>
     }
   }
 
+  void _syncInteractionsForPhase() {
+    final activity = _activity;
+    if (activity == null) {
+      return;
+    }
+    final phase = _controller.phase;
+    final enabled = phase == GameLifecyclePhase.running &&
+        activity.prompt != NearFarPromptStep.complete &&
+        activity.lastOutcome is! ActivityCompletedOutcome;
+    activity.setInteractionsEnabled(enabled);
+  }
+
   void _onChanged() {
     if (!mounted || _controller.isDisposed) {
       return;
     }
+    _syncInteractionsForPhase();
     final outcome = _activity?.lastOutcome;
     if (!_completionReported && outcome is ActivityCompletedOutcome) {
       _completionReported = true;
       _controller.reportOutcome(outcome);
     }
+    setState(() {});
+  }
+
+  Future<void> _onRestart() async {
+    _completionReported = false;
+    await _controller.restart();
+    if (!mounted || _controller.isDisposed) {
+      return;
+    }
+    _syncInteractionsForPhase();
     setState(() {});
   }
 
@@ -175,9 +198,9 @@ class _NearFarDemoSurfaceState extends State<NearFarDemoSurface>
               onClose: _onClose,
               onPause: _controller.pause,
               onResume: _controller.resume,
-              onRestart: _controller.restart,
+              onRestart: _onRestart,
             ),
-            if (!activity.spokenAssetsReady &&
+            if (!activity.spokenLabelsReady &&
                 phase != GameLifecyclePhase.preparing &&
                 phase != GameLifecyclePhase.idle)
               Padding(

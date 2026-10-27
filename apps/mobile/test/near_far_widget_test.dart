@@ -244,10 +244,61 @@ void main() {
     await _pumpFrames(tester, 8);
 
     expect(find.byKey(ParentSettingsSurface.nearFarDemoKey), findsOneWidget);
+    expect(find.byKey(ParentSettingsSurface.nearFarDemoHintKey), findsOneWidget);
+    expect(
+      find.textContaining('placeholder'),
+      findsWidgets,
+    );
     await tester.tap(find.byKey(ParentSettingsSurface.nearFarDemoKey));
     await _pumpFrames(tester, 20);
 
     expect(find.byKey(NearFarDemoSurface.surfaceKey), findsOneWidget);
+  });
+
+  testWidgets('TC-NF-W09 restart after complete allows second completion',
+      (tester) async {
+    var i = 0;
+    final buffer = NearFarLocalEventBuffer(idFactory: () => 'rw-${i++}');
+    final activity = NearFarActivity(
+      eventBuffer: buffer,
+      playSessionId: 'restart-widget',
+      spokenLabels: NearFarSpokenLabels(player: RecordingNearFarLabelPlayer()),
+    );
+    await _setLandscape(tester, width: 844, height: 390);
+    await tester.pumpWidget(
+      LittleMindsApp(
+        initialNearFarDemo: true,
+        nearFarActivity: activity,
+        audioGuidance: RecordingHubAudioGuidance(),
+      ),
+    );
+    await _pumpFrames(tester, 20);
+
+    void complete() {
+      final near = NearFarRelationLogic.nearPositions();
+      activity.moveSock(near.sock);
+      activity.moveSoftToy(near.softToy);
+      final far = NearFarRelationLogic.initialFarPositions();
+      activity.moveSock(far.sock);
+      activity.moveSoftToy(far.softToy);
+    }
+
+    complete();
+    await _pumpFrames(tester, 12);
+    expect(find.byKey(NearFarMissionHandoffPanel.panelKey), findsOneWidget);
+
+    await tester.tap(find.byKey(NearFarDemoSurface.restartKey));
+    await _pumpFrames(tester, 12);
+    expect(find.byKey(NearFarMissionHandoffPanel.panelKey), findsNothing);
+    expect(activity.prompt, NearFarPromptStep.makeNear);
+
+    complete();
+    await _pumpFrames(tester, 12);
+    expect(find.byKey(NearFarMissionHandoffPanel.panelKey), findsOneWidget);
+    expect(
+      buffer.events.where((e) => e.eventType == 'activity_completed').length,
+      2,
+    );
   });
 
   testWidgets('TC-NF-W08 ActivityRegistry stays empty with demo activity playable',

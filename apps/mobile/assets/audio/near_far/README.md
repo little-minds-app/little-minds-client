@@ -20,8 +20,9 @@ Approved **licensed** pedagogy voice packs are **not** present in this repositor
 
 - Do **not** commit unlicensed, synthetic, or placeholder spoken WAVs and claim the spoken-label AC.
 - On-screen text labels (`Near`/`Far`, `Yakın`/`Uzak`) still work offline.
-- `NearFarSpokenLabels` probes these paths and will play only when packs exist **and** a real offline player is wired.
-- Default player is `UnavailableNearFarLabelPlayer` until licensed assets + player wiring are approved.
+- **Asset presence ≠ readiness.** `areAssetsPresent` only probes files. `areSpokenLabelsReady` requires assets **and** `NearFarLabelPlayer.canPlay == true`.
+- Default `UnavailableNearFarLabelPlayer` has `canPlay == false` and **never** reports spoken-label readiness, even if WAV files appear later.
+- Spoken AC stays blocked until approved en-US/tr-TR packs **and** a working offline WAV player are integrated and tested.
 
 ## Placeholder directories
 

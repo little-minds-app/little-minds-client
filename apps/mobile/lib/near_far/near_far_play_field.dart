@@ -93,6 +93,7 @@ class NearFarPlayField extends StatelessWidget {
                 icon: Icons.dry_cleaning_rounded,
                 rect: sockRect,
                 reduceMotion: reduceMotion,
+                enabled: activity.interactionsEnabled,
                 onDragDesign: (design) => activity.moveSock(design),
                 viewport: viewport,
               ),
@@ -103,6 +104,7 @@ class NearFarPlayField extends StatelessWidget {
                 icon: Icons.cruelty_free_rounded,
                 rect: toyRect,
                 reduceMotion: reduceMotion,
+                enabled: activity.interactionsEnabled,
                 onDragDesign: (design) => activity.moveSoftToy(design),
                 viewport: viewport,
               ),
@@ -146,6 +148,7 @@ class _DraggableObject extends StatelessWidget {
     required this.onDragDesign,
     required this.viewport,
     required this.reduceMotion,
+    this.enabled = true,
   });
 
   final String label;
@@ -155,6 +158,7 @@ class _DraggableObject extends StatelessWidget {
   final ValueChanged<Offset> onDragDesign;
   final Size viewport;
   final bool reduceMotion;
+  final bool enabled;
 
   Offset _toDesign(Offset globalLocal) {
     final scale = HitboxScaler.containScale(viewport);
@@ -191,17 +195,21 @@ class _DraggableObject extends StatelessWidget {
       child: Semantics(
         label: label,
         button: false,
+        enabled: enabled,
         child: GestureDetector(
-          onPanUpdate: (details) {
-            final box = context.findRenderObject() as RenderBox?;
-            if (box == null) {
-              return;
-            }
-            final local = box.globalToLocal(details.globalPosition);
-            // Convert from object-local to field-local.
-            final fieldLocal = Offset(rect.left + local.dx, rect.top + local.dy);
-            onDragDesign(_toDesign(fieldLocal));
-          },
+          onPanUpdate: !enabled
+              ? null
+              : (details) {
+                  final box = context.findRenderObject() as RenderBox?;
+                  if (box == null) {
+                    return;
+                  }
+                  final local = box.globalToLocal(details.globalPosition);
+                  // Convert from object-local to field-local.
+                  final fieldLocal =
+                      Offset(rect.left + local.dx, rect.top + local.dy);
+                  onDragDesign(_toDesign(fieldLocal));
+                },
           child: AnimatedContainer(
             duration: reduceMotion
                 ? Duration.zero
