@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'daily_policy.dart';
+import 'snapshot_load_result.dart';
 import 'trust_state.dart';
 
 /// Durable local daily screen-time checkpoint (device-attributed, offline).
@@ -24,6 +25,10 @@ final class ScreenTimeSnapshot {
   static const int currentSchemaVersion = 1;
 
   static const String storeKey = 'screen_time.snapshot.v1';
+
+  /// Sidecar key preserving the last present-but-invalid payload for recovery /
+  /// forensics. Must not be overwritten by a silent fresh trusted snapshot.
+  static const String corruptStoreKey = 'screen_time.snapshot.v1.corrupt';
 
   final int schemaVersion;
 
@@ -64,6 +69,18 @@ final class ScreenTimeSnapshot {
       };
 
   String encode() => jsonEncode(toJson());
+
+  /// Distinguishes missing vs valid vs present-but-invalid.
+  static SnapshotLoadResult load(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return const SnapshotLoadResult.missing();
+    }
+    final parsed = tryDecode(raw);
+    if (parsed == null) {
+      return SnapshotLoadResult.invalid(raw);
+    }
+    return SnapshotLoadResult.valid(parsed);
+  }
 
   static ScreenTimeSnapshot? tryDecode(String? raw) {
     if (raw == null || raw.isEmpty) return null;

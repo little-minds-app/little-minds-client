@@ -11,6 +11,7 @@ export 'monotonic_clock.dart';
 export 'persistent_store.dart';
 export 'screen_time_accountant.dart';
 export 'screen_time_snapshot.dart';
+export 'snapshot_load_result.dart';
 export 'trust_recovery.dart';
 export 'trust_state.dart';
 export 'wall_clock.dart';

@@ -2,13 +2,14 @@ import 'daily_policy.dart';
 import 'monotonic_clock.dart';
 import 'persistent_store.dart';
 import 'screen_time_snapshot.dart';
+import 'snapshot_load_result.dart';
 import 'trust_recovery.dart';
 import 'trust_state.dart';
 import 'wall_clock.dart';
 
 /// Single source of truth for **local** daily Kids Mode active screen time.
 ///
-/// ## Counting rules (LMP-49 Step 1 / F-010 / ADR-016 §35.3)
+/// ## Counting rules (LMP-49 Step 1.1 / F-010 / ADR-016 §35.3)
 /// - Only explicitly [startActive] / [resumeActive] intervals accumulate.
 /// - [pauseActive] / [stopActive] close the open interval; background/pause
 ///   callers simply must not leave an interval open (wiring is Step 2).
@@ -16,25 +17,40 @@ import 'wall_clock.dart';
 /// - Pause/stop while inactive is a no-op (idempotent).
 /// - Remaining is always ≥ 0; cap is enforced at exactly
 ///   [DailyPolicy.dailyCapSeconds].
+/// - When trust is degraded or persistence is corrupt, [allowsKidsModeUsage] is
+///   false — [startActive] / [resumeActive] refuse to open intervals.
 ///
-/// ## Day rollover (conservative)
-/// - Day key = local calendar `YYYY-MM-DD` from [WallClock] under policy TZ
-///   scaffolding.
-/// - **Backward wall clock** → keep persisted day + budget;
-///   [TrustState.guarded].
-/// - **Forward wall alone** → must not grant a new day. Rollover requires the
-///   same monotonic [MonotonicClock.epochId] and monotonic elapsed covering at
-///   least the wall duration from the last checkpoint to the next local
-///   midnight.
+/// ## Day rollover (conservative, DST/TZ-aware local midnight)
+/// - Day key = local calendar `YYYY-MM-DD` from [WallClock] components (the
+///   wall instant must already be in the household timezone).
+/// - Local midnight uses **calendar** next-day construction
+///   ([startOfNextLocalDay]), not a fixed 24h duration — so DST long/short days
+///   change the monotonic evidence required for automatic rollover.
+/// - Active intervals that span midnight are **split**: pre-midnight seconds
+///   stay on the old day (then discarded with the day reset); post-midnight
+///   seconds carry into the new day (no double-count, no loss).
+/// - **Backward wall clock** → commit open time to persisted day; [TrustState.guarded].
+/// - **Forward wall alone** → must not grant a new day.
 /// - **Restart / epoch change** with a later calendar day →
-///   [TrustState.uncertain]; no silent fresh 30 minutes. Use [recoverTrust]
-///   explicitly.
+///   [TrustState.uncertain]; no silent fresh 30 minutes.
+///
+/// ## Corrupted persistence
+/// - **Missing** key → legitimate first run → fresh trusted day.
+/// - **Present but invalid** → [TrustState.guarded], Kids Mode blocked, remaining
+///   fail-closed at 0; raw bytes preserved under
+///   [ScreenTimeSnapshot.corruptStoreKey] and the primary key is **not**
+///   overwritten with a silent fresh snapshot.
+///
+/// ## Trust recovery auth boundaries
+/// See [TrustRecovery]. [recoverTrust] is never invoked automatically. Child
+/// surfaces must not call it; [TrustRecovery.forceNewLocalDay] is
+/// parent-gate / re-auth only (wiring later).
 ///
 /// ## Offline clock-tamper limits (documented, not mitigated here)
 /// This accountant is **not tamper-proof**. A user who edits [PersistentStore],
 /// spoofs clocks, or clears app data can defeat local enforcement. Secure
 /// storage, server trusted time, and reset_history reconciliation (ADR-016)
-/// are required for stronger guarantees and are out of Step 1 scope.
+/// are required for stronger guarantees and are out of Step 1.1 scope.
 final class ScreenTimeAccountant {
   ScreenTimeAccountant({
     required MonotonicClock monotonicClock,
@@ -42,6 +58,7 @@ final class ScreenTimeAccountant {
     required this._store,
     this._policy = DailyPolicy.defaultThirtyMinutes,
     this.storeKey = ScreenTimeSnapshot.storeKey,
+    this.corruptStoreKey = ScreenTimeSnapshot.corruptStoreKey,
   })  : _monotonic = monotonicClock,
         _wall = wallClock;
 
@@ -50,6 +67,7 @@ final class ScreenTimeAccountant {
   final PersistentStore _store;
   DailyPolicy _policy;
   final String storeKey;
+  final String corruptStoreKey;
 
   bool _restored = false;
   String _dayKey = '';
@@ -59,6 +77,9 @@ final class ScreenTimeAccountant {
   int _lastWallEpochMs = 0;
   int _lastMonotonicMs = 0;
   String _epochId = '';
+
+  /// True when primary store value was present but invalid.
+  bool _corruptPersistence = false;
 
   /// When non-null, an active Kids Mode interval is open at this monotonic mark.
   Duration? _activeStartedAt;
@@ -73,15 +94,26 @@ final class ScreenTimeAccountant {
 
   bool get clockSkewDetected => _clockSkewDetected;
 
+  bool get isCorruptPersistence => _corruptPersistence;
+
   bool get isActive => _activeStartedAt != null;
 
   /// Closed intervals only (excludes the open active interval).
   int get closedAccumulatedSeconds => _accumulatedSeconds;
 
   /// Closed + open interval, clamped to the daily cap.
-  int get accumulatedActiveSeconds => _totalActiveSeconds();
+  ///
+  /// When persistence is corrupt, reports the fail-closed capped value.
+  int get accumulatedActiveSeconds {
+    if (_corruptPersistence) return _policy.dailyCapSeconds;
+    return _totalActiveSeconds();
+  }
 
   int get remainingSeconds {
+    // Corrupt persistence: fail closed at 0 until parent-authorized recovery.
+    // Degraded-but-valid snapshots still expose real remaining for display;
+    // [allowsKidsModeUsage] blocks new intervals until [recoverTrust].
+    if (_corruptPersistence) return 0;
     final remaining = _policy.dailyCapSeconds - accumulatedActiveSeconds;
     return remaining < 0 ? 0 : remaining;
   }
@@ -90,60 +122,83 @@ final class ScreenTimeAccountant {
 
   bool get isCapReached => remainingSeconds <= 0;
 
-  bool get isTrustDegraded => _trustState.isDegraded;
+  bool get isTrustDegraded => _trustState.isDegraded || _corruptPersistence;
+
+  /// Kids Mode may open active intervals only when restored, trusted, and not
+  /// corrupt. Cap exhaustion is reported separately via [isCapReached].
+  bool get allowsKidsModeUsage =>
+      _restored && !_corruptPersistence && !_trustState.isDegraded;
 
   /// Load durable state. Call once at startup before Kids Mode use.
-  ///
-  /// Corrupted / missing data starts a fresh trusted day for the current wall
-  /// calendar. Degraded trust from a valid snapshot is preserved.
   Future<void> restore() async {
     final raw = await _store.read(storeKey);
-    final snapshot = ScreenTimeSnapshot.tryDecode(raw);
+    final loaded = ScreenTimeSnapshot.load(raw);
     final wallNow = _wall.now();
     final monoNow = _monotonic.elapsed();
 
-    if (snapshot == null) {
-      _beginFreshDay(
-        dayKeyFor(wallNow),
-        wallNow: wallNow,
-        monoNow: monoNow,
-        trust: TrustState.trusted,
-        skew: false,
-      );
-      _restored = true;
-      await persist();
-      return;
+    switch (loaded.presence) {
+      case SnapshotPresence.missing:
+        _corruptPersistence = false;
+        _beginFreshDay(
+          dayKeyFor(wallNow),
+          wallNow: wallNow,
+          monoNow: monoNow,
+          trust: TrustState.trusted,
+          skew: false,
+        );
+        _restored = true;
+        await _writeWorkingSnapshot();
+        return;
+
+      case SnapshotPresence.invalid:
+        await _enterCorruptPersistence(
+          raw: loaded.raw!,
+          wallNow: wallNow,
+          monoNow: monoNow,
+        );
+        _restored = true;
+        // Do not overwrite primary corrupt bytes with a trusted fresh snapshot.
+        return;
+
+      case SnapshotPresence.valid:
+        final snapshot = loaded.snapshot!;
+        _corruptPersistence = false;
+        _policy = DailyPolicy(
+          dailyCapSeconds: snapshot.dailyCapSeconds > 0
+              ? snapshot.dailyCapSeconds
+              : _policy.dailyCapSeconds,
+          timeZoneId: snapshot.timeZoneId.isNotEmpty
+              ? snapshot.timeZoneId
+              : _policy.timeZoneId,
+        );
+        _dayKey = snapshot.dayKey;
+        _accumulatedSeconds = _clampSeconds(snapshot.accumulatedActiveSeconds);
+        _trustState = snapshot.trustState;
+        _clockSkewDetected = snapshot.clockSkewDetected;
+        _lastWallEpochMs = snapshot.lastWallEpochMs;
+        _lastMonotonicMs = snapshot.lastMonotonicMs;
+        _epochId = snapshot.epochId;
+        _activeStartedAt = null;
+        _restored = true;
+
+        _reconcileCalendar(wallNow: wallNow, monoNow: monoNow);
+        await persist();
+        return;
     }
-
-    _policy = DailyPolicy(
-      dailyCapSeconds: snapshot.dailyCapSeconds > 0
-          ? snapshot.dailyCapSeconds
-          : _policy.dailyCapSeconds,
-      timeZoneId: snapshot.timeZoneId.isNotEmpty
-          ? snapshot.timeZoneId
-          : _policy.timeZoneId,
-    );
-    _dayKey = snapshot.dayKey;
-    _accumulatedSeconds = _clampSeconds(snapshot.accumulatedActiveSeconds);
-    _trustState = snapshot.trustState;
-    _clockSkewDetected = snapshot.clockSkewDetected;
-    _lastWallEpochMs = snapshot.lastWallEpochMs;
-    _lastMonotonicMs = snapshot.lastMonotonicMs;
-    _epochId = snapshot.epochId;
-    _activeStartedAt = null;
-    _restored = true;
-
-    _reconcileCalendar(wallNow: wallNow, monoNow: monoNow);
-    await persist();
   }
 
   /// Begin counting an active Kids Mode foreground interval.
   ///
   /// Idempotent: if already active, does not restart the open interval.
+  /// No-op when [allowsKidsModeUsage] is false or the cap is reached.
   void startActive() {
     _ensureRestored();
+    if (!allowsKidsModeUsage) {
+      _activeStartedAt = null;
+      return;
+    }
     _reconcileCalendar(wallNow: _wall.now(), monoNow: _monotonic.elapsed());
-    if (isCapReached) {
+    if (!allowsKidsModeUsage || isCapReached) {
       _activeStartedAt = null;
       return;
     }
@@ -166,24 +221,166 @@ final class ScreenTimeAccountant {
   /// End the active interval (exit Kids Mode). Idempotent.
   void stopActive() => pauseActive();
 
-  /// Re-read clocks: commit open whole seconds, apply rollover/skew, clamp cap.
+  /// Re-read clocks: apply rollover/skew (with midnight split), clamp cap.
   void tick() {
     _ensureRestored();
-    _foldOpenWholeSeconds();
+    if (_corruptPersistence) {
+      _activeStartedAt = null;
+      return;
+    }
+    // Reconcile first so an active span across midnight can be split without
+    // folding the entire open interval onto the old day then wiping it.
     _reconcileCalendar(wallNow: _wall.now(), monoNow: _monotonic.elapsed());
+    if (!allowsKidsModeUsage) {
+      _commitOpenInterval();
+      _activeStartedAt = null;
+      _checkpointClocks();
+      return;
+    }
+    _foldOpenWholeSeconds();
     if (_totalActiveSeconds() >= _policy.dailyCapSeconds) {
       _commitOpenInterval();
     }
     _checkpointClocks();
   }
 
-  /// Flush checkpoint to [PersistentStore]. Commits any open interval first,
-  /// then re-opens it when still under the cap.
+  /// Flush checkpoint to [PersistentStore].
+  ///
+  /// When persistence is corrupt, does **not** overwrite the primary key
+  /// (recovery evidence preserved). Working state is only written after
+  /// explicit [recoverTrust].
   Future<void> persist() async {
     _ensureRestored();
-    final wasActive = _activeStartedAt != null;
+    if (_corruptPersistence) {
+      _activeStartedAt = null;
+      return;
+    }
+    final wasActive = _activeStartedAt != null && allowsKidsModeUsage;
     _commitOpenInterval();
     _checkpointClocks();
+    await _writeWorkingSnapshot();
+    if (wasActive &&
+        allowsKidsModeUsage &&
+        _accumulatedSeconds < _policy.dailyCapSeconds) {
+      _activeStartedAt = _monotonic.elapsed();
+    }
+  }
+
+  /// Explicit recovery for degraded / corrupt trust. **Never automatic.**
+  ///
+  /// Auth boundary: callers must enforce Parent Gate / re-auth before
+  /// [TrustRecovery.forceNewLocalDay]. This method does not authenticate.
+  /// No-op when trust is already healthy and persistence is not corrupt.
+  void recoverTrust(TrustRecovery recovery) {
+    _ensureRestored();
+    if (!isTrustDegraded && !_corruptPersistence) {
+      return;
+    }
+    _commitOpenInterval();
+    final wallNow = _wall.now();
+    final monoNow = _monotonic.elapsed();
+    switch (recovery) {
+      case TrustRecovery.keepPersistedBudget:
+        if (_corruptPersistence) {
+          // No salvageable budget — remain fail-closed for the current wall day
+          // but clear corrupt flag so parent can later force a new day.
+          // Kids Mode stays blocked until forceNewLocalDay (remaining 0, capped).
+          _corruptPersistence = false;
+          _dayKey = dayKeyFor(wallNow);
+          _accumulatedSeconds = _policy.dailyCapSeconds;
+          _trustState = TrustState.guarded;
+          _clockSkewDetected = true;
+          _activeStartedAt = null;
+          _epochId = _monotonic.epochId;
+          _checkpointClocks(wallNow: wallNow, monoNow: monoNow);
+          // Still degraded (guarded) — does not grant fresh 30m.
+          return;
+        }
+        _trustState = TrustState.trusted;
+        _clockSkewDetected = false;
+        _checkpointClocks(wallNow: wallNow, monoNow: monoNow);
+      case TrustRecovery.forceNewLocalDay:
+        _corruptPersistence = false;
+        _beginFreshDay(
+          dayKeyFor(wallNow),
+          wallNow: wallNow,
+          monoNow: monoNow,
+          trust: TrustState.trusted,
+          skew: false,
+        );
+        // Parent-authorized only path may replace primary + drop sidecar.
+        // Deletion is async via [persist]; mark cleared in-memory here.
+    }
+  }
+
+  /// Persist after recovery. Prefer calling [persist] which writes the working
+  /// snapshot; this helper removes corrupt evidence only once state is trusted
+  /// and no longer corrupt (typically after [TrustRecovery.forceNewLocalDay]).
+  Future<void> _clearCorruptEvidenceIfSafe() async {
+    if (_corruptPersistence || _trustState.isDegraded) return;
+    await _store.delete(corruptStoreKey);
+  }
+
+  /// Local calendar day key `YYYY-MM-DD` from a wall instant's date components.
+  static String dayKeyFor(DateTime wall) {
+    final y = wall.year.toString().padLeft(4, '0');
+    final m = wall.month.toString().padLeft(2, '0');
+    final d = wall.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  /// Start of the next local calendar day after [wall]'s date.
+  ///
+  /// Uses calendar construction (`DateTime(y, m, d) + 1 day`), **not**
+  /// `wall + Duration(hours: 24)`, so DST spring-forward / fall-back days
+  /// yield 23h or 25h wall spans between midnights.
+  static DateTime startOfNextLocalDay(DateTime wall) {
+    final start = DateTime(
+      wall.year,
+      wall.month,
+      wall.day,
+      0,
+      0,
+      0,
+      0,
+      0,
+    );
+    // Preserve UTC vs local kind used by the wall clock.
+    if (wall.isUtc) {
+      return DateTime.utc(start.year, start.month, start.day)
+          .add(const Duration(days: 1));
+    }
+    return DateTime(start.year, start.month, start.day)
+        .add(const Duration(days: 1));
+  }
+
+  void _ensureRestored() {
+    if (!_restored) {
+      throw StateError(
+        'ScreenTimeAccountant.restore() must be called before use',
+      );
+    }
+  }
+
+  Future<void> _enterCorruptPersistence({
+    required String raw,
+    required DateTime wallNow,
+    required Duration monoNow,
+  }) async {
+    // Preserve evidence: sidecar + leave primary untouched.
+    await _store.write(corruptStoreKey, raw);
+    _corruptPersistence = true;
+    _trustState = TrustState.guarded;
+    _clockSkewDetected = true;
+    _dayKey = dayKeyFor(wallNow);
+    _accumulatedSeconds = _policy.dailyCapSeconds;
+    _activeStartedAt = null;
+    _epochId = _monotonic.epochId;
+    _lastWallEpochMs = wallNow.millisecondsSinceEpoch;
+    _lastMonotonicMs = monoNow.inMilliseconds;
+  }
+
+  Future<void> _writeWorkingSnapshot() async {
     final snapshot = ScreenTimeSnapshot(
       schemaVersion: ScreenTimeSnapshot.currentSchemaVersion,
       dayKey: _dayKey,
@@ -197,54 +394,7 @@ final class ScreenTimeAccountant {
       clockSkewDetected: _clockSkewDetected,
     );
     await _store.write(storeKey, snapshot.encode());
-    if (wasActive && _accumulatedSeconds < _policy.dailyCapSeconds) {
-      _activeStartedAt = _monotonic.elapsed();
-    }
-  }
-
-  /// Explicit recovery for [TrustState.uncertain] / [TrustState.guarded].
-  void recoverTrust(TrustRecovery recovery) {
-    _ensureRestored();
-    _commitOpenInterval();
-    final wallNow = _wall.now();
-    final monoNow = _monotonic.elapsed();
-    switch (recovery) {
-      case TrustRecovery.keepPersistedBudget:
-        _trustState = TrustState.trusted;
-        _checkpointClocks(wallNow: wallNow, monoNow: monoNow);
-      case TrustRecovery.forceNewLocalDay:
-        _beginFreshDay(
-          dayKeyFor(wallNow),
-          wallNow: wallNow,
-          monoNow: monoNow,
-          trust: TrustState.trusted,
-          skew: false,
-        );
-    }
-  }
-
-  /// Local calendar day key `YYYY-MM-DD` from a wall instant.
-  static String dayKeyFor(DateTime wall) {
-    final y = wall.year.toString().padLeft(4, '0');
-    final m = wall.month.toString().padLeft(2, '0');
-    final d = wall.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
-  }
-
-  /// Next local midnight at or after [wall]'s calendar day boundary that ends
-  /// the day containing [wall]. If [wall] is exactly midnight, returns that
-  /// instant (zero ms remaining in "day already started" edge — callers treat
-  /// ≤0 as satisfied only when combined with a later [dayKey]).
-  static DateTime startOfNextLocalDay(DateTime wall) {
-    return DateTime(wall.year, wall.month, wall.day).add(const Duration(days: 1));
-  }
-
-  void _ensureRestored() {
-    if (!_restored) {
-      throw StateError(
-        'ScreenTimeAccountant.restore() must be called before use',
-      );
-    }
+    await _clearCorruptEvidenceIfSafe();
   }
 
   void _beginFreshDay(
@@ -282,12 +432,19 @@ final class ScreenTimeAccountant {
     return delta.inSeconds;
   }
 
+  int _openElapsedMs() {
+    final started = _activeStartedAt;
+    if (started == null) return 0;
+    final deltaMs =
+        _monotonic.elapsed().inMilliseconds - started.inMilliseconds;
+    return deltaMs < 0 ? 0 : deltaMs;
+  }
+
   int _totalActiveSeconds() {
     final total = _accumulatedSeconds + _openElapsedSeconds();
     return _clampSeconds(total);
   }
 
-  /// Fold whole open seconds into the closed accumulator without closing.
   void _foldOpenWholeSeconds() {
     final started = _activeStartedAt;
     if (started == null) return;
@@ -308,7 +465,6 @@ final class ScreenTimeAccountant {
     _activeStartedAt = started + Duration(seconds: add);
   }
 
-  /// Commit open interval into closed accumulator and clear active mark.
   void _commitOpenInterval() {
     final started = _activeStartedAt;
     if (started == null) return;
@@ -328,7 +484,6 @@ final class ScreenTimeAccountant {
     return seconds;
   }
 
-  /// Rebuild a wall [DateTime] matching [wallNow]'s UTC/local kind from epoch ms.
   DateTime _wallFromEpochMs(int epochMs, DateTime wallNow) {
     if (wallNow.isUtc) {
       return DateTime.fromMillisecondsSinceEpoch(epochMs, isUtc: true);
@@ -336,10 +491,83 @@ final class ScreenTimeAccountant {
     return DateTime.fromMillisecondsSinceEpoch(epochMs);
   }
 
+  /// Commit any open interval onto the persisted day, then mark degraded.
+  void _failClosedDegraded({
+    required TrustState trust,
+    required DateTime wallNow,
+    required Duration monoNow,
+    bool updateEpochMarkers = false,
+  }) {
+    _commitOpenInterval();
+    _clockSkewDetected = true;
+    _trustState = trust;
+    _activeStartedAt = null;
+    if (updateEpochMarkers) {
+      _epochId = _monotonic.epochId;
+      _lastMonotonicMs = monoNow.inMilliseconds;
+      _lastWallEpochMs = wallNow.millisecondsSinceEpoch;
+    }
+  }
+
+  /// Split an open active interval at local midnight, roll to [currentDay],
+  /// and carry post-midnight seconds into the new day without loss/double-count.
+  void _rolloverSplittingActive({
+    required String currentDay,
+    required DateTime wallNow,
+    required Duration monoNow,
+    required int msToMidnight,
+  }) {
+    final started = _activeStartedAt;
+    var postMs = 0;
+    var keepActive = false;
+
+    if (started != null) {
+      keepActive = true;
+      final openMs = _openElapsedMs();
+      // Monotonic instant corresponding to local midnight, paired with the
+      // last wall/mono checkpoint (continuous trusted epoch only).
+      final monoMidnightMs = _lastMonotonicMs + msToMidnight;
+      final startMs = started.inMilliseconds;
+      final preMs = (monoMidnightMs - startMs).clamp(0, openMs);
+      postMs = openMs - preMs;
+
+      final preSec = preMs ~/ 1000;
+      _accumulatedSeconds =
+          _clampSeconds(_accumulatedSeconds + preSec);
+      _activeStartedAt = null;
+    }
+
+    _beginFreshDay(
+      currentDay,
+      wallNow: wallNow,
+      monoNow: monoNow,
+      trust: TrustState.trusted,
+      skew: false,
+    );
+
+    if (postMs > 0) {
+      final postSec = postMs ~/ 1000;
+      _accumulatedSeconds = _clampSeconds(postSec);
+      final remainderMs = postMs - (postSec * 1000);
+      if (keepActive && _accumulatedSeconds < _policy.dailyCapSeconds) {
+        // Re-open so sub-second remainder and further play continue on new day.
+        _activeStartedAt =
+            monoNow - Duration(milliseconds: remainderMs < 0 ? 0 : remainderMs);
+      }
+    } else if (keepActive && _accumulatedSeconds < _policy.dailyCapSeconds) {
+      _activeStartedAt = monoNow;
+    }
+  }
+
   void _reconcileCalendar({
     required DateTime wallNow,
     required Duration monoNow,
   }) {
+    if (_corruptPersistence) {
+      _activeStartedAt = null;
+      return;
+    }
+
     if (_dayKey.isEmpty) {
       _beginFreshDay(
         dayKeyFor(wallNow),
@@ -353,9 +581,9 @@ final class ScreenTimeAccountant {
 
     final currentDay = dayKeyFor(wallNow);
     if (currentDay == _dayKey) {
-      // Same calendar day. Epoch change mid-day: drop unverifiable open gap,
-      // keep accumulated budget, refresh epoch markers.
       if (_epochId != _monotonic.epochId) {
+        // Same calendar day, new epoch: drop unverifiable open gap, keep budget.
+        _commitOpenInterval();
         _activeStartedAt = null;
         _epochId = _monotonic.epochId;
         _lastMonotonicMs = monoNow.inMilliseconds;
@@ -365,52 +593,65 @@ final class ScreenTimeAccountant {
     }
 
     if (currentDay.compareTo(_dayKey) < 0) {
-      // Wall rolled back — do not reset budget.
-      _clockSkewDetected = true;
-      _trustState = TrustState.guarded;
-      _activeStartedAt = null;
+      _failClosedDegraded(
+        trust: TrustState.guarded,
+        wallNow: wallNow,
+        monoNow: monoNow,
+      );
       return;
     }
 
     // currentDay > _dayKey — candidate rollover.
     final sameEpoch = _epochId == _monotonic.epochId;
     if (!sameEpoch) {
-      // Restart / reboot across calendar change: no silent new day.
-      _trustState = TrustState.uncertain;
-      _clockSkewDetected = true;
-      _activeStartedAt = null;
-      _epochId = _monotonic.epochId;
-      _lastMonotonicMs = monoNow.inMilliseconds;
-      _lastWallEpochMs = wallNow.millisecondsSinceEpoch;
+      _failClosedDegraded(
+        trust: TrustState.uncertain,
+        wallNow: wallNow,
+        monoNow: monoNow,
+        updateEpochMarkers: true,
+      );
       return;
     }
 
     if (!_trustState.allowsAutomaticRollover) {
-      // Already degraded — still refuse automatic grant.
+      _commitOpenInterval();
       _activeStartedAt = null;
       return;
     }
 
     final lastWall = _wallFromEpochMs(_lastWallEpochMs, wallNow);
+    // Guard: last wall should still be on the persisted day; if not, treat as
+    // insufficient evidence rather than assuming a 24h span.
+    if (dayKeyFor(lastWall) != _dayKey) {
+      _failClosedDegraded(
+        trust: TrustState.guarded,
+        wallNow: wallNow,
+        monoNow: monoNow,
+      );
+      return;
+    }
+
     final nextMidnight = startOfNextLocalDay(lastWall);
     final msToMidnight =
         nextMidnight.millisecondsSinceEpoch - lastWall.millisecondsSinceEpoch;
     final monoDeltaMs = monoNow.inMilliseconds - _lastMonotonicMs;
 
-    if (msToMidnight <= 0 || monoDeltaMs >= msToMidnight) {
-      _beginFreshDay(
-        currentDay,
+    // Calendar midnight gap may be 23h/24h/25h under DST — never hard-code 24h.
+    if (msToMidnight > 0 && monoDeltaMs >= msToMidnight) {
+      _rolloverSplittingActive(
+        currentDay: currentDay,
         wallNow: wallNow,
         monoNow: monoNow,
-        trust: TrustState.trusted,
-        skew: false,
+        msToMidnight: msToMidnight,
       );
       return;
     }
 
-    // Forward wall jump without enough monotonic evidence.
-    _clockSkewDetected = true;
-    _trustState = TrustState.guarded;
-    _activeStartedAt = null;
+    // Forward wall jump without enough monotonic evidence (or non-positive gap).
+    _failClosedDegraded(
+      trust: TrustState.guarded,
+      wallNow: wallNow,
+      monoNow: monoNow,
+    );
   }
 }
