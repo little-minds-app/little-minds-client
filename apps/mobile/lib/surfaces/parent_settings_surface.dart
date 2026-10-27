@@ -10,6 +10,9 @@ import '../shell/adaptive_shell.dart';
 /// Reached only via Parent Gate (Hub → Gate → Settings). Temporary developer
 /// entries: LMP-48 Near/Far mentor card and LMP-45 Near/Far demo — never Kids
 /// Hub tiles. Gate/Settings remain scaffolding until real auth lands.
+///
+/// Body is scrollable so short phone landscape (F-034) does not overflow when
+/// both mentor and Near/Far demo entries are present.
 class ParentSettingsSurface extends StatelessWidget {
   const ParentSettingsSurface({
     super.key,
@@ -35,6 +38,7 @@ class ParentSettingsSurface extends StatelessWidget {
   static const Key nearFarMentorKey = Key('parent-settings-near-far-mentor');
   static const Key nearFarMentorHintKey =
       Key('parent-settings-near-far-mentor-hint');
+  static const Key scrollKey = Key('parent-settings-scroll');
 
   @override
   Widget build(BuildContext context) {
@@ -52,67 +56,80 @@ class ParentSettingsSurface extends StatelessWidget {
         ],
         body: KeyedSubtree(
           key: surfaceKey,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    key: placeholderKey,
-                    'Parent Settings placeholder. Flavors, analytics, and billing arrive later.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                key: scrollKey,
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            key: placeholderKey,
+                            'Parent Settings placeholder. Flavors, analytics, and billing arrive later.',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                          if (onOpenNearFarMentor != null) ...[
+                            const SizedBox(height: 24),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minHeight: 48,
+                                minWidth: 200,
+                              ),
+                              child: FilledButton.tonal(
+                                key: nearFarMentorKey,
+                                onPressed: onOpenNearFarMentor,
+                                child: Text(l10n.mentorCardSettingsEntry),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              key: nearFarMentorHintKey,
+                              l10n.mentorCardSettingsEntryHint,
+                              textAlign: TextAlign.center,
+                              style:
+                                  Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Colors.black54,
+                                      ),
+                            ),
+                          ],
+                          if (onOpenNearFarDemo != null) ...[
+                            const SizedBox(height: 24),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minHeight: 48,
+                                minWidth: 200,
+                              ),
+                              child: OutlinedButton(
+                                key: nearFarDemoKey,
+                                onPressed: onOpenNearFarDemo,
+                                child: Text(l10n.nearFarDemoEntry),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              key: nearFarDemoHintKey,
+                              l10n.nearFarDemoEntryHint,
+                              textAlign: TextAlign.center,
+                              style:
+                                  Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Colors.black54,
+                                      ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
-                  if (onOpenNearFarMentor != null) ...[
-                    const SizedBox(height: 24),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minHeight: 48,
-                        minWidth: 200,
-                      ),
-                      child: FilledButton.tonal(
-                        key: nearFarMentorKey,
-                        onPressed: onOpenNearFarMentor,
-                        child: Text(l10n.mentorCardSettingsEntry),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      key: nearFarMentorHintKey,
-                      l10n.mentorCardSettingsEntryHint,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.black54,
-                          ),
-                    ),
-                  ],
-                  if (onOpenNearFarDemo != null) ...[
-                    const SizedBox(height: 24),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minHeight: 48,
-                        minWidth: 200,
-                      ),
-                      child: OutlinedButton(
-                        key: nearFarDemoKey,
-                        onPressed: onOpenNearFarDemo,
-                        child: Text(l10n.nearFarDemoEntry),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      key: nearFarDemoHintKey,
-                      l10n.nearFarDemoEntryHint,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.black54,
-                          ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),

@@ -61,6 +61,20 @@ Widget _localize({
   );
 }
 
+Future<void> _waitForMentorContent(WidgetTester tester) async {
+  for (var i = 0; i < 120; i++) {
+    await tester.pump(const Duration(milliseconds: 16));
+    final loading = find.byKey(NearFarMentorSurface.loadingKey);
+    final view = find.byKey(MentorCardView.viewKey);
+    final error = find.byKey(NearFarMentorSurface.errorKey);
+    if (loading.evaluate().isEmpty &&
+        (view.evaluate().isNotEmpty || error.evaluate().isNotEmpty)) {
+      return;
+    }
+  }
+  fail('Mentor surface did not finish loading');
+}
+
 Future<void> _openMentorFromHub(WidgetTester tester) async {
   await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
   await _pumpFrames(tester, 8);
@@ -71,9 +85,11 @@ Future<void> _openMentorFromHub(WidgetTester tester) async {
   expect(find.byKey(ParentSettingsSurface.surfaceKey), findsOneWidget);
   expect(find.byKey(ParentSettingsSurface.nearFarMentorKey), findsOneWidget);
 
+  await tester.ensureVisible(find.byKey(ParentSettingsSurface.nearFarMentorKey));
   await tester.tap(find.byKey(ParentSettingsSurface.nearFarMentorKey));
-  await _pumpFrames(tester, 20);
+  await _pumpFrames(tester, 8);
   expect(find.byKey(NearFarMentorSurface.surfaceKey), findsOneWidget);
+  await _waitForMentorContent(tester);
 }
 
 class _FailingMentorLoader extends MentorCardFixtureLoader {
