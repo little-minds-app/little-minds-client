@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -72,8 +73,10 @@ class LittleMindsApp extends StatefulWidget {
 
   /// Optional screen-time coordinator (tests / production bootstrap).
   ///
-  /// When null, an in-memory coordinator is created for widget-test safety.
-  /// Production [main] should pass a SharedPreferences-backed instance.
+  /// **Production:** [main] must pass a SharedPreferences-backed coordinator.
+  /// **Tests/debug:** when null and not [kReleaseMode], an in-memory fallback
+  /// is used. Release builds never silently fall back to in-memory (fail-closed
+  /// store instead — no fresh 30-minute day).
   final ScreenTimeCoordinator? screenTime;
 
   @override
@@ -104,17 +107,30 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
   void initState() {
     super.initState();
     _ownsScreenTime = widget.screenTime == null;
-    // Test fallback: in-memory store, no periodic timer (production wires
-    // SharedPreferences + tick interval in main.dart).
-    _screenTime = widget.screenTime ??
-        ScreenTimeCoordinator.withDependencies(
-          monotonicClock: StopwatchMonotonicClock(),
-          wallClock: const SystemWallClock(),
-          store: InMemoryPersistentStore(),
-          tickInterval: Duration.zero,
-        );
+    _screenTime = widget.screenTime ?? _createFallbackScreenTime();
     // ignore: discarded_futures
     _bootstrapScreenTime();
+  }
+
+  /// In-memory only outside release. Release without injection → fail-closed.
+  static ScreenTimeCoordinator _createFallbackScreenTime() {
+    if (kReleaseMode) {
+      return ScreenTimeCoordinator.withDependencies(
+        monotonicClock: StopwatchMonotonicClock(),
+        wallClock: const SystemWallClock(),
+        store: const FailClosedPersistentStore(
+          'production must inject SharedPreferences screen-time store',
+        ),
+        tickInterval: Duration.zero,
+      );
+    }
+    // Test / debug only.
+    return ScreenTimeCoordinator.withDependencies(
+      monotonicClock: StopwatchMonotonicClock(),
+      wallClock: const SystemWallClock(),
+      store: InMemoryPersistentStore(),
+      tickInterval: Duration.zero,
+    );
   }
 
   Future<void> _bootstrapScreenTime() async {

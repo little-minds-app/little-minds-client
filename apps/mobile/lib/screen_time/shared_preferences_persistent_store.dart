@@ -12,14 +12,14 @@ final class SharedPreferencesPersistentStore implements PersistentStore {
 
   final SharedPreferences _prefs;
 
-  /// Opens platform prefs. On failure, returns a store that throws on every
-  /// operation so restore cannot be mistaken for an empty first-run.
+  /// Opens platform prefs. On failure, returns [FailClosedPersistentStore] so
+  /// restore cannot be mistaken for an empty first-run.
   static Future<PersistentStore> open() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       return SharedPreferencesPersistentStore(prefs);
     } catch (_) {
-      return const _UnavailablePersistentStore();
+      return const FailClosedPersistentStore();
     }
   }
 
@@ -61,22 +61,4 @@ final class SharedPreferencesPersistentStore implements PersistentStore {
       );
     }
   }
-}
-
-/// Fail-closed stand-in when [SharedPreferences.getInstance] cannot open.
-final class _UnavailablePersistentStore implements PersistentStore {
-  const _UnavailablePersistentStore();
-
-  Never _fail() {
-    throw StateError('screen-time persistent store unavailable');
-  }
-
-  @override
-  Future<String?> read(String key) async => _fail();
-
-  @override
-  Future<void> write(String key, String value) async => _fail();
-
-  @override
-  Future<void> delete(String key) async => _fail();
 }

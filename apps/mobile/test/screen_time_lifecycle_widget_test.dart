@@ -139,4 +139,53 @@ void main() {
     expect(st.accountant.accumulatedActiveSeconds, 12 * 60);
     expect(st.allowsChildPlay, isTrue);
   });
+
+  testWidgets('TC-ST-UI-004 nav/lifecycle regression checklist', (tester) async {
+    await _setLandscapePhone(tester);
+    final st = await readyCoordinator(usedMinutes: 5);
+
+    await tester.pumpWidget(
+      LittleMindsApp(
+        game: StubLearningGame(),
+        audioGuidance: RecordingHubAudioGuidance(),
+        screenTime: st,
+      ),
+    );
+    await _pumpFrames(tester);
+    await tester.pump();
+
+    // 1) Hub active → counting
+    expect(st.kidsModeShellActive, isTrue);
+    expect(st.isCounting, isTrue);
+
+    // 2) Profiles (child transition) still Kids Mode
+    await tester.tap(find.byKey(ChildHubSurface.profilesKey));
+    await _pumpFrames(tester);
+    expect(st.kidsModeShellActive, isTrue);
+
+    await tester.tap(find.byKey(const Key('nav-back-hub')));
+    await _pumpFrames(tester);
+
+    // 3) Parent Gate stops counting; budget intact
+    final before = st.accountant.accumulatedActiveSeconds;
+    await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
+    await _pumpFrames(tester);
+    expect(find.byKey(ParentGateSurface.surfaceKey), findsOneWidget);
+    expect(st.kidsModeShellActive, isFalse);
+    expect(st.isCounting, isFalse);
+    expect(st.accountant.accumulatedActiveSeconds, before);
+
+    // 4) App background while on Gate still non-counting
+    st.handleAppLifecycleForTest(AppLifecycleState.paused);
+    expect(st.isCounting, isFalse);
+    st.handleAppLifecycleForTest(AppLifecycleState.resumed);
+
+    // 5) Return Hub resumes counting without reset
+    await tester.tap(find.byKey(const Key('nav-back-hub-from-gate')));
+    await _pumpFrames(tester);
+    await tester.pump();
+    expect(st.kidsModeShellActive, isTrue);
+    expect(st.isCounting, isTrue);
+    expect(st.accountant.accumulatedActiveSeconds, before);
+  });
 }

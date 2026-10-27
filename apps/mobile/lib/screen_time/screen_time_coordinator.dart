@@ -9,7 +9,7 @@ import 'persistent_store.dart';
 import 'screen_time_accountant.dart';
 import 'wall_clock.dart';
 
-/// Kids Mode lifecycle bridge around [ScreenTimeAccountant] (LMP-49 Step 2).
+/// Kids Mode lifecycle bridge around [ScreenTimeAccountant] (LMP-49 Step 2/3).
 ///
 /// ## What counts
 /// Kids Hub shell + child transitions + active gameplay while the app is in
@@ -21,6 +21,18 @@ import 'wall_clock.dart';
 /// [TrustRecovery.forceNewLocalDay]. Child surfaces cannot override caps.
 /// Storage open/restore/persist failures fail closed (block play; no silent
 /// fresh day).
+///
+/// ## Cap timeliness
+/// While counting, a one-shot deadline is scheduled for
+/// `min(tickInterval, remainingSeconds)` so enforcement is not delayed by a
+/// full 15s tick when the budget is nearly exhausted. Worst-case delay after
+/// the true remaining budget elapses is bounded by timer resolution / the
+/// next scheduled check (see [maxCapEnforcementDelay]).
+///
+/// ## Persistence
+/// [persist] is serialized on a single chain so overlapping calls cannot
+/// interleave store writes. Each write reads the latest in-memory snapshot at
+/// execution time (no stale overwrite from an older in-flight body).
 ///
 /// Does not rewrite accountant arithmetic — only drives start/pause/tick/persist.
 final class ScreenTimeCoordinator extends ChangeNotifier
@@ -52,6 +64,9 @@ final class ScreenTimeCoordinator extends ChangeNotifier
     );
   }
 
+  /// Production default periodic check while counting.
+  static const Duration defaultTickInterval = Duration(seconds: 15);
+
   final ScreenTimeAccountant _accountant;
   final Duration tickInterval;
   final int persistEveryTicks;
@@ -65,6 +80,8 @@ final class ScreenTimeCoordinator extends ChangeNotifier
   bool _observingLifecycle = false;
   Timer? _tickTimer;
   int _ticksSincePersist = 0;
+  Future<void> _persistChain = Future<void>.value();
+  var _disposed = false;
 
   ScreenTimeAccountant get accountant => _accountant;
 
@@ -101,11 +118,36 @@ final class ScreenTimeCoordinator extends ChangeNotifier
   int get remainingSeconds =>
       _storageFailed ? 0 : (_initialized ? _accountant.remainingSeconds : 0);
 
+  /// Upper bound on how long past true budget exhaustion enforcement may wait
+  /// when using the production [defaultTickInterval] and a deadline schedule.
+  ///
+  /// With [nextCapCheckDelay], the next check is `min(tickInterval, remaining)`.
+  /// After the last second elapses, the deadline fires at that remaining mark,
+  /// so enforcement is not deferred a full 15s. Documented bound equals the
+  /// configured [tickInterval] only when remaining ≥ tickInterval (mid-budget
+  /// checks); at the boundary it shrinks to the remaining second.
+  Duration get maxCapEnforcementDelay =>
+      tickInterval <= Duration.zero ? Duration.zero : tickInterval;
+
+  /// Delay until the next scheduled cap/tick check while counting, or `null`
+  /// when not counting / timers disabled.
+  Duration? nextCapCheckDelay() {
+    if (!_counting || tickInterval <= Duration.zero) return null;
+    final remaining = _accountant.remainingSeconds;
+    if (remaining <= 0) return Duration.zero;
+    final remainingDelay = Duration(seconds: remaining);
+    return remainingDelay < tickInterval ? remainingDelay : tickInterval;
+  }
+
   /// Restore accountant and register lifecycle observer. Idempotent.
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized || _disposed) return;
     try {
       await _accountant.restore();
+      // Corrupt / degraded snapshots stay fail-closed via accountant flags.
+      if (_accountant.isCorruptPersistence || _accountant.isTrustDegraded) {
+        // Still initialized — play blocked by allowsChildPlay.
+      }
       _storageFailed = false;
     } catch (_) {
       // Fail closed — do not invent a fresh trusted day.
@@ -119,6 +161,7 @@ final class ScreenTimeCoordinator extends ChangeNotifier
 
   /// Kids Hub (and in-Hub play) is the active shell route.
   void setKidsModeShellActive(bool active) {
+    if (_disposed) return;
     if (_kidsModeShellActive == active) return;
     _kidsModeShellActive = active;
     if (!active) {
@@ -130,6 +173,7 @@ final class ScreenTimeCoordinator extends ChangeNotifier
 
   /// Flame / play-host phase while an activity is open; `null` on Hub home.
   void setGameplayPhase(GameLifecyclePhase? phase) {
+    if (_disposed) return;
     if (_gameplayPhase == phase) return;
     _gameplayPhase = phase;
     _syncCounting(persistOnStop: true);
@@ -138,6 +182,7 @@ final class ScreenTimeCoordinator extends ChangeNotifier
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_disposed) return;
     final foreground = state == AppLifecycleState.resumed;
     if (_appForeground == foreground) return;
     _appForeground = foreground;
@@ -150,19 +195,39 @@ final class ScreenTimeCoordinator extends ChangeNotifier
     didChangeAppLifecycleState(state);
   }
 
-  Future<void> persist() async {
-    if (!_initialized || _storageFailed) return;
+  /// Serialized persist — overlapping callers queue; each write uses latest
+  /// in-memory state. Failures fail closed.
+  Future<void> persist() {
+    if (_disposed) return Future<void>.value();
+    final done = Completer<void>();
+    _persistChain = _persistChain.then((_) async {
+      try {
+        await _persistUnlocked();
+        if (!done.isCompleted) done.complete();
+      } catch (error, stack) {
+        if (!done.isCompleted) done.completeError(error, stack);
+      }
+    }).catchError((Object _) {
+      // Keep the chain alive after a failure so later persists still run.
+    });
+    return done.future;
+  }
+
+  Future<void> _persistUnlocked() async {
+    if (!_initialized || _storageFailed || _disposed) return;
     try {
       await _accountant.persist();
     } catch (_) {
       _storageFailed = true;
       _syncCounting(persistOnStop: false);
       notifyListeners();
+      rethrow;
     }
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _tickTimer?.cancel();
     _tickTimer = null;
     if (_observingLifecycle) {
@@ -173,20 +238,13 @@ final class ScreenTimeCoordinator extends ChangeNotifier
       _accountant.pauseActive();
       _counting = false;
     }
-    // Best-effort checkpoint; ignore failures during teardown.
-    unawaited(() async {
-      try {
-        if (_initialized && !_storageFailed) {
-          await _accountant.persist();
-        }
-      } catch (_) {}
-    }());
+    // Best-effort serialized checkpoint; ignore failures during teardown.
+    unawaited(persist().catchError((Object _) {}));
     super.dispose();
   }
 
   void _ensureLifecycleObserver() {
     if (_observingLifecycle) return;
-    // Avoid crashing pure unit tests that have not initialized a binding.
     try {
       WidgetsBinding.instance.addObserver(this);
       _observingLifecycle = true;
@@ -196,7 +254,7 @@ final class ScreenTimeCoordinator extends ChangeNotifier
   }
 
   bool _shouldAccumulate() {
-    if (!_initialized || _storageFailed) return false;
+    if (!_initialized || _storageFailed || _disposed) return false;
     if (!_accountant.allowsKidsModeUsage) return false;
     if (_accountant.isCapReached) return false;
     if (!_kidsModeShellActive || !_appForeground) return false;
@@ -221,7 +279,7 @@ final class ScreenTimeCoordinator extends ChangeNotifier
       _tickTimer?.cancel();
       _tickTimer = null;
       if (persistOnStop) {
-        unawaited(persist());
+        unawaited(persist().catchError((Object _) {}));
       }
     } else if (should && _counting) {
       _ensureTicker();
@@ -234,17 +292,28 @@ final class ScreenTimeCoordinator extends ChangeNotifier
         _tickTimer?.cancel();
         _tickTimer = null;
       }
-      unawaited(persist());
+      unawaited(persist().catchError((Object _) {}));
     }
   }
 
+  /// Schedules the next check at [nextCapCheckDelay] (deadline, not blind 15s).
   void _ensureTicker() {
-    if (_tickTimer != null) return;
+    if (_disposed) return;
     if (tickInterval <= Duration.zero) return;
-    _tickTimer = Timer.periodic(tickInterval, (_) => _onTick());
+    final delay = nextCapCheckDelay();
+    if (delay == null) return;
+    _tickTimer?.cancel();
+    _tickTimer = Timer(delay, () {
+      _tickTimer = null;
+      _onTick();
+      if (_counting && !_disposed) {
+        _ensureTicker();
+      }
+    });
   }
 
   void _onTick() {
+    if (_disposed) return;
     if (!_counting || _storageFailed) {
       _tickTimer?.cancel();
       _tickTimer = null;
@@ -255,7 +324,7 @@ final class ScreenTimeCoordinator extends ChangeNotifier
     final capped = _accountant.isCapReached;
     if (capped || _ticksSincePersist >= persistEveryTicks) {
       _ticksSincePersist = 0;
-      unawaited(persist());
+      unawaited(persist().catchError((Object _) {}));
     }
     if (capped) {
       _syncCounting(persistOnStop: true);
