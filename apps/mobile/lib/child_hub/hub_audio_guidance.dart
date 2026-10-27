@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -45,15 +44,24 @@ abstract class HubAudioGuidance {
 
 /// **Probe-only** offline stub — not a media player.
 ///
-/// Loads the expected asset path from the bundle to verify the offline
-/// contract. Never fetches remote audio. Never plays WAV/PCM. When the file is
-/// absent (current V1 default), returns `false` and no-ops. Real spoken cues
-/// require pedagogy-approved assets **and** a future playback implementation.
+/// Probes the asset bundle once per locale+cue and **caches** presence or
+/// absence so Simulator/debug sessions do not spam expected-missing paths
+/// (approved voice packs are not shipped in V1). Never fetches remote audio.
+/// Never plays WAV/PCM.
 class LocalAssetHubAudioGuidance implements HubAudioGuidance {
   LocalAssetHubAudioGuidance({AssetBundle? bundle})
       : _bundle = bundle ?? rootBundle;
 
   final AssetBundle _bundle;
+
+  /// Cached probe results keyed by [HubAudioGuidance.assetPath].
+  /// `true` = present, `false` = known missing. Avoids repeat [AssetBundle.load].
+  @visibleForTesting
+  final Map<String, bool> presenceCache = <String, bool>{};
+
+  /// How many times [AssetBundle.load] was attempted (tests / diagnostics).
+  @visibleForTesting
+  int loadAttempts = 0;
 
   @override
   Future<bool> play(
@@ -66,21 +74,30 @@ class LocalAssetHubAudioGuidance implements HubAudioGuidance {
     }
 
     final path = HubAudioGuidance.assetPath(cue, localeTag);
+    final cached = presenceCache[path];
+    if (cached != null) {
+      return cached;
+    }
+
+    loadAttempts += 1;
     try {
       // Existence probe only — no AudioPlayer / no PCM decode / no speakers.
       await _bundle.load(path);
-      if (kDebugMode) {
-        debugPrint(
-          'HubAudioGuidance: asset present (probe only, no playback): $path',
-        );
-      }
+      presenceCache[path] = true;
       return true;
     } catch (_) {
-      if (kDebugMode) {
-        debugPrint('HubAudioGuidance: missing asset, graceful no-op: $path');
-      }
+      // Expected in V1 when pedagogy-approved packs are absent — cache and
+      // stay quiet (do not debugPrint on every welcome / parent_exit cue).
+      presenceCache[path] = false;
       return false;
     }
+  }
+
+  /// Clears the presence/absence cache (tests).
+  @visibleForTesting
+  void clearCache() {
+    presenceCache.clear();
+    loadAttempts = 0;
   }
 }
 

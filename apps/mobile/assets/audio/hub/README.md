@@ -28,10 +28,11 @@ assets/audio/hub/<locale>/<cue_id>.wav
 
 `LocalAssetHubAudioGuidance`:
 
-1. Looks up the expected local asset path in the Flutter asset bundle.
-2. Returns whether the file **exists**.
-3. Does **not** decode or play WAV/PCM (no speakers, no `AudioPlayer`).
-4. No-ops when the file is missing (current default — no pedagogy-approved packs shipped).
+1. Looks up the expected local asset path in the Flutter asset bundle **once per locale+cue**.
+2. Caches presence **or** absence so Simulator/debug does not re-probe or spam logs for expected-missing V1 packs.
+3. Returns whether the file **exists**.
+4. Does **not** decode or play WAV/PCM (no speakers, no `AudioPlayer`).
+5. No-ops when the file is missing (current default — no pedagogy-approved packs shipped). Missing paths are **not** repeatedly debug-logged.
 
 Do **not** tell QA or users that Kids Mode “has audio cues” in the playback sense until approved voice packs land **and** a real player is wired.
 
