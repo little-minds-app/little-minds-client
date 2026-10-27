@@ -1,8 +1,8 @@
 # Mentor card client consumption (LMP-47)
 
 **Canonical owner:** `little-minds-backend` (Blueprint §33)  
-**Backend PR:** https://github.com/little-minds-app/little-minds-backend/pull/11  
-**Pin:** [`content/mentor-card/PIN.md`](../content/mentor-card/PIN.md)
+**Backend PR:** https://github.com/little-minds-app/little-minds-backend/pull/11 (**merged**)  
+**Pin:** [`content/mentor-card/PIN.md`](../content/mentor-card/PIN.md) → `8678e61a673e82a5823875d8af4fc1bf6d700ac9`
 
 ## What the client does
 
@@ -30,4 +30,4 @@ flutter analyze
 flutter test test/mentor_card_unit_test.dart test/mentor_card_contract_compat_test.dart test/near_far_unit_test.dart
 ```
 
-After backend #11 merges, update the SHA in `PIN.md` and `MentorCardContentPin.backendCommitSha` to the **real** merge commit (never invent one).
+Pinned to verified merge commit `8678e61a673e82a5823875d8af4fc1bf6d700ac9`. Update only when backend content contract changes (never invent SHAs).

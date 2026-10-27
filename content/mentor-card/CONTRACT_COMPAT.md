@@ -1,7 +1,7 @@
 # Mentor card contract compatibility (client)
 
 **Source of truth:** backend `content/schemas/mentor-card/v1.schema.json` (`1.0.0`)  
-**Pinned commit:** see [PIN.md](./PIN.md) (`a6dc8116994595be1788450c525e48138b9580eb` until backend #11 merges)
+**Pinned commit:** see [PIN.md](./PIN.md) (`8678e61a673e82a5823875d8af4fc1bf6d700ac9` — backend PR #11 merge)
 
 ## What CI verifies offline (no Kids Mode → backend runtime)
 
@@ -30,6 +30,6 @@ Mirrored schema file is checked into `content/mentor-card/schemas/v1.schema.json
 
 ## Pin strategy
 
-1. While backend PR #11 is open: pin **PR head SHA** (currently `a6dc811…`). Do **not** invent a merge commit SHA.
-2. After merge to `main`: update PIN + Dart constant to the **merge commit** on `main`, re-copy schema/fixtures if changed.
-3. Near/Far id alignment is documented in [MISSION_ID_MAPPING.md](./MISSION_ID_MAPPING.md) (fixtures match client constants as of `a6dc811`).
+1. Pin the **verified merge commit** on backend `main`: `8678e61a673e82a5823875d8af4fc1bf6d700ac9`. Do **not** invent SHAs.
+2. On future backend content-contract changes: bump PIN + remirror schema/fixtures, then re-run Flutter contract tests.
+3. Near/Far id alignment: [MISSION_ID_MAPPING.md](./MISSION_ID_MAPPING.md).

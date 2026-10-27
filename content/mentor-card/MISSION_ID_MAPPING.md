@@ -1,7 +1,7 @@
 # Near/Far mission & activity id mapping (LMP-47)
 
 **Decision:** Project store `internal/lmp-47-mission-id-decision.md`  
-**Backend pin:** `a6dc8116994595be1788450c525e48138b9580eb` (PR #11)
+**Backend pin:** `8678e61a673e82a5823875d8af4fc1bf6d700ac9` (PR #11 **merged** on `main`)
 
 ## Canonical IDs (client demo truth = content fixture truth)
 

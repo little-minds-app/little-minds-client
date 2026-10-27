@@ -5,17 +5,16 @@
 
 | Field | Value |
 |---|---|
-| Backend PR | https://github.com/little-minds-app/little-minds-backend/pull/11 |
-| Backend branch | `cursor/lmp-47-mentor-schema-4029` |
-| Pinned commit SHA | `a6dc8116994595be1788450c525e48138b9580eb` |
-| Previous pin | `dac60c575342b7cb8c86f2603bfc219e51d45ed5` (pre ID-alignment) |
+| Backend PR | https://github.com/little-minds-app/little-minds-backend/pull/11 (**merged**) |
+| Pinned commit SHA | `8678e61a673e82a5823875d8af4fc1bf6d700ac9` |
+| Previous open-PR pins | `a6dc811…` (ID alignment) → `dac60c57…` (initial) |
 | Schema version | `1.0.0` (`VERSION`) |
 | Schema path (backend) | `content/schemas/mentor-card/v1.schema.json` |
 | Fixtures (backend) | `content/fixtures/mentor-cards/near-far.{en-US,tr-TR}.v1.json` |
 
-## Canonical Near/Far ids (decision)
+## Canonical Near/Far ids
 
-See [MISSION_ID_MAPPING.md](./MISSION_ID_MAPPING.md) / store `internal/lmp-47-mission-id-decision.md`:
+See [MISSION_ID_MAPPING.md](./MISSION_ID_MAPPING.md):
 
 | Field | Value |
 |---|---|
@@ -25,26 +24,19 @@ See [MISSION_ID_MAPPING.md](./MISSION_ID_MAPPING.md) / store `internal/lmp-47-mi
 | Age band | 30–35 |
 | `review_status` | `draft` (≠ approved) |
 
-## Pending merge
+## Pin strategy
 
-This pin points at the **open** backend PR head (`a6dc811…`). **Do not invent a merge commit SHA.** After backend #11 merges to `main`, update:
-
-1. `Pinned commit SHA` → actual merge commit on `main`
-2. Re-copy schema + fixtures if the merge commit differs
-3. Keep `apps/mobile/assets/content/mentor_cards/*.json` in sync with `content/mentor-card/fixtures/`
+- Pin is the **verified merge commit** on backend `main` from PR #11: `8678e61a673e82a5823875d8af4fc1bf6d700ac9`.
+- Do **not** invent SHAs. Fixtures at merge match the prior ID-aligned content; schema descriptions updated on merge — remirrored here.
 
 ## Client layout
 
 | Path | Role |
 |---|---|
-| `content/mentor-card/` | Documented pin + schema/fixture mirror |
-| `content/mentor-card/MISSION_ID_MAPPING.md` | Near/Far id alignment |
-| `content/mentor-card/CONTRACT_COMPAT.md` | Offline CI compatibility notes |
-| `apps/mobile/assets/content/mentor_cards/` | Flutter asset load of Near/Far fixtures |
-| `apps/mobile/lib/mentor/` | Thin Dart models + validators (no OpenAPI invent) |
+| `content/mentor-card/` | Pin + schema/fixture mirror |
+| `apps/mobile/assets/content/mentor_cards/` | Flutter asset fixtures |
+| `apps/mobile/lib/mentor/` | Thin Dart consumption |
 
 ## Non-goals
 
-- No LMP-48 parent mentor UI
-- No LMP-120 audio
-- No second OpenAPI `/v1/mentor/*` surface on the client pin
+- No LMP-48 parent mentor UI / no LMP-120 audio / no second OpenAPI surface

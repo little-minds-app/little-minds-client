@@ -27,10 +27,10 @@ void main() {
   });
 
   group('Mentor card pin + fixtures (LMP-47)', () {
-    test('TC-MC-001 pin documents backend PR head pending merge', () {
+    test('TC-MC-001 pin documents verified backend merge commit', () {
       expect(
         MentorCardContentPin.backendCommitSha,
-        'a6dc8116994595be1788450c525e48138b9580eb',
+        '8678e61a673e82a5823875d8af4fc1bf6d700ac9',
       );
       expect(MentorCardContentPin.schemaVersion, mentorCardSchemaVersion);
       expect(

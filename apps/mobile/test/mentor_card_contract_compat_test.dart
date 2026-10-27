@@ -26,11 +26,11 @@ void main() {
   });
 
   group('Pin + schema version (SoT mirror)', () {
-    test('TC-MC-C01 pin SHA matches documented open backend PR head', () {
-      // Do not invent a merge SHA — pin open PR head until backend #11 merges.
+    test('TC-MC-C01 pin SHA matches verified backend merge commit', () {
+      // Backend PR #11 merge on main (verified) — do not invent SHAs.
       expect(
         MentorCardContentPin.backendCommitSha,
-        'a6dc8116994595be1788450c525e48138b9580eb',
+        '8678e61a673e82a5823875d8af4fc1bf6d700ac9',
       );
       expect(MentorCardContentPin.schemaVersion, '1.0.0');
       expect(mentorCardSchemaVersion, '1.0.0');
