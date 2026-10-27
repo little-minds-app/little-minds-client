@@ -56,80 +56,72 @@ class ParentSettingsSurface extends StatelessWidget {
         ],
         body: KeyedSubtree(
           key: surfaceKey,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                key: scrollKey,
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            key: placeholderKey,
-                            'Parent Settings placeholder. Flavors, analytics, and billing arrive later.',
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                          if (onOpenNearFarMentor != null) ...[
-                            const SizedBox(height: 24),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                minHeight: 48,
-                                minWidth: 200,
-                              ),
-                              child: FilledButton.tonal(
-                                key: nearFarMentorKey,
-                                onPressed: onOpenNearFarMentor,
-                                child: Text(l10n.mentorCardSettingsEntry),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              key: nearFarMentorHintKey,
-                              l10n.mentorCardSettingsEntryHint,
-                              textAlign: TextAlign.center,
-                              style:
-                                  Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Colors.black54,
-                                      ),
-                            ),
-                          ],
-                          if (onOpenNearFarDemo != null) ...[
-                            const SizedBox(height: 24),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                minHeight: 48,
-                                minWidth: 200,
-                              ),
-                              child: OutlinedButton(
-                                key: nearFarDemoKey,
-                                onPressed: onOpenNearFarDemo,
-                                child: Text(l10n.nearFarDemoEntry),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              key: nearFarDemoHintKey,
-                              l10n.nearFarDemoEntryHint,
-                              textAlign: TextAlign.center,
-                              style:
-                                  Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Colors.black54,
-                                      ),
-                            ),
-                          ],
-                        ],
-                      ),
+          child: SingleChildScrollView(
+            key: scrollKey,
+            padding: const EdgeInsets.all(24),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      key: placeholderKey,
+                      'Parent Settings placeholder. Flavors, analytics, and billing arrive later.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge,
                     ),
-                  ),
+                    if (onOpenNearFarMentor != null) ...[
+                      const SizedBox(height: 24),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minHeight: 48,
+                          minWidth: 200,
+                        ),
+                        child: FilledButton.tonal(
+                          key: nearFarMentorKey,
+                          onPressed: onOpenNearFarMentor,
+                          child: Text(l10n.mentorCardSettingsEntry),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        key: nearFarMentorHintKey,
+                        l10n.mentorCardSettingsEntryHint,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.black54,
+                            ),
+                      ),
+                    ],
+                    if (onOpenNearFarDemo != null) ...[
+                      const SizedBox(height: 24),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minHeight: 48,
+                          minWidth: 200,
+                        ),
+                        child: OutlinedButton(
+                          key: nearFarDemoKey,
+                          onPressed: onOpenNearFarDemo,
+                          child: Text(l10n.nearFarDemoEntry),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        key: nearFarDemoHintKey,
+                        l10n.nearFarDemoEntryHint,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.black54,
+                            ),
+                      ),
+                    ],
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
       ),

@@ -292,8 +292,10 @@ void main() {
 
       await _openMentorFromHub(tester);
       // Production env: draft fixtures stay blocked (no caregiver copy).
+      expect(find.byKey(MentorCardView.viewKey), findsOneWidget);
       expect(find.byKey(MentorCardView.blockedKey), findsOneWidget);
       expect(find.byKey(MentorCardView.whyKey), findsNothing);
+      expect(find.byKey(MentorCardView.draftBannerKey), findsNothing);
 
       await tester.tap(find.byKey(const Key('nav-back-from-mentor')));
       await _pumpFrames(tester, 8);
@@ -326,6 +328,7 @@ void main() {
 
       await _openMentorFromHub(tester);
       // Development + debug: draft preview shows content + mission CTA.
+      expect(find.byKey(MentorCardView.viewKey), findsOneWidget);
       expect(find.byKey(MentorCardView.draftBannerKey), findsOneWidget);
       expect(find.byKey(MentorCardView.openMissionKey), findsOneWidget);
 
@@ -339,6 +342,7 @@ void main() {
       await tester.tap(find.byKey(NearFarDemoSurface.closeKey));
       await _pumpFrames(tester, 20);
       expect(find.byKey(NearFarMentorSurface.surfaceKey), findsOneWidget);
+      await _waitForMentorContent(tester);
     });
 
     testWidgets('TC-MC-W10 hub stays at six tiles (no Near/Far catalog entry)',
