@@ -8,6 +8,7 @@ import '../child_hub/hub_activity_catalog.dart';
 import '../child_hub/hub_audio_guidance.dart';
 import '../child_hub/hub_theme.dart';
 import '../config/env_config_badge.dart';
+import '../game/activity_play_host.dart';
 import '../game/flame_host.dart';
 import '../game/learning_activity.dart';
 import '../l10n/app_localizations.dart';
@@ -145,8 +146,11 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
     final l10n = AppLocalizations.of(context);
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
+    final playing = _activePlayable;
+
     return OrientationBinder(
-      surface: AppSurface.childHub,
+      surface:
+          playing != null ? AppSurface.miniGame : AppSurface.childHub,
       child: KeyedSubtree(
         key: ChildHubSurface.surfaceKey,
         child: DecoratedBox(
@@ -157,11 +161,15 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
             children: [
               const _WorldDecor(),
               SafeArea(
-                child: _activePlayable != null
-                    ? _PlayHost(
-                        game: widget.game,
-                        onClose: _closePlayHost,
-                        showEnvBadge: _showEnvBadge,
+                child: playing != null
+                    ? KeyedSubtree(
+                        key: ChildHubSurface.playHostKey,
+                        child: ActivityPlayHost(
+                          game: widget.game,
+                          activity: playing,
+                          onClose: _closePlayHost,
+                          showEnvBadge: _showEnvBadge,
+                        ),
                       )
                     : _HubHome(
                         game: widget.game,
@@ -524,35 +532,3 @@ class _HubBubbleButton extends StatelessWidget {
   }
 }
 
-class _PlayHost extends StatelessWidget {
-  const _PlayHost({
-    required this.game,
-    required this.onClose,
-    required this.showEnvBadge,
-  });
-
-  final StubLearningGame game;
-  final VoidCallback onClose;
-  final bool showEnvBadge;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      key: ChildHubSurface.playHostKey,
-      children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            key: const Key('hub-close-play-host'),
-            onPressed: onClose,
-            icon: const Icon(Icons.arrow_back_rounded),
-            label: Text(l10n.hubGreeting),
-          ),
-        ),
-        if (showEnvBadge) EnvConfigBadge(forceVisible: true),
-        Expanded(child: FlameHostPanel(game: game)),
-      ],
-    );
-  }
-}

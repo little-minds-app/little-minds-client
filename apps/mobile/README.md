@@ -10,12 +10,13 @@ Flutter + Flame Kids App with **Child Hub v1** (LMP-43) on top of the LMP-24 boo
 - Env/API diagnostics are **not** child-facing; reveal only via `forceShowEnvBadge` / debug long-press on brand.
 - Parent exit → **Parent Gate** only; settings stay behind the gate.
 - Flame host + `ActivityRegistry` retained for future playable launches.
+- **LMP-44** reusable Flame activity session lifecycle (enter/exit, pause/resume, foreground/background, restart/dispose, orientation state preserve, hitbox scaling, scoring-neutral outcomes). Production registry stays empty — Hub cards remain Coming Soon.
 - LMP-28 public env config badge (non-release / tests).
 - QA-UI-001 widget tests under `test/`.
 
 ## What this is not
 
-- Playable mini-game mechanics (F-005) — deferred to later E03 tasks.
+- Playable mini-game mechanics (F-005) — deferred to later E03 tasks (Shape Matching = LMP-55).
 - **Real audio playback** — `LocalAssetHubAudioGuidance` only probes whether a local WAV path exists; it does not play sound. Pedagogy-approved voice packs are not shipped.
 - Real Parent Gate OTP / auth, OpenAPI wiring into hub, store flavors (LMP-30), Crashlytics.
 - Product locks for min OS / breakpoints — numbers below remain **TECHNICAL ASSUMPTION** (see `docs/device-support-matrix.md`).
@@ -101,7 +102,7 @@ lib/
   orientation/     # ADR-018 policy + binder
   shell/           # Adaptive phone/tablet chrome (Parent surfaces)
   surfaces/        # Child Hub v1 / profile / parent-gate / settings
-  game/            # Flame host + activity registry
+  game/            # Flame host, ActivityRegistry, LMP-44 session lifecycle
 assets/audio/hub/  # Offline cue convention (WAV packs TBD)
-test/              # QA-UI-001 widget + unit tests
+test/              # QA-UI-001 widget + unit tests (incl. game lifecycle)
 ```

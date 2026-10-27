@@ -89,4 +89,38 @@ class AppLocalizationsTr extends AppLocalizations {
   String flameRegistryCount(int count) {
     return '$count etkinlik kayıtlı';
   }
+
+  @override
+  String get activityBackToHub => 'Geri';
+
+  @override
+  String get activityPause => 'Duraklat';
+
+  @override
+  String get activityResume => 'Devam';
+
+  @override
+  String get activityRestart => 'Yeniden başla';
+
+  @override
+  String get activitySessionUnavailable =>
+      'Bu etkinlik henüz çevrimdışı hazır değil.';
+
+  @override
+  String get activityPhaseIdle => 'Hazır';
+
+  @override
+  String get activityPhasePreparing => 'Hazırlanıyor';
+
+  @override
+  String get activityPhasePlaying => 'Oynanıyor';
+
+  @override
+  String get activityPhasePaused => 'Duraklatıldı';
+
+  @override
+  String get activityPhaseBackground => 'Bekleniyor';
+
+  @override
+  String get activityPhaseCompleted => 'Aferin';
 }

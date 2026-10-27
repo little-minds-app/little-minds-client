@@ -247,6 +247,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} activities registered'**
   String flameRegistryCount(int count);
+
+  /// Safe return from mini-game host to Child Hub.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get activityBackToHub;
+
+  /// No description provided for @activityPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get activityPause;
+
+  /// No description provided for @activityResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get activityResume;
+
+  /// No description provided for @activityRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start again'**
+  String get activityRestart;
+
+  /// No description provided for @activitySessionUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This activity is not ready offline yet.'**
+  String get activitySessionUnavailable;
+
+  /// No description provided for @activityPhaseIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get activityPhaseIdle;
+
+  /// No description provided for @activityPhasePreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Getting ready'**
+  String get activityPhasePreparing;
+
+  /// No description provided for @activityPhasePlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Playing'**
+  String get activityPhasePlaying;
+
+  /// No description provided for @activityPhasePaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Paused'**
+  String get activityPhasePaused;
+
+  /// No description provided for @activityPhaseBackground.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting'**
+  String get activityPhaseBackground;
+
+  /// No description provided for @activityPhaseCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Nice work'**
+  String get activityPhaseCompleted;
 }
 
 class _AppLocalizationsDelegate

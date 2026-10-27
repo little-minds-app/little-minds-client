@@ -2,7 +2,9 @@ import 'learning_activity.dart';
 
 /// Typed registry for Flame learning activities (Blueprint OCP extension point).
 ///
-/// Empty in LMP-24. Real mechanics land in later E03 / LMP-31+ tasks.
+/// Production bootstrap stays empty so Child Hub cards remain passive.
+/// Real mechanics register at the composition root in later E03 tasks
+/// (LMP-55+) without editing shared lifecycle code (LMP-44).
 /// ADR-015: AI must not generate executable game mechanics.
 class ActivityRegistry {
   ActivityRegistry([List<LearningActivity>? seed])

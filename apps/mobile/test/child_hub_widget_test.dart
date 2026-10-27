@@ -10,6 +10,7 @@ import 'package:little_minds_mobile/child_hub/hub_activity_catalog.dart';
 import 'package:little_minds_mobile/child_hub/hub_audio_guidance.dart';
 import 'package:little_minds_mobile/config/env_config_badge.dart';
 import 'package:little_minds_mobile/config/scaffolding_assumptions.dart';
+import 'package:little_minds_mobile/game/activity_play_host.dart';
 import 'package:little_minds_mobile/game/activity_registry.dart';
 import 'package:little_minds_mobile/game/flame_host.dart';
 import 'package:little_minds_mobile/game/learning_activity.dart';
@@ -399,7 +400,7 @@ void main() {
       await tester.tap(passiveFinder);
       await _pumpFrames(tester);
       expect(find.byKey(ChildHubSurface.playHostKey), findsNothing);
-      expect(find.byKey(FlameHostPanel.hostKey), findsNothing);
+      expect(find.byKey(ActivityPlayHost.hostKey), findsNothing);
       expect(
         audio.plays.any((p) => p.cue == HubAudioCue.passiveUnavailable),
         isTrue,
@@ -508,11 +509,16 @@ void main() {
     await _pumpFrames(tester);
 
     expect(find.byKey(ChildHubSurface.playHostKey), findsOneWidget);
-    expect(find.byKey(FlameHostPanel.hostKey), findsOneWidget);
+    expect(find.byKey(ActivityPlayHost.hostKey), findsOneWidget);
     expect(
       audio.plays.any((p) => p.cue == HubAudioCue.playableSelect),
       isTrue,
     );
+
+    await tester.tap(find.byKey(ActivityPlayHost.closeKey));
+    await _pumpFrames(tester);
+    expect(find.byKey(ChildHubSurface.playHostKey), findsNothing);
+    expect(find.byKey(ChildHubSurface.homeKey), findsOneWidget);
   });
 
   test('TC-HUB-010 audio asset paths are locale-tagged and local-only', () {
