@@ -274,25 +274,75 @@ void main() {
       );
     });
 
-    test('TC-ST-S31 release-injection blocks lowest boundary and facade',
+    test('TC-ST-S31 mutationsAllowed false refuses (regression dual-gate)',
         () async {
       await fresh();
-      // Simulates profile/release where kDebugMode is false via injection.
-      bool releaseLike() => false;
+      // In this debug test VM kDebugMode is true; injectable false must still
+      // refuse at every direct entry point.
+      bool deny() => false;
+      expect(
+        screenTimeDebugMutationsPermitted(mutationsAllowed: deny),
+        isFalse,
+      );
       expect(
         () => coordinator.accountant.applyDebugQaAccumulatedSeconds(
           ScreenTimeDebugQa.nearCapUsedSeconds,
-          mutationsAllowed: releaseLike,
+          mutationsAllowed: deny,
         ),
         throwsA(isA<UnsupportedError>()),
       );
-      final qa = ScreenTimeDebugQa(
-        coordinator,
-        mutationsAllowed: releaseLike,
+      expect(
+        () => coordinator.debugApplyQaAccumulatedSeconds(
+          60,
+          mutationsAllowed: deny,
+        ),
+        throwsA(isA<UnsupportedError>()),
       );
+      expect(
+        () => coordinator.debugReloadAccountantForQa(mutationsAllowed: deny),
+        throwsA(isA<UnsupportedError>()),
+      );
+      expect(
+        () => coordinator.debugPersistForQa(mutationsAllowed: deny),
+        throwsA(isA<UnsupportedError>()),
+      );
+      final qa = ScreenTimeDebugQa(coordinator, mutationsAllowed: deny);
       expect(qa.persistNow, throwsA(isA<UnsupportedError>()));
       expect(qa.reloadFromStore, throwsA(isA<UnsupportedError>()));
+      expect(qa.setNearCap, throwsA(isA<UnsupportedError>()));
       expect(coordinator.accountant.accumulatedActiveSeconds, 0);
+    });
+
+    test('TC-ST-S32 dual-gate formula: kDebugMode AND injectable', () {
+      // Documented contract (cannot flip kDebugMode in this VM):
+      // permitted = kDebugMode && (mutationsAllowed?.call() ?? true)
+      expect(kDebugMode, isTrue);
+      expect(screenTimeDebugMutationsPermitted(), isTrue);
+      expect(
+        screenTimeDebugMutationsPermitted(mutationsAllowed: () => true),
+        isTrue,
+      );
+      expect(
+        screenTimeDebugMutationsPermitted(mutationsAllowed: () => false),
+        isFalse,
+      );
+      // Release/profile isolation relies on kDebugMode==false in those builds;
+      // injectable true must not weaken that (AND with kDebugMode).
+    });
+
+    test('TC-ST-S33 direct accountant apply still fail-closes when corrupt',
+        () async {
+      final store = InMemoryPersistentStore();
+      store.corrupt(ScreenTimeSnapshot.storeKey, '{bad');
+      await fresh(store: store);
+      expect(
+        () => coordinator.accountant.applyDebugQaAccumulatedSeconds(
+          0,
+          mutationsAllowed: () => true,
+        ),
+        throwsA(isA<StateError>()),
+      );
+      expect(coordinator.accountant.isCorruptPersistence, isTrue);
     });
   });
 }

@@ -9,6 +9,14 @@ import 'trust_recovery.dart';
 import 'trust_state.dart';
 import 'wall_clock.dart';
 
+/// Dual-gate for debug QA mutations (LMP-49 Step 3.4).
+///
+/// Requires **both** [kDebugMode] and `(mutationsAllowed?.call() ?? true)`.
+/// Release/profile builds always refuse, even if a caller injects
+/// `mutationsAllowed: () => true`. Debug tests may inject `() => false`.
+bool screenTimeDebugMutationsPermitted({bool Function()? mutationsAllowed}) =>
+    kDebugMode && (mutationsAllowed?.call() ?? true);
+
 /// Single source of truth for **local** daily Kids Mode active screen time.
 ///
 /// ## Counting rules (LMP-49 Step 1.1 / F-010 / ADR-016 §35.3)
@@ -318,11 +326,13 @@ final class ScreenTimeAccountant {
     }
   }
 
-  /// Debug/QA-only budget mutation for local inspector controls (LMP-49 Step 3.2/3.3).
+  /// Debug/QA-only budget mutation for local inspector controls (LMP-49 Step 3.2–3.4).
   ///
   /// **Not a production parent API** and not a trust-recovery path. Lowest
-  /// boundary guard: refuses unless [mutationsAllowed] (default [kDebugMode])
-  /// is true. Unit tests may inject [mutationsAllowed] to simulate release.
+  /// boundary guard requires **both** [kDebugMode] **and**
+  /// `(mutationsAllowed?.call() ?? true)`. Release/profile builds refuse even
+  /// if a caller injects `mutationsAllowed: () => true`. Unit tests may inject
+  /// `mutationsAllowed: () => false` in debug to assert refusal.
   ///
   /// Refuses corrupt **or** trust-degraded state (no bypass / manufactured
   /// trust). Closes any open interval, replaces closed accumulated seconds,
@@ -331,8 +341,9 @@ final class ScreenTimeAccountant {
     int seconds, {
     bool Function()? mutationsAllowed,
   }) {
-    final allowed = (mutationsAllowed ?? () => kDebugMode)();
-    if (!allowed) {
+    if (!screenTimeDebugMutationsPermitted(
+      mutationsAllowed: mutationsAllowed,
+    )) {
       throw UnsupportedError(
         'Screen-time debug QA mutations are debug-only',
       );

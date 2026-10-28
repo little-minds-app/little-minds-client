@@ -459,15 +459,28 @@ final class ScreenTimeCoordinator extends ChangeNotifier
     notifyListeners();
   }
 
+  void _ensureDebugMutationsPermitted({bool Function()? mutationsAllowed}) {
+    if (!screenTimeDebugMutationsPermitted(mutationsAllowed: mutationsAllowed)) {
+      throw UnsupportedError(
+        'Screen-time debug QA mutations are debug-only',
+      );
+    }
+  }
+
   /// Debug/QA: apply used-seconds then persist on the serialized [_persistChain].
   ///
   /// Prevents reload/persist races from observing a half-applied budget.
-  /// [mutationsAllowed] is forwarded to the accountant lowest-boundary guard
-  /// (unit tests inject release refusal here).
+  /// Dual-gate ([kDebugMode] ∧ injectable allow) is enforced here and again at
+  /// the accountant boundary. Fail-closed trust/corrupt checks are unchanged.
   Future<void> debugApplyQaAccumulatedSeconds(
     int seconds, {
     bool Function()? mutationsAllowed,
   }) {
+    try {
+      _ensureDebugMutationsPermitted(mutationsAllowed: mutationsAllowed);
+    } catch (error, stack) {
+      return Future<void>.error(error, stack);
+    }
     if (_phase != _CoordinatorPhase.active) {
       return Future<void>.error(
         StateError('ScreenTimeCoordinator is unavailable'),
@@ -486,6 +499,7 @@ final class ScreenTimeCoordinator extends ChangeNotifier
     final done = Completer<void>();
     _persistChain = _persistChain.then((_) async {
       try {
+        _ensureDebugMutationsPermitted(mutationsAllowed: mutationsAllowed);
         if (_phase != _CoordinatorPhase.active) {
           throw StateError('ScreenTimeCoordinator is unavailable');
         }
@@ -519,9 +533,17 @@ final class ScreenTimeCoordinator extends ChangeNotifier
   /// Debug/QA: re-run [ScreenTimeAccountant.restore] on the serialized
   /// [_persistChain] so a concurrent persist cannot leave a stale restore.
   ///
-  /// Failures fail closed (`storageFailed`); does not invent a fresh trusted day
-  /// beyond what [ScreenTimeAccountant.restore] already defines for missing keys.
-  Future<void> debugReloadAccountantForQa() {
+  /// Dual-gate ([kDebugMode] ∧ injectable allow) required. Failures fail closed
+  /// (`storageFailed`); does not invent a fresh trusted day beyond what
+  /// [ScreenTimeAccountant.restore] already defines for missing keys.
+  Future<void> debugReloadAccountantForQa({
+    bool Function()? mutationsAllowed,
+  }) {
+    try {
+      _ensureDebugMutationsPermitted(mutationsAllowed: mutationsAllowed);
+    } catch (error, stack) {
+      return Future<void>.error(error, stack);
+    }
     if (_phase != _CoordinatorPhase.active) {
       return Future<void>.error(
         StateError('ScreenTimeCoordinator is unavailable'),
@@ -531,6 +553,7 @@ final class ScreenTimeCoordinator extends ChangeNotifier
     final done = Completer<void>();
     _persistChain = _persistChain.then((_) async {
       try {
+        _ensureDebugMutationsPermitted(mutationsAllowed: mutationsAllowed);
         if (_phase != _CoordinatorPhase.active) {
           throw StateError('ScreenTimeCoordinator is unavailable');
         }
@@ -559,7 +582,14 @@ final class ScreenTimeCoordinator extends ChangeNotifier
   }
 
   /// Debug/QA: enqueue persist on the same busy/serialized channel.
-  Future<void> debugPersistForQa() {
+  ///
+  /// Dual-gate ([kDebugMode] ∧ injectable allow) required.
+  Future<void> debugPersistForQa({bool Function()? mutationsAllowed}) {
+    try {
+      _ensureDebugMutationsPermitted(mutationsAllowed: mutationsAllowed);
+    } catch (error, stack) {
+      return Future<void>.error(error, stack);
+    }
     if (_phase != _CoordinatorPhase.active) {
       return Future<void>.error(
         StateError('ScreenTimeCoordinator is unavailable'),

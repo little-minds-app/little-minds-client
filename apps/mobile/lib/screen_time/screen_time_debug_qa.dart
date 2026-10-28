@@ -1,16 +1,18 @@
 import 'package:flutter/foundation.dart';
 
+import 'screen_time_accountant.dart';
 import 'screen_time_coordinator.dart';
 
-/// Debug/QA-only mutations for the screen-time inspector (LMP-49 Step 3.2/3.3).
+/// Debug/QA-only mutations for the screen-time inspector (LMP-49 Step 3.2–3.4).
 ///
 /// ## Guards
 /// - **Compile / UI:** Parent Settings entry and inspector route are wrapped in
 ///   [kDebugMode] (and optional [forceShowEntryForTest]).
-/// - **Runtime (facade):** every mutation calls [_ensureDebug] and throws outside
-///   debug (or when [mutationsAllowed] returns false in tests).
-/// - **Runtime (lowest boundary):** [ScreenTimeAccountant.applyDebugQaAccumulatedSeconds]
-///   independently refuses unless its own `mutationsAllowed` / [kDebugMode] allows.
+/// - **Runtime dual-gate:** [screenTimeDebugMutationsPermitted] —
+///   `kDebugMode && (mutationsAllowed?.call() ?? true)`. Release builds refuse
+///   even if a caller injects `mutationsAllowed: () => true`.
+/// - **Lowest boundary:** [ScreenTimeAccountant.applyDebugQaAccumulatedSeconds]
+///   and coordinator debug entry points enforce the same dual-gate independently.
 ///
 /// ## Serialization
 /// Apply / reload / persist go through [ScreenTimeCoordinator]'s `_persistChain`
@@ -22,8 +24,8 @@ import 'screen_time_coordinator.dart';
 final class ScreenTimeDebugQa {
   ScreenTimeDebugQa(
     this._coordinator, {
-    bool Function()? mutationsAllowed,
-  }) : _mutationsAllowed = mutationsAllowed ?? (() => kDebugMode);
+    this.mutationsAllowed,
+  });
 
   /// Used seconds for “set 29:50” — 10 seconds of remaining on a 30m cap.
   static const int nearCapUsedSeconds = (29 * 60) + 50;
@@ -36,7 +38,9 @@ final class ScreenTimeDebugQa {
       kDebugMode || forceShowEntryForTest;
 
   final ScreenTimeCoordinator _coordinator;
-  final bool Function() _mutationsAllowed;
+
+  /// Optional injectable allow flag (ANDed with [kDebugMode]).
+  final bool Function()? mutationsAllowed;
 
   ScreenTimeCoordinator get coordinator => _coordinator;
 
@@ -44,7 +48,9 @@ final class ScreenTimeDebugQa {
   bool get isBusy => _coordinator.isDebugQaBusy;
 
   void _ensureDebug() {
-    if (!_mutationsAllowed()) {
+    if (!screenTimeDebugMutationsPermitted(
+      mutationsAllowed: mutationsAllowed,
+    )) {
       throw UnsupportedError(
         'Screen-time debug QA mutations are debug-only',
       );
@@ -85,7 +91,7 @@ final class ScreenTimeDebugQa {
     }
     await _coordinator.debugApplyQaAccumulatedSeconds(
       usedSeconds,
-      mutationsAllowed: _mutationsAllowed,
+      mutationsAllowed: mutationsAllowed,
     );
   }
 
@@ -95,12 +101,16 @@ final class ScreenTimeDebugQa {
     if (_coordinator.kidsModeShellActive) {
       _coordinator.setKidsModeShellActive(false);
     }
-    await _coordinator.debugReloadAccountantForQa();
+    await _coordinator.debugReloadAccountantForQa(
+      mutationsAllowed: mutationsAllowed,
+    );
   }
 
   /// Enqueue a serialized persist of the current in-memory checkpoint.
   Future<void> persistNow() async {
     _ensureDebug();
-    await _coordinator.debugPersistForQa();
+    await _coordinator.debugPersistForQa(
+      mutationsAllowed: mutationsAllowed,
+    );
   }
 }
