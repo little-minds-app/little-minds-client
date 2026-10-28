@@ -312,4 +312,140 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get mentorCardOpenMissionHint =>
       'Mevcut Yakın/Uzak oyunu ve gerçek dünya görevini açar. İstediğiniz zaman atlayabilirsiniz. Fotoğraf veya kanıt yok.';
+
+  @override
+  String get screenTimeCalmTitle => 'Mola zamanı';
+
+  @override
+  String get screenTimeCalmBody =>
+      'Bugünlük ekran süresi doldu. Hazır olduğunda bir büyüğe sor.';
+
+  @override
+  String get screenTimeCalmGrownUps => 'Büyükler';
+
+  @override
+  String get screenTimeDebugSettingsEntry =>
+      'Ekran süresi hata ayıklama (DEBUG)';
+
+  @override
+  String get screenTimeDebugSettingsEntryHint =>
+      'Yerel günlük limit için canlı denetleyici ve QA kontrolleri. Yalnızca hata ayıklama derlemeleri — bakımveren ürün kontrolü değildir.';
+
+  @override
+  String get screenTimeDebugTitle => 'Ekran süresi hata ayıklama';
+
+  @override
+  String get screenTimeDebugBack => 'Geri';
+
+  @override
+  String get screenTimeDebugOnlyBanner =>
+      'YALNIZCA DEBUG — bakımveren arayüzü değildir';
+
+  @override
+  String get screenTimeDebugUnavailable =>
+      'Ekran süresi hata ayıklama denetleyicisi bu derlemede kullanılamaz.';
+
+  @override
+  String get screenTimeDebugSectionBudget => 'Bütçe';
+
+  @override
+  String get screenTimeDebugSectionLifecycle => 'Yaşam döngüsü';
+
+  @override
+  String get screenTimeDebugSectionTrust => 'Güven';
+
+  @override
+  String get screenTimeDebugSectionQa => 'QA kontrolleri';
+
+  @override
+  String get screenTimeDebugFieldDayKey => 'Gün anahtarı';
+
+  @override
+  String get screenTimeDebugFieldAccumulated => 'Biriken';
+
+  @override
+  String get screenTimeDebugFieldRemaining => 'Kalan';
+
+  @override
+  String get screenTimeDebugFieldCap => 'Günlük limit';
+
+  @override
+  String get screenTimeDebugFieldCapReached => 'Limit doldu';
+
+  @override
+  String get screenTimeDebugFieldKidsMode => 'Çocuk Modu kabuğu';
+
+  @override
+  String get screenTimeDebugFieldCounting => 'Sayılıyor';
+
+  @override
+  String get screenTimeDebugFieldForeground => 'Uygulama ön planda';
+
+  @override
+  String get screenTimeDebugFieldGameplayPhase => 'Oynanış aşaması';
+
+  @override
+  String get screenTimeDebugFieldInitialized => 'Başlatıldı';
+
+  @override
+  String get screenTimeDebugFieldTrustState => 'Güven durumu';
+
+  @override
+  String get screenTimeDebugFieldClockSkew => 'Saat sapması';
+
+  @override
+  String get screenTimeDebugFieldCorrupt => 'Bozuk kalıcılık';
+
+  @override
+  String get screenTimeDebugFieldStorageFailed => 'Depolama hatası';
+
+  @override
+  String get screenTimeDebugFieldAllowsPlay => 'Çocuk oyununa izin';
+
+  @override
+  String get screenTimeDebugQaNearCap => '29:50 ayarla';
+
+  @override
+  String get screenTimeDebugQaAtCap => '30:00 ayarla';
+
+  @override
+  String get screenTimeDebugQaReset => 'Bütçeyi sıfırla';
+
+  @override
+  String get screenTimeDebugQaReload => 'Depodan yeniden yükle';
+
+  @override
+  String get screenTimeDebugQaPersist => 'Şimdi kaydet';
+
+  @override
+  String get screenTimeDebugResetConfirmTitle =>
+      'Ekran süresi bütçesi sıfırlansın mı?';
+
+  @override
+  String get screenTimeDebugResetConfirmBody =>
+      'Bu, bugünkü kullanılan süreyi bu hata ayıklama derlemesinde 0:00 yapar. Bozuk kanıtı temizlemez veya güven kurtarmayı değiştirmez.';
+
+  @override
+  String get screenTimeDebugResetCancel => 'İptal';
+
+  @override
+  String get screenTimeDebugResetConfirm => 'Sıfırla';
+
+  @override
+  String get screenTimeDebugStatusNearCap =>
+      'Bütçe 29:50 kullanılmış olarak ayarlandı.';
+
+  @override
+  String get screenTimeDebugStatusAtCap =>
+      'Bütçe 30:00 (limit) olarak ayarlandı.';
+
+  @override
+  String get screenTimeDebugStatusReset => 'Bütçe 0:00 olarak sıfırlandı.';
+
+  @override
+  String get screenTimeDebugStatusReload => 'Depodan yeniden yüklendi.';
+
+  @override
+  String get screenTimeDebugStatusPersist =>
+      'Geçerli kontrol noktası kaydedildi.';
 }

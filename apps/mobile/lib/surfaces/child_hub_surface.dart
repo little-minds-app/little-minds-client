@@ -14,6 +14,7 @@ import '../game/learning_activity.dart';
 import '../l10n/app_localizations.dart';
 import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
+import '../screen_time/screen_time.dart';
 import '../shell/window_size_class.dart';
 
 /// Kids Mode Child Hub v1 — landscape preschool home (F-004, F-020, F-034, ADR-018).
@@ -121,6 +122,12 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
       await _onPassiveTap(tile);
       return;
     }
+    final screenTime = ScreenTimeScope.maybeOf(context);
+    if (screenTime != null && !screenTime.allowsChildPlay) {
+      // Cap / trust / storage fail-closed — no new child activity.
+      setState(() => _activePlayable = null);
+      return;
+    }
     await _playCue(HubAudioCue.playableSelect);
     setState(() => _activePlayable = activity);
   }
@@ -131,6 +138,7 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
   }
 
   void _closePlayHost() {
+    ScreenTimeScope.maybeOf(context)?.setGameplayPhase(null);
     setState(() => _activePlayable = null);
   }
 
@@ -145,8 +153,20 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final screenTime = ScreenTimeScope.maybeOf(context);
+    final showCalm = screenTime?.shouldShowCalmBoundary ?? false;
 
-    final playing = _activePlayable;
+    final playing = showCalm ? null : _activePlayable;
+    if (showCalm && _activePlayable != null) {
+      // Cap hit while playing — drop host; calm boundary owns the surface.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_activePlayable != null) {
+          ScreenTimeScope.maybeOf(context)?.setGameplayPhase(null);
+          setState(() => _activePlayable = null);
+        }
+      });
+    }
 
     return OrientationBinder(
       surface:
@@ -183,6 +203,10 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
                         l10n: l10n,
                       ),
               ),
+              if (showCalm)
+                KidsModeCalmBoundary(
+                  onOpenParentGate: widget.onOpenParentGate,
+                ),
             ],
           ),
         ),

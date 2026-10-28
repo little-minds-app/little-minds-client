@@ -5,6 +5,7 @@ import '../config/env_config_badge.dart';
 import '../l10n/app_localizations.dart';
 import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
+import '../screen_time/screen_time.dart';
 import 'activity_session_controller.dart';
 import 'activity_session_snapshot.dart';
 import 'flame_host.dart';
@@ -85,6 +86,15 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
     if (!mounted || _controller.isDisposed) {
       return;
     }
+    ScreenTimeScope.maybeOf(context)?.setGameplayPhase(_controller.phase);
+    final screenTime = ScreenTimeScope.maybeOf(context);
+    if (screenTime != null &&
+        !screenTime.allowsChildPlay &&
+        _controller.phase == GameLifecyclePhase.running) {
+      // Cap / trust fail-closed mid-session — pause; do not resume.
+      // ignore: discarded_futures
+      _controller.pause();
+    }
     setState(() {});
   }
 
@@ -128,9 +138,21 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
 
   Future<void> _onPause() => _controller.pause();
 
-  Future<void> _onResume() => _controller.resume();
+  Future<void> _onResume() async {
+    final screenTime = ScreenTimeScope.maybeOf(context);
+    if (screenTime != null && !screenTime.allowsChildPlay) {
+      return;
+    }
+    await _controller.resume();
+  }
 
-  Future<void> _onRestart() => _controller.restart();
+  Future<void> _onRestart() async {
+    final screenTime = ScreenTimeScope.maybeOf(context);
+    if (screenTime != null && !screenTime.allowsChildPlay) {
+      return;
+    }
+    await _controller.restart();
+  }
 
   Future<void> _handleViewport(Size viewport) async {
     if (!mounted || _controller.isDisposed) {
@@ -156,10 +178,14 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
     }
   }
 
+  static const Key inputBlockKey = Key('activity-play-input-blocked');
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final phase = _controller.phase;
+    final screenTime = ScreenTimeScope.maybeOf(context);
+    final blockInput = screenTime != null && !screenTime.allowsChildPlay;
 
     return OrientationBinder(
       surface: AppSurface.miniGame,
@@ -181,6 +207,7 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
                 _PlayChrome(
                   l10n: l10n,
                   phase: phase,
+                  allowSessionControls: !blockInput,
                   onClose: _onClose,
                   onPause: _onPause,
                   onResume: _onResume,
@@ -195,7 +222,16 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      GameWidget(game: widget.game),
+                      AbsorbPointer(
+                        absorbing: blockInput,
+                        child: GameWidget(game: widget.game),
+                      ),
+                      if (blockInput)
+                        const ModalBarrier(
+                          key: inputBlockKey,
+                          dismissible: false,
+                          color: Color(0x33000000),
+                        ),
                       if (phase == GameLifecyclePhase.preparing)
                         const Center(
                           key: ActivityPlayHost.loadingKey,
@@ -261,6 +297,7 @@ class _PlayChrome extends StatelessWidget {
   const _PlayChrome({
     required this.l10n,
     required this.phase,
+    required this.allowSessionControls,
     required this.onClose,
     required this.onPause,
     required this.onResume,
@@ -269,6 +306,7 @@ class _PlayChrome extends StatelessWidget {
 
   final AppLocalizations l10n;
   final GameLifecyclePhase phase;
+  final bool allowSessionControls;
   final VoidCallback onClose;
   final VoidCallback onPause;
   final VoidCallback onResume;
@@ -276,9 +314,11 @@ class _PlayChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canPause = phase == GameLifecyclePhase.running;
-    final canResume = phase == GameLifecyclePhase.paused;
-    final canRestart = phase.canRestart;
+    final canPause =
+        allowSessionControls && phase == GameLifecyclePhase.running;
+    final canResume =
+        allowSessionControls && phase == GameLifecyclePhase.paused;
+    final canRestart = allowSessionControls && phase.canRestart;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 4, 8, 0),

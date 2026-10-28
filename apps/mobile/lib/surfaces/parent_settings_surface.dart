@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
+import '../screen_time/screen_time_debug_qa.dart';
 import '../shell/adaptive_shell.dart';
 
 /// Native Parent Settings placeholder — portrait + landscape (ADR-018).
@@ -10,6 +11,9 @@ import '../shell/adaptive_shell.dart';
 /// Reached only via Parent Gate (Hub → Gate → Settings). Temporary developer
 /// entries: LMP-48 Near/Far mentor card and LMP-45 Near/Far demo — never Kids
 /// Hub tiles. Gate/Settings remain scaffolding until real auth lands.
+///
+/// Debug-only: LMP-49 screen-time inspector entry when [kDebugMode] (or test
+/// force). Never shown on Hub / Mentor / child surfaces.
 ///
 /// Body is scrollable so short phone landscape (F-034) does not overflow when
 /// both mentor and Near/Far demo entries are present.
@@ -19,6 +23,8 @@ class ParentSettingsSurface extends StatelessWidget {
     this.onBack,
     this.onOpenNearFarDemo,
     this.onOpenNearFarMentor,
+    this.onOpenScreenTimeDebug,
+    this.forceShowScreenTimeDebugEntry = false,
   });
 
   final VoidCallback? onBack;
@@ -31,6 +37,12 @@ class ParentSettingsSurface extends StatelessWidget {
   /// Opens the Parent Near/Far mentor card surface (LMP-48). Parent path only.
   final VoidCallback? onOpenNearFarMentor;
 
+  /// Opens the debug-only screen-time inspector (LMP-49 Step 3.2).
+  final VoidCallback? onOpenScreenTimeDebug;
+
+  /// Widget-test force for the debug entry without relying solely on [kDebugMode].
+  final bool forceShowScreenTimeDebugEntry;
+
   static const Key surfaceKey = Key('surface-parent-settings');
   static const Key placeholderKey = Key('parent-settings-placeholder');
   static const Key nearFarDemoKey = Key('parent-settings-near-far-demo');
@@ -38,11 +50,18 @@ class ParentSettingsSurface extends StatelessWidget {
   static const Key nearFarMentorKey = Key('parent-settings-near-far-mentor');
   static const Key nearFarMentorHintKey =
       Key('parent-settings-near-far-mentor-hint');
+  static const Key screenTimeDebugKey = Key('parent-settings-screen-time-debug');
+  static const Key screenTimeDebugHintKey =
+      Key('parent-settings-screen-time-debug-hint');
   static const Key scrollKey = Key('parent-settings-scroll');
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final showScreenTimeDebug = onOpenScreenTimeDebug != null &&
+        ScreenTimeDebugQa.showEntry(
+          forceShowEntryForTest: forceShowScreenTimeDebugEntry,
+        );
     return OrientationBinder(
       surface: AppSurface.parentSettings,
       child: AdaptiveShell(
@@ -72,6 +91,29 @@ class ParentSettingsSurface extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
+                    if (showScreenTimeDebug) ...[
+                      const SizedBox(height: 24),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minHeight: 48,
+                          minWidth: 200,
+                        ),
+                        child: OutlinedButton(
+                          key: screenTimeDebugKey,
+                          onPressed: onOpenScreenTimeDebug,
+                          child: Text(l10n.screenTimeDebugSettingsEntry),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        key: screenTimeDebugHintKey,
+                        l10n.screenTimeDebugSettingsEntryHint,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.black54,
+                            ),
+                      ),
+                    ],
                     if (onOpenNearFarMentor != null) ...[
                       const SizedBox(height: 24),
                       ConstrainedBox(
