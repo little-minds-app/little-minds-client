@@ -277,6 +277,10 @@ void main() {
       find.textContaining('placeholder'),
       findsWidgets,
     );
+    // Debug screen-time entry (LMP-49) can push Near/Far below the fold on
+    // short phone landscape — scroll before tapping.
+    await tester.ensureVisible(find.byKey(ParentSettingsSurface.nearFarDemoKey));
+    await _pumpFrames(tester, 4);
     await tester.tap(find.byKey(ParentSettingsSurface.nearFarDemoKey));
     await _pumpFrames(tester, 20);
 
