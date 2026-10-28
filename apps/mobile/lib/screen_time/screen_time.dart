@@ -12,6 +12,7 @@ export 'monotonic_clock.dart';
 export 'persistent_store.dart';
 export 'screen_time_accountant.dart';
 export 'screen_time_coordinator.dart';
+export 'screen_time_debug_qa.dart';
 export 'screen_time_scope.dart';
 export 'screen_time_snapshot.dart';
 export 'shared_preferences_persistent_store.dart';

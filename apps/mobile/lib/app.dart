@@ -17,6 +17,7 @@ import 'surfaces/near_far_mentor_surface.dart';
 import 'surfaces/parent_gate_surface.dart';
 import 'surfaces/parent_settings_surface.dart';
 import 'surfaces/profile_selection_surface.dart';
+import 'surfaces/screen_time_debug_inspector_surface.dart';
 
 /// Root application — MaterialApp + shell navigation (Flutter built-ins only).
 ///
@@ -90,6 +91,7 @@ enum _ShellRoute {
   parentSettings,
   nearFarDemo,
   nearFarMentor,
+  screenTimeDebug,
 }
 
 class _LittleMindsAppState extends State<LittleMindsApp> {
@@ -143,7 +145,8 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
   }
 
   bool _isKidsModeRoute(_ShellRoute route) {
-    // Kids Hub + child profile transitions count; Parent / Mentor / Near-Far do not.
+    // Kids Hub + child profile transitions count; Parent / Mentor / Near-Far /
+    // debug screen-time inspector do not.
     return route == _ShellRoute.childHub ||
         route == _ShellRoute.profileSelection;
   }
@@ -228,6 +231,10 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
                       returnTo: _ShellRoute.parentSettings,
                     ),
                     onOpenNearFarMentor: () => _go(_ShellRoute.nearFarMentor),
+                    onOpenScreenTimeDebug: kDebugMode
+                        ? () => _go(_ShellRoute.screenTimeDebug)
+                        : null,
+                    forceShowScreenTimeDebugEntry: kDebugMode,
                   );
                 case _ShellRoute.nearFarDemo:
                   return NearFarDemoSurface(
@@ -243,6 +250,12 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
                     ),
                     loader: widget.mentorCardLoader,
                     injectedCard: widget.mentorInjectedCard,
+                  );
+                case _ShellRoute.screenTimeDebug:
+                  return ScreenTimeDebugInspectorSurface(
+                    coordinator: _screenTime,
+                    onBack: () => _go(_ShellRoute.parentSettings),
+                    forceShowForTest: kDebugMode,
                   );
               }
             },

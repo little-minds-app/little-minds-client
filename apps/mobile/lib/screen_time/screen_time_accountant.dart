@@ -316,6 +316,25 @@ final class ScreenTimeAccountant {
     }
   }
 
+  /// Debug/QA-only budget mutation for local inspector controls (LMP-49 Step 3.2).
+  ///
+  /// **Not a production parent API.** Callers must gate with debug-only facades
+  /// ([ScreenTimeDebugQa]). Refuses corrupt persistence (no recovery bypass).
+  /// Closes any open interval, replaces closed accumulated seconds, and leaves
+  /// trust flags unchanged.
+  void applyDebugQaAccumulatedSeconds(int seconds) {
+    _ensureRestored();
+    if (_corruptPersistence) {
+      throw StateError(
+        'Debug QA cannot mutate budget while persistence is corrupt',
+      );
+    }
+    _commitOpenInterval();
+    _accumulatedSeconds = _clampSeconds(seconds);
+    _activeStartedAt = null;
+    _checkpointClocks();
+  }
+
   /// Persist after recovery. Prefer calling [persist] which writes the working
   /// snapshot; this helper removes corrupt evidence only once state is trusted
   /// and no longer corrupt (typically after [TrustRecovery.forceNewLocalDay]).

@@ -321,4 +321,125 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get screenTimeCalmGrownUps => 'Grown-ups';
+
+  @override
+  String get screenTimeDebugSettingsEntry => 'Screen time debug (DEBUG)';
+
+  @override
+  String get screenTimeDebugSettingsEntryHint =>
+      'Live inspector and QA controls for local daily cap. Debug builds only — not a caregiver product control.';
+
+  @override
+  String get screenTimeDebugTitle => 'Screen time debug';
+
+  @override
+  String get screenTimeDebugBack => 'Back';
+
+  @override
+  String get screenTimeDebugOnlyBanner =>
+      'DEBUG ONLY — not shipping caregiver UI';
+
+  @override
+  String get screenTimeDebugUnavailable =>
+      'Screen-time debug inspector is unavailable in this build.';
+
+  @override
+  String get screenTimeDebugSectionBudget => 'Budget';
+
+  @override
+  String get screenTimeDebugSectionLifecycle => 'Lifecycle';
+
+  @override
+  String get screenTimeDebugSectionTrust => 'Trust';
+
+  @override
+  String get screenTimeDebugSectionQa => 'QA controls';
+
+  @override
+  String get screenTimeDebugFieldDayKey => 'Day key';
+
+  @override
+  String get screenTimeDebugFieldAccumulated => 'Accumulated';
+
+  @override
+  String get screenTimeDebugFieldRemaining => 'Remaining';
+
+  @override
+  String get screenTimeDebugFieldCap => 'Daily cap';
+
+  @override
+  String get screenTimeDebugFieldCapReached => 'Cap reached';
+
+  @override
+  String get screenTimeDebugFieldKidsMode => 'Kids Mode shell';
+
+  @override
+  String get screenTimeDebugFieldCounting => 'Counting';
+
+  @override
+  String get screenTimeDebugFieldForeground => 'App foreground';
+
+  @override
+  String get screenTimeDebugFieldGameplayPhase => 'Gameplay phase';
+
+  @override
+  String get screenTimeDebugFieldInitialized => 'Initialized';
+
+  @override
+  String get screenTimeDebugFieldTrustState => 'Trust state';
+
+  @override
+  String get screenTimeDebugFieldClockSkew => 'Clock skew';
+
+  @override
+  String get screenTimeDebugFieldCorrupt => 'Corrupt persistence';
+
+  @override
+  String get screenTimeDebugFieldStorageFailed => 'Storage failed';
+
+  @override
+  String get screenTimeDebugFieldAllowsPlay => 'Allows child play';
+
+  @override
+  String get screenTimeDebugQaNearCap => 'Set 29:50';
+
+  @override
+  String get screenTimeDebugQaAtCap => 'Set 30:00';
+
+  @override
+  String get screenTimeDebugQaReset => 'Reset budget';
+
+  @override
+  String get screenTimeDebugQaReload => 'Reload from store';
+
+  @override
+  String get screenTimeDebugQaPersist => 'Persist now';
+
+  @override
+  String get screenTimeDebugResetConfirmTitle => 'Reset screen-time budget?';
+
+  @override
+  String get screenTimeDebugResetConfirmBody =>
+      'This sets today\'s used time to 0:00 in this debug build. It does not clear corrupt evidence or change trust recovery.';
+
+  @override
+  String get screenTimeDebugResetCancel => 'Cancel';
+
+  @override
+  String get screenTimeDebugResetConfirm => 'Reset';
+
+  @override
+  String get screenTimeDebugStatusNearCap => 'Budget set to 29:50 used.';
+
+  @override
+  String get screenTimeDebugStatusAtCap => 'Budget set to 30:00 (cap).';
+
+  @override
+  String get screenTimeDebugStatusReset => 'Budget reset to 0:00.';
+
+  @override
+  String get screenTimeDebugStatusReload => 'Reloaded from store.';
+
+  @override
+  String get screenTimeDebugStatusPersist => 'Persisted current checkpoint.';
 }

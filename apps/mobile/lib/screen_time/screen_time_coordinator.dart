@@ -433,6 +433,27 @@ final class ScreenTimeCoordinator extends ChangeNotifier
 
   /// Deterministic tick for tests (no real timer wait).
   void tickForTest() => _onTick();
+
+  /// Debug/QA: re-emit after an out-of-band accountant mutation.
+  ///
+  /// Used by [ScreenTimeDebugQa] only; not a product parent control.
+  void debugNotifyListenersForQa() {
+    if (_phase != _CoordinatorPhase.active) return;
+    notifyListeners();
+  }
+
+  /// Debug/QA: re-run [ScreenTimeAccountant.restore] from the bound store.
+  Future<void> debugReloadAccountantForQa() async {
+    if (_phase != _CoordinatorPhase.active) return;
+    try {
+      await _accountant.restore();
+      _storageFailed = false;
+    } catch (_) {
+      _storageFailed = true;
+    }
+    _syncCounting(persistOnStop: false);
+    notifyListeners();
+  }
 }
 
 enum _CoordinatorPhase { active, shuttingDown, disposed }

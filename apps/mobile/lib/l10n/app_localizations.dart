@@ -673,6 +673,240 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Grown-ups'**
   String get screenTimeCalmGrownUps;
+
+  /// Debug-only Parent Settings entry to the screen-time inspector (LMP-49 Step 3.2). Never on Hub/Mentor.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen time debug (DEBUG)'**
+  String get screenTimeDebugSettingsEntry;
+
+  /// No description provided for @screenTimeDebugSettingsEntryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Live inspector and QA controls for local daily cap. Debug builds only — not a caregiver product control.'**
+  String get screenTimeDebugSettingsEntryHint;
+
+  /// No description provided for @screenTimeDebugTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen time debug'**
+  String get screenTimeDebugTitle;
+
+  /// No description provided for @screenTimeDebugBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get screenTimeDebugBack;
+
+  /// No description provided for @screenTimeDebugOnlyBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'DEBUG ONLY — not shipping caregiver UI'**
+  String get screenTimeDebugOnlyBanner;
+
+  /// No description provided for @screenTimeDebugUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen-time debug inspector is unavailable in this build.'**
+  String get screenTimeDebugUnavailable;
+
+  /// No description provided for @screenTimeDebugSectionBudget.
+  ///
+  /// In en, this message translates to:
+  /// **'Budget'**
+  String get screenTimeDebugSectionBudget;
+
+  /// No description provided for @screenTimeDebugSectionLifecycle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lifecycle'**
+  String get screenTimeDebugSectionLifecycle;
+
+  /// No description provided for @screenTimeDebugSectionTrust.
+  ///
+  /// In en, this message translates to:
+  /// **'Trust'**
+  String get screenTimeDebugSectionTrust;
+
+  /// No description provided for @screenTimeDebugSectionQa.
+  ///
+  /// In en, this message translates to:
+  /// **'QA controls'**
+  String get screenTimeDebugSectionQa;
+
+  /// No description provided for @screenTimeDebugFieldDayKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Day key'**
+  String get screenTimeDebugFieldDayKey;
+
+  /// No description provided for @screenTimeDebugFieldAccumulated.
+  ///
+  /// In en, this message translates to:
+  /// **'Accumulated'**
+  String get screenTimeDebugFieldAccumulated;
+
+  /// No description provided for @screenTimeDebugFieldRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Remaining'**
+  String get screenTimeDebugFieldRemaining;
+
+  /// No description provided for @screenTimeDebugFieldCap.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily cap'**
+  String get screenTimeDebugFieldCap;
+
+  /// No description provided for @screenTimeDebugFieldCapReached.
+  ///
+  /// In en, this message translates to:
+  /// **'Cap reached'**
+  String get screenTimeDebugFieldCapReached;
+
+  /// No description provided for @screenTimeDebugFieldKidsMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Kids Mode shell'**
+  String get screenTimeDebugFieldKidsMode;
+
+  /// No description provided for @screenTimeDebugFieldCounting.
+  ///
+  /// In en, this message translates to:
+  /// **'Counting'**
+  String get screenTimeDebugFieldCounting;
+
+  /// No description provided for @screenTimeDebugFieldForeground.
+  ///
+  /// In en, this message translates to:
+  /// **'App foreground'**
+  String get screenTimeDebugFieldForeground;
+
+  /// No description provided for @screenTimeDebugFieldGameplayPhase.
+  ///
+  /// In en, this message translates to:
+  /// **'Gameplay phase'**
+  String get screenTimeDebugFieldGameplayPhase;
+
+  /// No description provided for @screenTimeDebugFieldInitialized.
+  ///
+  /// In en, this message translates to:
+  /// **'Initialized'**
+  String get screenTimeDebugFieldInitialized;
+
+  /// No description provided for @screenTimeDebugFieldTrustState.
+  ///
+  /// In en, this message translates to:
+  /// **'Trust state'**
+  String get screenTimeDebugFieldTrustState;
+
+  /// No description provided for @screenTimeDebugFieldClockSkew.
+  ///
+  /// In en, this message translates to:
+  /// **'Clock skew'**
+  String get screenTimeDebugFieldClockSkew;
+
+  /// No description provided for @screenTimeDebugFieldCorrupt.
+  ///
+  /// In en, this message translates to:
+  /// **'Corrupt persistence'**
+  String get screenTimeDebugFieldCorrupt;
+
+  /// No description provided for @screenTimeDebugFieldStorageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage failed'**
+  String get screenTimeDebugFieldStorageFailed;
+
+  /// No description provided for @screenTimeDebugFieldAllowsPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Allows child play'**
+  String get screenTimeDebugFieldAllowsPlay;
+
+  /// No description provided for @screenTimeDebugQaNearCap.
+  ///
+  /// In en, this message translates to:
+  /// **'Set 29:50'**
+  String get screenTimeDebugQaNearCap;
+
+  /// No description provided for @screenTimeDebugQaAtCap.
+  ///
+  /// In en, this message translates to:
+  /// **'Set 30:00'**
+  String get screenTimeDebugQaAtCap;
+
+  /// No description provided for @screenTimeDebugQaReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset budget'**
+  String get screenTimeDebugQaReset;
+
+  /// No description provided for @screenTimeDebugQaReload.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload from store'**
+  String get screenTimeDebugQaReload;
+
+  /// No description provided for @screenTimeDebugQaPersist.
+  ///
+  /// In en, this message translates to:
+  /// **'Persist now'**
+  String get screenTimeDebugQaPersist;
+
+  /// No description provided for @screenTimeDebugResetConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset screen-time budget?'**
+  String get screenTimeDebugResetConfirmTitle;
+
+  /// No description provided for @screenTimeDebugResetConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This sets today\'s used time to 0:00 in this debug build. It does not clear corrupt evidence or change trust recovery.'**
+  String get screenTimeDebugResetConfirmBody;
+
+  /// No description provided for @screenTimeDebugResetCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get screenTimeDebugResetCancel;
+
+  /// No description provided for @screenTimeDebugResetConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get screenTimeDebugResetConfirm;
+
+  /// No description provided for @screenTimeDebugStatusNearCap.
+  ///
+  /// In en, this message translates to:
+  /// **'Budget set to 29:50 used.'**
+  String get screenTimeDebugStatusNearCap;
+
+  /// No description provided for @screenTimeDebugStatusAtCap.
+  ///
+  /// In en, this message translates to:
+  /// **'Budget set to 30:00 (cap).'**
+  String get screenTimeDebugStatusAtCap;
+
+  /// No description provided for @screenTimeDebugStatusReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Budget reset to 0:00.'**
+  String get screenTimeDebugStatusReset;
+
+  /// No description provided for @screenTimeDebugStatusReload.
+  ///
+  /// In en, this message translates to:
+  /// **'Reloaded from store.'**
+  String get screenTimeDebugStatusReload;
+
+  /// No description provided for @screenTimeDebugStatusPersist.
+  ///
+  /// In en, this message translates to:
+  /// **'Persisted current checkpoint.'**
+  String get screenTimeDebugStatusPersist;
 }
 
 class _AppLocalizationsDelegate
