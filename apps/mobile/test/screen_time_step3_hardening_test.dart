@@ -47,8 +47,11 @@ void main() {
 
   final day0 = DateTime.utc(2026, 10, 27, 12);
 
-  tearDown(() {
-    coordinator.dispose();
+  tearDown(() async {
+    if (!coordinator.isDisposed && !coordinator.isShuttingDown) {
+      coordinator.dispose();
+    }
+    await coordinator.shutdownComplete;
   });
 
   Future<ScreenTimeCoordinator> fresh({
@@ -182,6 +185,98 @@ void main() {
       expect(coordinator.allowsChildPlay, isFalse);
       // Coordinator exposes no recoverTrust surface for children.
       expect(coordinator.remainingSeconds, 0);
+    });
+  });
+
+  group('shutdown checkpoint + timer cleanup', () {
+    test('TC-ST-H30 queued persist before dispose is not discarded', () async {
+      final store = _DelayedStore(delay: const Duration(milliseconds: 40));
+      await fresh(store: store);
+      coordinator.setKidsModeShellActive(true);
+      mono.elapse(const Duration(minutes: 6));
+      coordinator.tickForTest();
+
+      // Queue a slow write, then dispose immediately (sync) — must still drain.
+      final queued = coordinator.persist();
+      coordinator.dispose();
+      await queued.catchError((Object _) {});
+      await coordinator.shutdownComplete;
+
+      expect(coordinator.isDisposed, isTrue);
+      expect(store.maxInFlightWrites, 1);
+      final snap = ScreenTimeSnapshot.tryDecode(
+        store.data[ScreenTimeSnapshot.storeKey],
+      );
+      expect(snap, isNotNull);
+      expect(snap!.accumulatedActiveSeconds, 6 * 60);
+    });
+
+    test('TC-ST-H31 orderly teardown persists paused budget', () async {
+      final store = InMemoryPersistentStore();
+      await fresh(store: store);
+      coordinator.setKidsModeShellActive(true);
+      mono.elapse(const Duration(minutes: 9));
+      coordinator.tickForTest();
+      expect(coordinator.isCounting, isTrue);
+
+      coordinator.dispose();
+      await coordinator.shutdownComplete;
+
+      final snap = ScreenTimeSnapshot.tryDecode(
+        await store.read(ScreenTimeSnapshot.storeKey),
+      );
+      expect(snap, isNotNull);
+      expect(snap!.accumulatedActiveSeconds, 9 * 60);
+    });
+
+    test('TC-ST-H32 leaving Kids Mode cancels tick timer', () async {
+      await fresh(tickInterval: const Duration(seconds: 15));
+      coordinator.setKidsModeShellActive(true);
+      expect(coordinator.isCounting, isTrue);
+      expect(coordinator.hasScheduledTickForTest, isTrue);
+
+      coordinator.setKidsModeShellActive(false);
+      expect(coordinator.isCounting, isFalse);
+      expect(coordinator.hasScheduledTickForTest, isFalse);
+    });
+
+    test('TC-ST-H33 post-dispose does not restart counting or timers', () async {
+      await fresh(tickInterval: const Duration(seconds: 15));
+      coordinator.setKidsModeShellActive(true);
+      mono.elapse(const Duration(minutes: 1));
+      coordinator.tickForTest();
+      coordinator.dispose();
+      await coordinator.shutdownComplete;
+
+      coordinator.setKidsModeShellActive(true);
+      coordinator.setGameplayPhase(null);
+      expect(coordinator.isCounting, isFalse);
+      expect(coordinator.hasScheduledTickForTest, isFalse);
+      expect(coordinator.allowsChildPlay, isFalse);
+
+      await coordinator.persist(); // no-op when disposed
+    });
+
+    test('TC-ST-H34 shutdown serialize + fail-closed on final write', () async {
+      final store = _DelayedStore(delay: const Duration(milliseconds: 15));
+      await fresh(store: store);
+      coordinator.setKidsModeShellActive(true);
+      mono.elapse(const Duration(minutes: 2));
+      coordinator.tickForTest();
+      await coordinator.persist();
+
+      store.failNextWrite = true;
+      coordinator.dispose();
+      await coordinator.shutdownComplete;
+
+      expect(coordinator.isDisposed, isTrue);
+      expect(coordinator.storageFailed, isTrue);
+      // Prior successful checkpoint retained — no silent fresh day rewrite.
+      final snap = ScreenTimeSnapshot.tryDecode(
+        store.data[ScreenTimeSnapshot.storeKey],
+      );
+      expect(snap, isNotNull);
+      expect(snap!.accumulatedActiveSeconds, 2 * 60);
     });
   });
 }

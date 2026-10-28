@@ -33,8 +33,13 @@ void main() {
   late InMemoryPersistentStore store;
   late ScreenTimeCoordinator coordinator;
 
+  // Sync dispose only: awaiting [ScreenTimeCoordinator.shutdownComplete] from
+  // a testWidgets tearDown can hang (widget-test FakeAsync zone). Shutdown
+  // drain is covered by coordinator / hardening unit tests instead.
   tearDown(() {
-    coordinator.dispose();
+    if (!coordinator.isDisposed && !coordinator.isShuttingDown) {
+      coordinator.dispose();
+    }
   });
 
   Future<ScreenTimeCoordinator> readyCoordinator({

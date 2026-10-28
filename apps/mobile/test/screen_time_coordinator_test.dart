@@ -13,8 +13,11 @@ void main() {
 
   final day0 = DateTime.utc(2026, 10, 27, 10);
 
-  tearDown(() {
-    coordinator.dispose();
+  tearDown(() async {
+    if (!coordinator.isDisposed && !coordinator.isShuttingDown) {
+      coordinator.dispose();
+    }
+    await coordinator.shutdownComplete;
   });
 
   Future<ScreenTimeCoordinator> fresh({
