@@ -13,7 +13,7 @@
 | Environment names | `development` \| `staging` \| `production` |
 | Client payload | **Public only:** environment name + API base URL |
 | Forbidden in mobile binary | Service-role keys, DB credentials, backend private tokens, JWT signing secrets, store signing passwords |
-| OpenAPI pin | Unchanged — see [`contracts/pin.json`](../contracts/pin.json) (LMP-23 / `0.1.0`) |
+| OpenAPI pin | See [`contracts/pin.json`](../contracts/pin.json) (LMP-50 / `0.2.0`, backend `#12` @ `fd66fcba`) |
 
 Backend owns runtime secrets and fail-fast validation for private env vars. This client repo never receives those values.
 

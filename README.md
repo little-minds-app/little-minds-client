@@ -13,7 +13,7 @@ Little Minds mobile app, parent dashboard and content admin.
 | `generated/dart` | Generated Dart API client (Flutter) |
 | `docs/` | Product Blueprint, ADR index, device support matrix |
 
-## API contract pin (LMP-23 / ADR-014)
+## API contract pin (LMP-23 / LMP-50 / ADR-014)
 
 Backend owns OpenAPI. This repo pins a **backend commit SHA** and regenerates clients from the vendored artifact.
 
@@ -23,7 +23,8 @@ Backend owns OpenAPI. This repo pins a **backend commit SHA** and regenerates cl
 | Pin file | [`contracts/pin.json`](contracts/pin.json) |
 | Artifact | `contracts/openapi.yaml` (vendored from pin) |
 | Blob SHA | `artifactBlobSha` in pin (`git hash-object` of vendored YAML) |
-| Surface | `GET /health` only |
+| Contract version | `0.2.0` (backend PR `#12` @ `fd66fcba…`) |
+| Surface | `GET /health` only (+ Activity* OpenAPI components; no event ingest path) |
 
 ```bash
 npm ci

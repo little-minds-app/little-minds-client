@@ -46,7 +46,7 @@ describe('LMP-27 negative: stale / mismatched pin', () => {
       () =>
         assertPinAndArtifactIntegrity({
           pin,
-          version: '0.1.0',
+          version: '0.2.0',
           openApiDoc: doc,
           openApiRaw,
         }),
@@ -64,7 +64,7 @@ describe('LMP-27 negative: stale / mismatched pin', () => {
       () =>
         assertPinAndArtifactIntegrity({
           pin,
-          version: '0.1.0',
+          version: '0.2.0',
           openApiDoc: doc,
           openApiRaw,
         }),
@@ -79,7 +79,7 @@ describe('LMP-27 negative: stale / mismatched pin', () => {
       () =>
         assertPinAndArtifactIntegrity({
           pin,
-          version: '0.1.0',
+          version: '0.2.0',
           openApiDoc: doc,
           openApiRaw,
         }),
@@ -90,12 +90,12 @@ describe('LMP-27 negative: stale / mismatched pin', () => {
   it('fails when OpenAPI info.version drifts from pin VERSION', () => {
     const { openApiRaw, doc } = loadGoodDocAndRaw();
     const drifted = structuredClone(doc);
-    drifted.info.version = '0.2.0';
+    drifted.info.version = '0.3.0';
     assert.throws(
       () =>
         assertPinAndArtifactIntegrity({
           pin: loadGoodPin(),
-          version: '0.1.0',
+          version: '0.2.0',
           openApiDoc: drifted,
           openApiRaw,
         }),
@@ -114,11 +114,31 @@ describe('LMP-27 negative: mutated OpenAPI spec', () => {
     const errors = evaluateCompatibility({
       doc: mutated,
       baseline: loadBaseline(),
-      version: '0.1.0',
+      version: '0.2.0',
     });
     assert.ok(
       errors.some((e) => e.includes('/v1/invented')),
       `expected invented-path error, got: ${errors.join('; ')}`,
+    );
+  });
+
+  it('fails compatibility when an event ingest path is invented', () => {
+    const { doc } = loadGoodDocAndRaw();
+    const mutated = structuredClone(doc);
+    mutated.paths['/v1/events/batch'] = {
+      post: {
+        operationId: 'postEventsBatch',
+        responses: { '202': { description: 'nope' } },
+      },
+    };
+    const errors = evaluateCompatibility({
+      doc: mutated,
+      baseline: loadBaseline(),
+      version: '0.2.0',
+    });
+    assert.ok(
+      errors.some((e) => e.includes('/v1/events/batch')),
+      `expected ingest-path error, got: ${errors.join('; ')}`,
     );
   });
 
@@ -130,11 +150,26 @@ describe('LMP-27 negative: mutated OpenAPI spec', () => {
     const errors = evaluateCompatibility({
       doc: mutated,
       baseline: loadBaseline(),
-      version: '0.1.0',
+      version: '0.2.0',
     });
     assert.ok(
       errors.some((e) => /timestamp/i.test(e)),
       `expected timestamp breaking error, got: ${errors.join('; ')}`,
+    );
+  });
+
+  it('fails compatibility when ActivityEventV1 required fields are removed', () => {
+    const { doc } = loadGoodDocAndRaw();
+    const mutated = structuredClone(doc);
+    mutated.components.schemas.ActivityEventV1.required = ['event_id', 'event_type'];
+    const errors = evaluateCompatibility({
+      doc: mutated,
+      baseline: loadBaseline(),
+      version: '0.2.0',
+    });
+    assert.ok(
+      errors.some((e) => /ActivityEventV1/i.test(e)),
+      `expected ActivityEventV1 breaking error, got: ${errors.join('; ')}`,
     );
   });
 
@@ -152,7 +187,7 @@ describe('LMP-27 negative: mutated OpenAPI spec', () => {
       () =>
         assertPinAndArtifactIntegrity({
           pin: loadGoodPin(),
-          version: '0.1.0',
+          version: '0.2.0',
           openApiDoc: doc,
           openApiRaw: mutatedRaw,
         }),
