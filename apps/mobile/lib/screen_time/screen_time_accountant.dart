@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'daily_policy.dart';
 import 'monotonic_clock.dart';
 import 'persistent_store.dart';
@@ -316,17 +318,29 @@ final class ScreenTimeAccountant {
     }
   }
 
-  /// Debug/QA-only budget mutation for local inspector controls (LMP-49 Step 3.2).
+  /// Debug/QA-only budget mutation for local inspector controls (LMP-49 Step 3.2/3.3).
   ///
-  /// **Not a production parent API.** Callers must gate with debug-only facades
-  /// ([ScreenTimeDebugQa]). Refuses corrupt persistence (no recovery bypass).
-  /// Closes any open interval, replaces closed accumulated seconds, and leaves
-  /// trust flags unchanged.
-  void applyDebugQaAccumulatedSeconds(int seconds) {
+  /// **Not a production parent API** and not a trust-recovery path. Lowest
+  /// boundary guard: refuses unless [mutationsAllowed] (default [kDebugMode])
+  /// is true. Unit tests may inject [mutationsAllowed] to simulate release.
+  ///
+  /// Refuses corrupt **or** trust-degraded state (no bypass / manufactured
+  /// trust). Closes any open interval, replaces closed accumulated seconds,
+  /// and leaves trust flags unchanged.
+  void applyDebugQaAccumulatedSeconds(
+    int seconds, {
+    bool Function()? mutationsAllowed,
+  }) {
+    final allowed = (mutationsAllowed ?? () => kDebugMode)();
+    if (!allowed) {
+      throw UnsupportedError(
+        'Screen-time debug QA mutations are debug-only',
+      );
+    }
     _ensureRestored();
-    if (_corruptPersistence) {
+    if (_corruptPersistence || isTrustDegraded) {
       throw StateError(
-        'Debug QA cannot mutate budget while persistence is corrupt',
+        'Debug QA cannot mutate budget while persistence/trust is fail-closed',
       );
     }
     _commitOpenInterval();

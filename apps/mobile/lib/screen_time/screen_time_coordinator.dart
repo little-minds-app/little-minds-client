@@ -434,6 +434,23 @@ final class ScreenTimeCoordinator extends ChangeNotifier
   /// Deterministic tick for tests (no real timer wait).
   void tickForTest() => _onTick();
 
+  /// True while a debug QA apply/reload/persist link is queued or running on
+  /// [_persistChain]. Inspector disables conflicting QA controls while set.
+  bool get isDebugQaBusy => _debugQaInFlight > 0;
+
+  int _debugQaInFlight = 0;
+
+  void _beginDebugQaOp() {
+    _debugQaInFlight++;
+    if (_debugQaInFlight == 1) notifyListeners();
+  }
+
+  void _endDebugQaOp() {
+    if (_debugQaInFlight == 0) return;
+    _debugQaInFlight--;
+    if (_debugQaInFlight == 0) notifyListeners();
+  }
+
   /// Debug/QA: re-emit after an out-of-band accountant mutation.
   ///
   /// Used by [ScreenTimeDebugQa] only; not a product parent control.
@@ -442,17 +459,114 @@ final class ScreenTimeCoordinator extends ChangeNotifier
     notifyListeners();
   }
 
-  /// Debug/QA: re-run [ScreenTimeAccountant.restore] from the bound store.
-  Future<void> debugReloadAccountantForQa() async {
-    if (_phase != _CoordinatorPhase.active) return;
-    try {
-      await _accountant.restore();
-      _storageFailed = false;
-    } catch (_) {
-      _storageFailed = true;
+  /// Debug/QA: apply used-seconds then persist on the serialized [_persistChain].
+  ///
+  /// Prevents reload/persist races from observing a half-applied budget.
+  /// [mutationsAllowed] is forwarded to the accountant lowest-boundary guard
+  /// (unit tests inject release refusal here).
+  Future<void> debugApplyQaAccumulatedSeconds(
+    int seconds, {
+    bool Function()? mutationsAllowed,
+  }) {
+    if (_phase != _CoordinatorPhase.active) {
+      return Future<void>.error(
+        StateError('ScreenTimeCoordinator is unavailable'),
+      );
     }
-    _syncCounting(persistOnStop: false);
-    notifyListeners();
+    if (_storageFailed ||
+        _accountant.isCorruptPersistence ||
+        _accountant.isTrustDegraded) {
+      return Future<void>.error(
+        StateError(
+          'Debug QA cannot mutate budget while persistence/trust is fail-closed',
+        ),
+      );
+    }
+    _beginDebugQaOp();
+    final done = Completer<void>();
+    _persistChain = _persistChain.then((_) async {
+      try {
+        if (_phase != _CoordinatorPhase.active) {
+          throw StateError('ScreenTimeCoordinator is unavailable');
+        }
+        if (_storageFailed ||
+            _accountant.isCorruptPersistence ||
+            _accountant.isTrustDegraded) {
+          throw StateError(
+            'Debug QA cannot mutate budget while persistence/trust is fail-closed',
+          );
+        }
+        _accountant.applyDebugQaAccumulatedSeconds(
+          seconds,
+          mutationsAllowed: mutationsAllowed,
+        );
+        await _persistUnlocked();
+        if (!done.isCompleted) done.complete();
+      } catch (error, stack) {
+        if (!done.isCompleted) done.completeError(error, stack);
+      } finally {
+        _endDebugQaOp();
+        if (_phase == _CoordinatorPhase.active) {
+          notifyListeners();
+        }
+      }
+    }).catchError((Object _) {
+      // Keep the chain alive after a failure so later ops still run.
+    });
+    return done.future;
+  }
+
+  /// Debug/QA: re-run [ScreenTimeAccountant.restore] on the serialized
+  /// [_persistChain] so a concurrent persist cannot leave a stale restore.
+  ///
+  /// Failures fail closed (`storageFailed`); does not invent a fresh trusted day
+  /// beyond what [ScreenTimeAccountant.restore] already defines for missing keys.
+  Future<void> debugReloadAccountantForQa() {
+    if (_phase != _CoordinatorPhase.active) {
+      return Future<void>.error(
+        StateError('ScreenTimeCoordinator is unavailable'),
+      );
+    }
+    _beginDebugQaOp();
+    final done = Completer<void>();
+    _persistChain = _persistChain.then((_) async {
+      try {
+        if (_phase != _CoordinatorPhase.active) {
+          throw StateError('ScreenTimeCoordinator is unavailable');
+        }
+        try {
+          await _accountant.restore();
+          // Corrupt / degraded snapshots stay fail-closed via accountant flags.
+          _storageFailed = false;
+        } catch (_) {
+          _storageFailed = true;
+          rethrow;
+        }
+        _syncCounting(persistOnStop: false);
+        if (!done.isCompleted) done.complete();
+      } catch (error, stack) {
+        if (!done.isCompleted) done.completeError(error, stack);
+      } finally {
+        _endDebugQaOp();
+        if (_phase == _CoordinatorPhase.active) {
+          notifyListeners();
+        }
+      }
+    }).catchError((Object _) {
+      // Keep the chain alive after a failure so later ops still run.
+    });
+    return done.future;
+  }
+
+  /// Debug/QA: enqueue persist on the same busy/serialized channel.
+  Future<void> debugPersistForQa() {
+    if (_phase != _CoordinatorPhase.active) {
+      return Future<void>.error(
+        StateError('ScreenTimeCoordinator is unavailable'),
+      );
+    }
+    _beginDebugQaOp();
+    return persist().whenComplete(_endDebugQaOp);
   }
 }
 

@@ -79,8 +79,11 @@ class _ScreenTimeDebugInspectorSurfaceState
   bool get _allowed =>
       ScreenTimeDebugQa.showEntry(forceShowEntryForTest: widget.forceShowForTest);
 
+  /// Local + coordinator busy — disable conflicting QA while a chain op runs.
+  bool get _qaEnabled => !_busy && !_qa.isBusy;
+
   Future<void> _run(Future<void> Function() action, String okMessage) async {
-    if (_busy) return;
+    if (!_qaEnabled) return;
     setState(() {
       _busy = true;
       _status = null;
@@ -292,7 +295,7 @@ class _ScreenTimeDebugInspectorSurfaceState
                                       key: ScreenTimeDebugInspectorSurface
                                           .qaNearCapKey,
                                       label: l10n.screenTimeDebugQaNearCap,
-                                      enabled: !_busy,
+                                      enabled: _qaEnabled,
                                       onPressed: () => _run(
                                         _qa.setNearCap,
                                         l10n.screenTimeDebugStatusNearCap,
@@ -302,7 +305,7 @@ class _ScreenTimeDebugInspectorSurfaceState
                                       key: ScreenTimeDebugInspectorSurface
                                           .qaAtCapKey,
                                       label: l10n.screenTimeDebugQaAtCap,
-                                      enabled: !_busy,
+                                      enabled: _qaEnabled,
                                       onPressed: () => _run(
                                         _qa.setAtCap,
                                         l10n.screenTimeDebugStatusAtCap,
@@ -312,14 +315,14 @@ class _ScreenTimeDebugInspectorSurfaceState
                                       key: ScreenTimeDebugInspectorSurface
                                           .qaResetKey,
                                       label: l10n.screenTimeDebugQaReset,
-                                      enabled: !_busy,
+                                      enabled: _qaEnabled,
                                       onPressed: () => _confirmReset(l10n),
                                     ),
                                     _QaButton(
                                       key: ScreenTimeDebugInspectorSurface
                                           .qaReloadKey,
                                       label: l10n.screenTimeDebugQaReload,
-                                      enabled: !_busy,
+                                      enabled: _qaEnabled,
                                       onPressed: () => _run(
                                         _qa.reloadFromStore,
                                         l10n.screenTimeDebugStatusReload,
@@ -329,7 +332,7 @@ class _ScreenTimeDebugInspectorSurfaceState
                                       key: ScreenTimeDebugInspectorSurface
                                           .qaPersistKey,
                                       label: l10n.screenTimeDebugQaPersist,
-                                      enabled: !_busy,
+                                      enabled: _qaEnabled,
                                       onPressed: () => _run(
                                         _qa.persistNow,
                                         l10n.screenTimeDebugStatusPersist,

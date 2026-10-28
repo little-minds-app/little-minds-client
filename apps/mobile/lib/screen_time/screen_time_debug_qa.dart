@@ -2,18 +2,23 @@ import 'package:flutter/foundation.dart';
 
 import 'screen_time_coordinator.dart';
 
-/// Debug/QA-only mutations for the screen-time inspector (LMP-49 Step 3.2).
+/// Debug/QA-only mutations for the screen-time inspector (LMP-49 Step 3.2/3.3).
 ///
 /// ## Guards
 /// - **Compile / UI:** Parent Settings entry and inspector route are wrapped in
 ///   [kDebugMode] (and optional [forceShowEntryForTest]).
-/// - **Runtime:** every mutation calls [_ensureDebug] and throws outside debug
-///   (or when [mutationsAllowed] returns false in tests).
+/// - **Runtime (facade):** every mutation calls [_ensureDebug] and throws outside
+///   debug (or when [mutationsAllowed] returns false in tests).
+/// - **Runtime (lowest boundary):** [ScreenTimeAccountant.applyDebugQaAccumulatedSeconds]
+///   independently refuses unless its own `mutationsAllowed` / [kDebugMode] allows.
+///
+/// ## Serialization
+/// Apply / reload / persist go through [ScreenTimeCoordinator]'s `_persistChain`
+/// so a delayed store cannot interleave a stale restore with a newer write.
 ///
 /// ## Non-goals
-/// - Not a production parent control surface.
-/// - Does **not** recover trust, clear corrupt evidence, or expose prefs keys.
-/// - Persist goes through [ScreenTimeCoordinator.persist] (serialized chain).
+/// - Not a production parent control surface / no alt production route.
+/// - Does **not** call [recoverTrust], clear corrupt evidence, or expose prefs keys.
 final class ScreenTimeDebugQa {
   ScreenTimeDebugQa(
     this._coordinator, {
@@ -35,6 +40,9 @@ final class ScreenTimeDebugQa {
 
   ScreenTimeCoordinator get coordinator => _coordinator;
 
+  /// True while a serialized QA op is in flight (disable conflicting controls).
+  bool get isBusy => _coordinator.isDebugQaBusy;
+
   void _ensureDebug() {
     if (!_mutationsAllowed()) {
       throw UnsupportedError(
@@ -46,6 +54,17 @@ final class ScreenTimeDebugQa {
     }
   }
 
+  void _ensureMutableTrust() {
+    final accountant = _coordinator.accountant;
+    if (_coordinator.storageFailed ||
+        accountant.isCorruptPersistence ||
+        accountant.isTrustDegraded) {
+      throw StateError(
+        'Debug QA refuses budget mutation while persistence/trust is fail-closed',
+      );
+    }
+  }
+
   /// Set accumulated used time to 29:50 (remaining ≈ 10s on default policy).
   Future<void> setNearCap() => _applyUsed(nearCapUsedSeconds);
 
@@ -53,27 +72,24 @@ final class ScreenTimeDebugQa {
   Future<void> setAtCap() => _applyUsed(atCapUsedSeconds);
 
   /// Reset used time to 0 for the current local day (trusted path only).
+  ///
+  /// Debug/QA only — not a production parent reset API.
   Future<void> resetBudget() => _applyUsed(0);
 
   Future<void> _applyUsed(int usedSeconds) async {
     _ensureDebug();
-    final accountant = _coordinator.accountant;
-    if (accountant.isCorruptPersistence || _coordinator.storageFailed) {
-      throw StateError(
-        'Debug QA refuses budget mutation while storage/trust is fail-closed',
-      );
-    }
+    _ensureMutableTrust();
     // Parent-path inspector: stop Kids Mode counting before rewriting budget.
     if (_coordinator.kidsModeShellActive) {
       _coordinator.setKidsModeShellActive(false);
     }
-    accountant.applyDebugQaAccumulatedSeconds(usedSeconds);
-    await _coordinator.persist();
-    // Keep UI listeners in sync after an out-of-band accountant write.
-    _coordinator.debugNotifyListenersForQa();
+    await _coordinator.debugApplyQaAccumulatedSeconds(
+      usedSeconds,
+      mutationsAllowed: _mutationsAllowed,
+    );
   }
 
-  /// Re-read durable snapshot (same store) without inventing a fresh day.
+  /// Re-read durable snapshot on the serialized persist chain (no stale restore).
   Future<void> reloadFromStore() async {
     _ensureDebug();
     if (_coordinator.kidsModeShellActive) {
@@ -85,6 +101,6 @@ final class ScreenTimeDebugQa {
   /// Enqueue a serialized persist of the current in-memory checkpoint.
   Future<void> persistNow() async {
     _ensureDebug();
-    await _coordinator.persist();
+    await _coordinator.debugPersistForQa();
   }
 }
