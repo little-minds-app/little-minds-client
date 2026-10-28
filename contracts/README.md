@@ -9,10 +9,11 @@ This client repository **pins** a backend commit and vendors that revision of th
 |---|---|
 | File | `contracts/pin.json` |
 | Backend repo | `little-minds-app/little-minds-backend` |
-| Commit SHA | see `backendCommitSha` in `pin.json` (currently `50862b8d6c3d4126effeaebaf22d34eb675c7f75`) |
+| Commit SHA | see `backendCommitSha` in `pin.json` (currently `fd66fcba385c8a95acca30a094f16b6c26fc8df8`) |
 | Artifact path | `contracts/openapi.yaml` |
 | Artifact blob SHA | `artifactBlobSha` — `git hash-object` of the vendored YAML (offline integrity) |
-| Contract version | `contracts/VERSION` (must match OpenAPI `info.version`) |
+| Contract version | `contracts/VERSION` (must match OpenAPI `info.version`; currently `0.2.0`) |
+| Backend PR | see `backendPullRequest` in `pin.json` (LMP-50 → `#12`) |
 
 **Never** point generators at floating `main`. Bump the pin deliberately when adopting a new backend contract revision.
 
@@ -39,7 +40,8 @@ Optional future live check (not required, **do not commit tokens**): a repositor
 | `../generated/typescript/` | TypeScript types (`openapi-typescript`) |
 | `../generated/dart/` | Dart client (`openapi-generator` / `dart`) |
 
-**Current surface:** `GET /health` only. Blueprint §15 `/v1/...` routes are **not** invented here.
+**Current surface:** `GET /health` only. Blueprint §15 `/v1/...` routes are **not** invented here.  
+**LMP-50:** OpenAPI `components.schemas` include `ActivitySessionV1` / `ActivityEventV1` (documentation + generated types). Live `POST /v1/events/batch` is intentionally **not** published — ingest lands in a later Jira task.
 
 ## Commands
 
