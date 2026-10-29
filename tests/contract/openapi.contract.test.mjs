@@ -26,15 +26,15 @@ describe('LMP-23/27 OpenAPI pin and schema', () => {
     assert.match(pin.backendCommitSha, /^[0-9a-f]{40}$/i);
     assert.match(pin.artifactBlobSha, /^[0-9a-f]{40}$/i);
     assert.equal(pin.artifactPath, 'contracts/openapi.yaml');
-    assert.equal(pin.contractVersion, '0.2.0');
+    assert.equal(pin.contractVersion, '0.7.1');
     assert.equal(pin.backendRepository, 'little-minds-app/little-minds-backend');
     assert.equal(
       pin.backendCommitSha,
-      'fd66fcba385c8a95acca30a094f16b6c26fc8df8',
+      '83fbc6bad1057ff37419b4a0cc67243025102d36',
     );
     assert.equal(
       pin.backendPullRequest,
-      'https://github.com/little-minds-app/little-minds-backend/pull/12',
+      'https://github.com/little-minds-app/little-minds-backend/pull/20',
     );
     assert.notEqual(pin.backendCommitSha.toLowerCase(), 'main');
   });
@@ -44,19 +44,20 @@ describe('LMP-23/27 OpenAPI pin and schema', () => {
     const pin = JSON.parse(readFileSync(PIN_PATH, 'utf8'));
     const openApiRaw = readFileSync(OPENAPI_PATH);
     const doc = parseYaml(openApiRaw.toString('utf8'));
-    assert.equal(version, '0.2.0');
+    assert.equal(version, '0.7.1');
     assertPinAndArtifactIntegrity({ pin, version, openApiDoc: doc, openApiRaw });
     assert.equal(gitBlobShaFromFile(OPENAPI_PATH), pin.artifactBlobSha);
   });
 
-  it('validates OpenAPI 3 document with only GET /health (no event ingest)', async () => {
+  it('validates OpenAPI 3 document with auth surface (no event ingest)', async () => {
     const api = await SwaggerParser.validate(OPENAPI_PATH);
     assert.ok(String(api.openapi).startsWith('3.'));
-    assert.deepEqual(Object.keys(api.paths ?? {}).sort(), ['/health']);
+    const pathKeys = Object.keys(api.paths ?? {}).sort();
+    assert.ok(pathKeys.includes('/health'));
+    assert.ok(pathKeys.some((p) => p.startsWith('/v1/auth/')));
     assert.ok(api.paths['/health'].get);
     assert.equal(api.paths['/health'].get.operationId, 'getHealth');
     assert.equal(api.paths['/v1/events/batch'], undefined);
-    const pathKeys = Object.keys(api.paths ?? {});
     assert.ok(
       !pathKeys.some((p) => /events/i.test(p)),
       `unexpected event path(s): ${pathKeys.join(', ')}`,

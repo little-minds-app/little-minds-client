@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'app.dart';
+import 'auth/auth_token_store.dart';
+import 'auth/parent_auth_controller.dart';
+import 'auth/parent_auth_repository.dart';
 import 'config/app_config.dart';
 import 'screen_time/screen_time.dart';
 
@@ -21,10 +24,19 @@ Future<void> main() async {
   );
   await screenTime.initialize();
 
+  final parentAuth = ParentAuthController(
+    repository: ParentAuthRepository(
+      config: config,
+      tokenStore: SecureAuthTokenStore(),
+    ),
+  );
+  await parentAuth.bootstrap();
+
   runApp(
     LittleMindsApp(
       config: config,
       screenTime: screenTime,
+      parentAuthController: parentAuth,
     ),
   );
 }

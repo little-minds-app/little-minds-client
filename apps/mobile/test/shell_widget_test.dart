@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/app.dart';
+import 'package:little_minds_mobile/auth/auth_token_store.dart';
+import 'package:little_minds_mobile/auth/parent_auth_controller.dart';
+import 'package:little_minds_mobile/auth/parent_auth_repository.dart';
 import 'package:little_minds_mobile/child_hub/hub_audio_guidance.dart';
+import 'package:little_minds_mobile/config/app_config.dart';
 import 'package:little_minds_mobile/config/scaffolding_assumptions.dart';
 import 'package:little_minds_mobile/game/flame_host.dart';
 import 'package:little_minds_mobile/orientation/app_surface.dart';
@@ -147,6 +151,13 @@ void main() {
   // TC-SHELL-004 — Parent Gate preserves state across orientation change.
   testWidgets('TC-SHELL-004 Parent Gate preserves note across orientation',
       (tester) async {
+    final parentAuth = ParentAuthController(
+      repository: ParentAuthRepository(
+        config: AppConfig.developmentLocal,
+        tokenStore: InMemoryAuthTokenStore(),
+      ),
+    );
+    await parentAuth.bootstrap();
     await _setSurface(
       tester,
       width: ScaffoldingViewports.compactPhoneWidth,
@@ -156,6 +167,7 @@ void main() {
       LittleMindsApp(
         game: StubLearningGame(),
         audioGuidance: RecordingHubAudioGuidance(),
+        parentAuthController: parentAuth,
       ),
     );
     await _pumpFrames(tester);
@@ -163,8 +175,10 @@ void main() {
     await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
     await _pumpFrames(tester);
 
+    await tester.tap(find.byKey(const Key('parent-auth-phone-entry')));
+    await _pumpFrames(tester);
     await tester.enterText(
-      find.byKey(ParentGateSurface.noteFieldKey),
+      find.byKey(ParentGateSurface.phoneFieldKey),
       'keep-me-across-rotation',
     );
     await _pumpFrames(tester);
@@ -181,6 +195,7 @@ void main() {
 
     expect(find.byKey(ParentGateSurface.surfaceKey), findsOneWidget);
     expect(find.text('keep-me-across-rotation'), findsOneWidget);
+    expect(find.byKey(ParentGateSurface.phoneFieldKey), findsOneWidget);
     expect(OrientationPolicy.isLandscapeOnly(AppSurface.parentGate), isFalse);
   });
 

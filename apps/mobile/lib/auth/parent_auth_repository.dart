@@ -1,0 +1,198 @@
+// ignore_for_file: prefer_initializing_formals
+
+import 'package:little_minds_api/api.dart';
+import 'package:uuid/uuid.dart';
+
+import '../config/app_config.dart';
+import 'auth_api_clients.dart';
+import 'auth_error.dart';
+import 'auth_privacy_notice.dart';
+import 'auth_session.dart';
+import 'auth_token_store.dart';
+
+/// Phone/email OTP + session lifecycle via generated OpenAPI client only.
+class ParentAuthRepository {
+  ParentAuthRepository({
+    required AppConfig config,
+    required AuthTokenStore tokenStore,
+    AuthApiClients? clients,
+    Uuid? uuid,
+  })  : _config = config,
+        _tokenStore = tokenStore,
+        _clients = clients ?? AuthApiClients(basePath: config.apiBaseUrlString),
+        _uuid = uuid ?? const Uuid();
+
+  final AppConfig _config;
+  final AuthTokenStore _tokenStore;
+  final AuthApiClients _clients;
+  final Uuid _uuid;
+
+  String? _deviceId;
+
+  Future<String> deviceId() async {
+    _deviceId ??= _uuid.v4();
+    return _deviceId!;
+  }
+
+  Future<AuthSession?> loadPersistedSession() => _tokenStore.readSession();
+
+  Future<PhoneOtpStartResponse> startPhoneOtp(String phone) async {
+    try {
+      final request = PhoneOtpStartRequest(
+        phone: phone.trim(),
+        noticeVersion: AuthPrivacyNotice.version,
+        noticeLocale: AuthPrivacyNotice.locale,
+        clientSurface: 'ios',
+        deviceId: await deviceId(),
+      );
+      final response = await _clients.auth.startPhoneOtp(request);
+      if (response == null) {
+        throw const ParentAuthFailure(
+          code: 'invalid_request',
+          message: 'Could not start phone sign-in.',
+        );
+      }
+      return response;
+    } on ApiException catch (e) {
+      throw ParentAuthFailure.fromApiException(e);
+    }
+  }
+
+  Future<AuthSession> verifyPhoneOtp({
+    required String challengeId,
+    required String code,
+  }) async {
+    try {
+      final request = PhoneOtpVerifyRequest(
+        challengeId: challengeId,
+        code: code.trim(),
+        clientSurface: 'ios',
+        deviceId: await deviceId(),
+      );
+      final pair = await _clients.auth.verifyPhoneOtp(request);
+      if (pair == null) {
+        throw const ParentAuthFailure(
+          code: 'otp_invalid',
+          message: 'Invalid verification code.',
+        );
+      }
+      final session = AuthSession.fromTokenPair(pair);
+      await _persist(session);
+      return session;
+    } on ApiException catch (e) {
+      throw ParentAuthFailure.fromApiException(e);
+    }
+  }
+
+  Future<EmailOtpStartResponse> startEmailOtp(String email) async {
+    try {
+      final request = EmailOtpStartRequest(
+        email: email.trim(),
+        noticeVersion: AuthPrivacyNotice.version,
+        noticeLocale: AuthPrivacyNotice.locale,
+        clientSurface: 'ios',
+      );
+      final response = await _clients.auth.startEmailOtp(request);
+      if (response == null) {
+        throw const ParentAuthFailure(
+          code: 'invalid_request',
+          message: 'Could not start email sign-in.',
+        );
+      }
+      return response;
+    } on ApiException catch (e) {
+      throw ParentAuthFailure.fromApiException(e);
+    }
+  }
+
+  Future<AuthSession> verifyEmailOtp({
+    required String challengeId,
+    required String code,
+  }) async {
+    try {
+      final request = EmailOtpVerifyRequest(
+        challengeId: challengeId,
+        code: code.trim(),
+        clientSurface: 'ios',
+        deviceId: await deviceId(),
+      );
+      final pair = await _clients.auth.verifyEmailOtp(request);
+      if (pair == null) {
+        throw const ParentAuthFailure(
+          code: 'otp_invalid',
+          message: 'Invalid verification code.',
+        );
+      }
+      final session = AuthSession.fromTokenPair(pair);
+      await _persist(session);
+      return session;
+    } on ApiException catch (e) {
+      throw ParentAuthFailure.fromApiException(e);
+    }
+  }
+
+  Future<ParentMeResponse> fetchParentProfile(AuthSession session) async {
+    _clients.setAccessToken(session.accessToken);
+    try {
+      final me = await _clients.parent.getParentMe();
+      if (me == null) {
+        throw const ParentAuthFailure(
+          code: 'invalid_token',
+          message: 'Session expired. Please sign in again.',
+        );
+      }
+      return me;
+    } on ApiException catch (e) {
+      if (e.code == 401) {
+        final refreshed = await refreshSession(session);
+        _clients.setAccessToken(refreshed.accessToken);
+        final me = await _clients.parent.getParentMe();
+        if (me == null) {
+          throw ParentAuthFailure.fromApiException(e);
+        }
+        return me;
+      }
+      throw ParentAuthFailure.fromApiException(e);
+    }
+  }
+
+  Future<AuthSession> refreshSession(AuthSession session) async {
+    try {
+      final pair = await _clients.auth.refreshParentSession(
+        RefreshTokenRequest(refreshToken: session.refreshToken),
+      );
+      if (pair == null) {
+        throw const ParentAuthFailure(
+          code: 'invalid_token',
+          message: 'Session expired. Please sign in again.',
+        );
+      }
+      final updated = session.copyWithTokens(pair);
+      await _persist(updated);
+      return updated;
+    } on ApiException catch (e) {
+      throw ParentAuthFailure.fromApiException(e);
+    }
+  }
+
+  Future<void> logout(AuthSession session) async {
+    _clients.setAccessToken(session.accessToken);
+    try {
+      await _clients.auth.logoutParentSession(
+        logoutRequest: LogoutRequest(refreshToken: session.refreshToken),
+      );
+    } on ApiException {
+      // Fail closed locally even if network logout fails.
+    } finally {
+      await _tokenStore.clear();
+      _clients.setAccessToken(null);
+    }
+  }
+
+  Future<void> _persist(AuthSession session) async {
+    await _tokenStore.writeSession(session);
+    _clients.setAccessToken(session.accessToken);
+  }
+
+  AppConfig get config => _config;
+}

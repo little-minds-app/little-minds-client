@@ -14,11 +14,397 @@ export interface paths {
         /**
          * Process liveness
          * @description Returns process liveness JSON. Unauthenticated. Does not probe PostgreSQL
-         *     or other dependencies (readiness arrives in a later task).
+         *     or other dependencies — use `GET /health/ready` for readiness.
          */
         get: operations["getHealth"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dependency readiness
+         * @description Returns readiness JSON for load balancers and operator alert scrapers.
+         *     When `DATABASE_URL` is configured, probes PostgreSQL with a lightweight
+         *     `SELECT 1`. When unset, `checks.database: skipped` is allowed **only**
+         *     for `APP_ENV=development` (local Nest without Compose). Staging and
+         *     production missing `DATABASE_URL` return HTTP 503 with
+         *     `status: not_ready` and `checks.database: down`. Probe failure likewise
+         *     returns 503 (alert-ready signal; no paid monitoring required).
+         *     Schema enums are unchanged (`up` | `down` | `skipped`).
+         */
+        get: operations["getHealthReady"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/token/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate parent access and refresh tokens
+         * @description Transactional single-winner refresh (ADR-019). Clients must use single-flight
+         *     refresh and must not retry a consumed refresh token. Lost responses require re-authentication.
+         */
+        post: operations["refreshParentSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke the current parent session
+         * @description Requires refresh_token and/or Authorization bearer. Idempotent.
+         */
+        post: operations["logoutParentSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke all sessions for the authenticated parent */
+        post: operations["logoutAllParentSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List sessions for the authenticated parent */
+        get: operations["listParentSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke one owned session */
+        delete: operations["revokeParentSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parent/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Authenticated parent identity probe */
+        get: operations["getParentMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/phone/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start GSM OTP challenge (ADR-020)
+         * @description Unauthenticated. Türkiye (+90) only Day-1. Requires uniform
+         *     `notice_version` + `notice_locale` (KVKK Option A). Never returns OTP.
+         *     Anti-enumeration: response shape identical for existing vs new parents.
+         */
+        post: operations["startPhoneOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/phone/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify GSM OTP and mint parent session (ADR-020)
+         * @description Uniform for existing and new parents (U7 Option A creates parent on first
+         *     success). No privacy fields on verify — notice bound at start. Returns
+         *     ADR-019 TokenPairResponse via SessionIssuerService.mintSessionTx.
+         */
+        post: operations["verifyPhoneOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/oidc/nonce": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue short-lived OIDC nonce (ADR-021)
+         * @description Unauthenticated. Returns a **provider-bound** server-issued nonce for Apple
+         *     or Google ID-token paths (`provider` required: apple|google). Single-use;
+         *     TTL 600s. Rate-limited per IP. Cross-provider consume is rejected.
+         */
+        post: operations["issueOidcNonce"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/google/pkce/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue one-time Google PKCE OAuth transaction/state (ADR-021)
+         * @description Unauthenticated. Returns a server-issued opaque `state` bound to allowlisted
+         *     `client_id`, `redirect_uri`, and PKCE `code_challenge` (S256). Single-use;
+         *     TTL 600s. Required before `POST /v1/auth/google` authorization-code path
+         *     (`oauth_state`). Fail-closed when PKCE disabled / Google misconfigured.
+         *     Rate-limited per IP.
+         */
+        post: operations["startGooglePkce"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/apple": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apple Sign In with JWKS + mandatory nonce (ADR-021)
+         * @description Verifies Apple ID token via JWKS (asymmetric), issuer/audience/exp/iat/sub,
+         *     and mandatory single-use server nonce. U7 Option A creates parent on first
+         *     success via mintSessionTx. Never trusts client-supplied Apple user id/email/name.
+         */
+        post: operations["authenticateApple"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Google Sign-In nonce or auth-code+PKCE (ADR-021)
+         * @description Prefer ID token + mandatory nonce. Else authorization_code + code_verifier
+         *     + redirect_uri + **oauth_state** (from `POST /v1/auth/google/pkce/start`) —
+         *     server atomically consumes the PKCE transaction, exchanges the code, then
+         *     JWKS-verifies. Never accepts ID-token-without-nonce or unbound auth-code
+         *     exchange. Fail-closed when Google config / PKCE disabled.
+         */
+        post: operations["authenticateGoogle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/email/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Email OTP challenge (ADR-021)
+         * @description Unauthenticated. Applies email_norm_v1. Requires notice_version +
+         *     notice_locale (KVKK Option A). Never returns OTP. deliveryState=sent
+         *     required before verify.
+         */
+        post: operations["startEmailOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/email/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email OTP and mint parent session (ADR-021)
+         * @description Gate: status=pending and deliveryState=sent. U7 Option A creates parent
+         *     on first success. No privacy fields on verify. No silent email link (LMP-36).
+         */
+        post: operations["verifyEmailOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/identities/step-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue recent-auth step-up token for identity linking (LMP-36)
+         * @description Authenticated parent proves control of an identity **already linked**
+         *     to their account (Apple/Google/email/phone proof). Server returns a
+         *     short-lived opaque `step_up_token` bound to parent + session + purpose
+         *     `identity_link`. Access-token refresh alone is **not** recent auth.
+         *     Token is single-use; stale/replayed/cross-parent consume fails closed.
+         */
+        post: operations["createIdentityLinkStepUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/identities/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Explicitly link a verified provider identity (LMP-36)
+         * @description Authenticated parent links another provider after **server-issued step-up**
+         *     (`step_up_token` from `POST /v1/auth/identities/step-up`) **and** fresh
+         *     target-provider proof (Apple/Google ID-token or PKCE, or email/phone OTP).
+         *     Access-token refresh alone is not recent auth. No silent merge and no
+         *     email/name/phone inference. On collision returns `409 identity_collision`
+         *     without disclosing the other family. Unlink/recovery deferred.
+         */
+        post: operations["linkParentIdentity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/dev/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Local/test session bootstrap (development only)
+         * @description Hard-disabled in staging/production. Requires AUTH_DEV_BOOTSTRAP_ENABLED,
+         *     allowlisted parent_id (default seed parent), and loopback client.
+         *     Do not call from staging/production clients.
+         */
+        post: operations["createDevParentSession"];
         delete?: never;
         options?: never;
         head?: never;
@@ -45,6 +431,250 @@ export interface components {
              * @description UTC ISO-8601 timestamp when the check was produced
              */
             timestamp: string;
+        };
+        ReadinessStatus: {
+            /**
+             * @description Readiness indicator (not_ready → HTTP 503)
+             * @enum {string}
+             */
+            status: "ok" | "not_ready";
+            /**
+             * @description Stable service identifier
+             * @enum {string}
+             */
+            service: "little-minds-backend";
+            /**
+             * Format: date-time
+             * @description UTC ISO-8601 timestamp when the check was produced
+             */
+            timestamp: string;
+            checks: {
+                /**
+                 * @description PostgreSQL probe result. `skipped` only when APP_ENV=development
+                 *     and DATABASE_URL is unset. Staging/production missing DATABASE_URL
+                 *     or a failed probe → `down` (forces overall not_ready).
+                 * @enum {string}
+                 */
+                database: "up" | "down" | "skipped";
+            };
+        };
+        RefreshTokenRequest: {
+            refresh_token: string;
+        };
+        LogoutRequest: {
+            refresh_token?: string;
+        };
+        TokenPairResponse: {
+            access_token: string;
+            refresh_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            /** @enum {integer} */
+            expires_in: 900;
+            session_id: components["schemas"]["UuidV4OrV7"];
+            parent_id: components["schemas"]["UuidV4OrV7"];
+        };
+        LogoutAllResponse: {
+            revoked_session_count: number;
+        };
+        StepUpRequest: {
+            /**
+             * @description Existing linked provider to re-prove for recent auth
+             * @enum {string}
+             */
+            provider: "apple" | "google" | "email" | "phone";
+            id_token?: string;
+            nonce?: string;
+            authorization_code?: string;
+            code_verifier?: string;
+            redirect_uri?: string;
+            oauth_state?: string;
+            /** Format: uuid */
+            challenge_id?: string;
+            code?: string;
+        };
+        StepUpResponse: {
+            /** @description Opaque one-time token; present on link within TTL */
+            step_up_token: string;
+            /** @enum {integer} */
+            expires_in: 300;
+            /** @enum {string} */
+            purpose: "identity_link";
+        };
+        LinkIdentityRequest: {
+            /** @description Opaque one-time token from POST /v1/auth/identities/step-up */
+            step_up_token: string;
+            /**
+             * @description Provider to link; proof fields must match provider
+             * @enum {string}
+             */
+            provider: "apple" | "google" | "email" | "phone";
+            /** @description Apple or Google ID token (nonce path) */
+            id_token?: string;
+            /** @description Server-issued nonce (Apple/Google nonce path) */
+            nonce?: string;
+            /** @description Google authorization code (PKCE path) */
+            authorization_code?: string;
+            code_verifier?: string;
+            redirect_uri?: string;
+            /** @description Server-issued oauth_state from google/pkce/start */
+            oauth_state?: string;
+            /**
+             * Format: uuid
+             * @description Email or phone OTP challenge id
+             */
+            challenge_id?: string;
+            /** @description Email or phone OTP code */
+            code?: string;
+        };
+        LinkIdentityResponse: {
+            /** Format: uuid */
+            parent_id: string;
+            /** @enum {string} */
+            provider: "apple" | "google" | "email" | "phone";
+            /** Format: uuid */
+            identity_id: string;
+            /** Format: date-time */
+            linked_at: string;
+            /** @description True when subject was already linked to this parent (idempotent) */
+            already_linked: boolean;
+        };
+        AuthError: {
+            /** @enum {string} */
+            error: "invalid_request" | "invalid_token" | "expired_token" | "revoked_session" | "refresh_reuse" | "rate_limited" | "session_limit_exceeded" | "bootstrap_disabled" | "otp_invalid" | "otp_cooldown" | "sms_unavailable" | "mail_unavailable" | "identity_collision";
+            message: string;
+        };
+        OidcNonceRequest: {
+            /**
+             * @description Provider binding; cross-provider consume is rejected
+             * @enum {string}
+             */
+            provider: "apple" | "google";
+        };
+        OidcNonceResponse: {
+            nonce: string;
+            /** @enum {integer} */
+            expires_in: 600;
+        };
+        GooglePkceStartRequest: {
+            /** @description Must be in GOOGLE_REDIRECT_URIS allowlist */
+            redirect_uri: string;
+            /** @description S256 code_challenge (base64url SHA-256 of verifier) */
+            code_challenge: string;
+            /**
+             * @description Only S256 is accepted; defaults to S256
+             * @enum {string}
+             */
+            code_challenge_method?: "S256";
+            /** @description Optional; must be in GOOGLE_CLIENT_IDS when provided */
+            client_id?: string;
+        };
+        GooglePkceStartResponse: {
+            /** @description Opaque one-time oauth_state for POST /v1/auth/google */
+            state: string;
+            /** @enum {integer} */
+            expires_in: 600;
+            /** @description Bound Google OAuth client_id for this transaction */
+            client_id: string;
+        };
+        AppleAuthRequest: {
+            id_token: string;
+            nonce: string;
+            notice_version: string;
+            notice_locale: string;
+            client_surface?: string;
+            device_id?: components["schemas"]["UuidV4OrV7"];
+        };
+        /**
+         * @description Provide either (id_token + nonce) OR (authorization_code + code_verifier
+         *     + redirect_uri + oauth_state from pkce/start). ID token without nonce
+         *     and authorization_code without oauth_state are rejected.
+         */
+        GoogleAuthRequest: {
+            id_token?: string;
+            nonce?: string;
+            authorization_code?: string;
+            code_verifier?: string;
+            redirect_uri?: string;
+            /** @description Server-issued state from POST /v1/auth/google/pkce/start */
+            oauth_state?: string;
+            notice_version: string;
+            notice_locale: string;
+            client_surface?: string;
+            device_id?: components["schemas"]["UuidV4OrV7"];
+        };
+        EmailOtpStartRequest: {
+            email: string;
+            notice_version: string;
+            notice_locale: string;
+            client_surface?: string;
+        };
+        EmailOtpStartResponse: {
+            challenge_id: components["schemas"]["UuidV4OrV7"];
+            /** @enum {integer} */
+            expires_in: 600;
+            /** @enum {integer} */
+            resend_after: 60;
+        };
+        EmailOtpVerifyRequest: {
+            challenge_id: components["schemas"]["UuidV4OrV7"];
+            code: string;
+            client_surface?: string;
+            device_id?: components["schemas"]["UuidV4OrV7"];
+        };
+        PhoneOtpStartRequest: {
+            phone: string;
+            country_code?: string;
+            /**
+             * @description KVKK Option A — uniform for ALL callers. Must equal server active
+             *     published notice version. Not consent. Not required on verify.
+             */
+            notice_version: string;
+            notice_locale: string;
+            client_surface?: string;
+            device_id?: components["schemas"]["UuidV4OrV7"];
+        };
+        PhoneOtpStartResponse: {
+            challenge_id: components["schemas"]["UuidV4OrV7"];
+            /** @enum {integer} */
+            expires_in: 300;
+            /** @enum {integer} */
+            resend_after: 60;
+        };
+        PhoneOtpVerifyRequest: {
+            challenge_id: components["schemas"]["UuidV4OrV7"];
+            code: string;
+            client_surface?: string;
+            device_id?: components["schemas"]["UuidV4OrV7"];
+        };
+        ParentSessionSummary: {
+            session_id: components["schemas"]["UuidV4OrV7"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_refreshed_at?: string | null;
+            /** Format: date-time */
+            expires_at: string;
+            revoked: boolean;
+            client_surface?: string | null;
+            device_id?: components["schemas"]["UuidV4OrV7"];
+            user_agent_summary?: string | null;
+        };
+        ParentSessionListResponse: {
+            sessions: components["schemas"]["ParentSessionSummary"][];
+        };
+        ParentMeResponse: {
+            parent_id: components["schemas"]["UuidV4OrV7"];
+            locale: string;
+            timezone: string;
+            /** @enum {string} */
+            lifecycle: "active" | "pending_deletion" | "deleted";
+        };
+        DevSessionRequest: {
+            parent_id: components["schemas"]["UuidV4OrV7"];
+            /** @enum {string} */
+            client_surface?: "ios" | "android" | "web" | "unknown";
+            device_id?: components["schemas"]["UuidV4OrV7"];
         };
         /**
          * @description Product event/session schema semver. Independent from OpenAPI info.version.
@@ -168,6 +798,841 @@ export interface operations {
                      *     }
                      */
                     "application/json": components["schemas"]["HealthStatus"];
+                };
+            };
+        };
+    };
+    getHealthReady: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ready to accept traffic */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "ok",
+                     *       "service": "little-minds-backend",
+                     *       "timestamp": "2026-10-28T12:00:00.000Z",
+                     *       "checks": {
+                     *         "database": "skipped"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ReadinessStatus"];
+                };
+            };
+            /** @description Not ready (dependency failure) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "not_ready",
+                     *       "service": "little-minds-backend",
+                     *       "timestamp": "2026-10-28T12:00:00.000Z",
+                     *       "checks": {
+                     *         "database": "down"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ReadinessStatus"];
+                };
+            };
+        };
+    };
+    refreshParentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description New token pair */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPairResponse"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Invalid, expired, revoked, or reused refresh token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    logoutParentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LogoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Session revoked (or already revoked) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing refresh and bearer */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    logoutAllParentSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sessions revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoutAllResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    listParentSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session summaries (no token material) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParentSessionListResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    revokeParentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: components["schemas"]["UuidV4OrV7"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked (idempotent if already revoked and owned) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Unknown or not owned */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    getParentMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Parent account summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParentMeResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    startPhoneOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneOtpStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Challenge issued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneOtpStartResponse"];
+                };
+            };
+            /** @description Malformed phone or invalid notice presentation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Cooldown or rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description SMS unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    verifyPhoneOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneOtpVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Token pair */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPairResponse"];
+                };
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Invalid or expired OTP */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Session limit exceeded */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    issueOidcNonce: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OidcNonceRequest"];
+            };
+        };
+        responses: {
+            /** @description Nonce issued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OidcNonceResponse"];
+                };
+            };
+            /** @description Missing or invalid provider */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    startGooglePkce: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GooglePkceStartRequest"];
+            };
+        };
+        responses: {
+            /** @description OAuth transaction started */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GooglePkceStartResponse"];
+                };
+            };
+            /** @description Invalid redirect / challenge / client_id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description PKCE disabled or Google misconfigured */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    authenticateApple: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleAuthRequest"];
+            };
+        };
+        responses: {
+            /** @description Token pair */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPairResponse"];
+                };
+            };
+            /** @description Malformed body or invalid notice */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Invalid token / nonce / replay */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Session limit exceeded */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    authenticateGoogle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleAuthRequest"];
+            };
+        };
+        responses: {
+            /** @description Token pair */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPairResponse"];
+                };
+            };
+            /** @description Malformed body / neither path satisfiable / invalid notice */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Invalid token / nonce / PKCE state / replay */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Session limit exceeded */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    startEmailOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailOtpStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Challenge issued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailOtpStartResponse"];
+                };
+            };
+            /** @description email_norm_v1 reject or invalid notice */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Cooldown or rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Mail unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    verifyEmailOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailOtpVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Token pair */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPairResponse"];
+                };
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Invalid or expired OTP / not durable-sent */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Session limit exceeded */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    createIdentityLinkStepUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepUpRequest"];
+            };
+        };
+        responses: {
+            /** @description Step-up token issued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepUpResponse"];
+                };
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Missing/invalid session or existing-identity proof */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    linkParentIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkIdentityRequest"];
+            };
+        };
+        responses: {
+            /** @description Identity linked (or already linked to this parent) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkIdentityResponse"];
+                };
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Missing/invalid session or provider proof */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Identity collision (halt; no merge) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+        };
+    };
+    createDevParentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Token pair */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPairResponse"];
+                };
+            };
+            /** @description Bootstrap disabled or session limit */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Parent not allowlisted */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthError"];
                 };
             };
         };

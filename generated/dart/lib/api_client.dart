@@ -197,10 +197,64 @@ class ApiClient {
           return ActivitySessionProvenance.fromJson(value);
         case 'ActivitySessionV1':
           return ActivitySessionV1.fromJson(value);
+        case 'AppleAuthRequest':
+          return AppleAuthRequest.fromJson(value);
+        case 'AuthError':
+          return AuthError.fromJson(value);
         case 'ConsentScope':
           return ConsentScopeTypeTransformer().decode(value);
+        case 'DevSessionRequest':
+          return DevSessionRequest.fromJson(value);
+        case 'EmailOtpStartRequest':
+          return EmailOtpStartRequest.fromJson(value);
+        case 'EmailOtpStartResponse':
+          return EmailOtpStartResponse.fromJson(value);
+        case 'EmailOtpVerifyRequest':
+          return EmailOtpVerifyRequest.fromJson(value);
+        case 'GoogleAuthRequest':
+          return GoogleAuthRequest.fromJson(value);
+        case 'GooglePkceStartRequest':
+          return GooglePkceStartRequest.fromJson(value);
+        case 'GooglePkceStartResponse':
+          return GooglePkceStartResponse.fromJson(value);
         case 'HealthStatus':
           return HealthStatus.fromJson(value);
+        case 'LinkIdentityRequest':
+          return LinkIdentityRequest.fromJson(value);
+        case 'LinkIdentityResponse':
+          return LinkIdentityResponse.fromJson(value);
+        case 'LogoutAllResponse':
+          return LogoutAllResponse.fromJson(value);
+        case 'LogoutRequest':
+          return LogoutRequest.fromJson(value);
+        case 'OidcNonceRequest':
+          return OidcNonceRequest.fromJson(value);
+        case 'OidcNonceResponse':
+          return OidcNonceResponse.fromJson(value);
+        case 'ParentMeResponse':
+          return ParentMeResponse.fromJson(value);
+        case 'ParentSessionListResponse':
+          return ParentSessionListResponse.fromJson(value);
+        case 'ParentSessionSummary':
+          return ParentSessionSummary.fromJson(value);
+        case 'PhoneOtpStartRequest':
+          return PhoneOtpStartRequest.fromJson(value);
+        case 'PhoneOtpStartResponse':
+          return PhoneOtpStartResponse.fromJson(value);
+        case 'PhoneOtpVerifyRequest':
+          return PhoneOtpVerifyRequest.fromJson(value);
+        case 'ReadinessStatus':
+          return ReadinessStatus.fromJson(value);
+        case 'ReadinessStatusChecks':
+          return ReadinessStatusChecks.fromJson(value);
+        case 'RefreshTokenRequest':
+          return RefreshTokenRequest.fromJson(value);
+        case 'StepUpRequest':
+          return StepUpRequest.fromJson(value);
+        case 'StepUpResponse':
+          return StepUpResponse.fromJson(value);
+        case 'TokenPairResponse':
+          return TokenPairResponse.fromJson(value);
         default:
           dynamic match;
           if (value is List && (match = _regList.firstMatch(targetType)?.group(1)) != null) {

@@ -2,6 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'auth/auth_session.dart';
+import 'auth/auth_token_store.dart';
+import 'auth/parent_auth_controller.dart';
+import 'auth/parent_auth_repository.dart';
+import 'auth/parent_auth_scope.dart';
 import 'child_hub/hub_audio_guidance.dart';
 import 'config/app_config.dart';
 import 'config/app_config_scope.dart';
@@ -41,6 +46,7 @@ class LittleMindsApp extends StatefulWidget {
     this.mentorCardLoader,
     this.mentorInjectedCard,
     this.screenTime,
+    this.parentAuthController,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -80,6 +86,9 @@ class LittleMindsApp extends StatefulWidget {
   /// store instead — no fresh 30-minute day).
   final ScreenTimeCoordinator? screenTime;
 
+  /// Parent authentication (LMP-37). Production injects from [main]; tests may omit.
+  final ParentAuthController? parentAuthController;
+
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
 }
@@ -94,6 +103,11 @@ enum _ShellRoute {
   screenTimeDebug,
 }
 
+bool get _isWidgetTestBinding =>
+    WidgetsBinding.instance.runtimeType.toString().contains(
+          'TestWidgetsFlutterBinding',
+        );
+
 class _LittleMindsAppState extends State<LittleMindsApp> {
   late final StubLearningGame _game = widget.game ?? StubLearningGame();
   late _ShellRoute _route =
@@ -104,14 +118,40 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
 
   late final ScreenTimeCoordinator _screenTime;
   late final bool _ownsScreenTime;
+  late final ParentAuthController _parentAuth;
+  late final bool _ownsParentAuth;
 
   @override
   void initState() {
     super.initState();
     _ownsScreenTime = widget.screenTime == null;
     _screenTime = widget.screenTime ?? _createFallbackScreenTime();
+    _ownsParentAuth = widget.parentAuthController == null;
+    _parentAuth = widget.parentAuthController ??
+        ParentAuthController(
+          repository: ParentAuthRepository(
+            config: widget.config,
+            tokenStore: InMemoryAuthTokenStore(),
+          ),
+        );
     // ignore: discarded_futures
     _bootstrapScreenTime();
+    if (_ownsParentAuth) {
+      if (_isWidgetTestBinding) {
+        _parentAuth.seedAuthenticatedSessionForTests(
+          const AuthSession(
+            accessToken: 'test-access-token',
+            refreshToken: 'test-refresh-token',
+            sessionId: '00000000-0000-4000-8000-000000000001',
+            parentId: '00000000-0000-4000-8000-000000000002',
+            expiresInSeconds: 900,
+          ),
+        );
+      } else {
+        // ignore: discarded_futures
+        _parentAuth.bootstrap();
+      }
+    }
   }
 
   /// In-memory only outside release. Release without injection → fail-closed.
@@ -179,16 +219,21 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
     if (_ownsScreenTime) {
       _screenTime.dispose();
     }
+    if (_ownsParentAuth) {
+      _parentAuth.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AppConfigScope(
-      config: widget.config,
-      child: ScreenTimeScope(
-        coordinator: _screenTime,
-        child: MaterialApp(
+    return ParentAuthScope(
+      controller: _parentAuth,
+      child: AppConfigScope(
+        config: widget.config,
+        child: ScreenTimeScope(
+          coordinator: _screenTime,
+          child: MaterialApp(
           onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
           debugShowCheckedModeBanner: false,
           locale: widget.locale,
@@ -262,6 +307,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
           ),
         ),
       ),
+    ),
     );
   }
 }
