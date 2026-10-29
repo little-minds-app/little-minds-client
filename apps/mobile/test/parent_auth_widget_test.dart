@@ -89,6 +89,31 @@ void main() {
     expect(find.textContaining('unavailable'), findsNWidgets(2));
   });
 
+  testWidgets('TC-AUTH-W05 social buttons disabled without native SDK',
+      (tester) async {
+    final repo = _RecordingParentAuthRepository(
+      tokenStore: InMemoryAuthTokenStore(),
+    );
+    final auth = await _authWithRepo(repo);
+    await tester.pumpWidget(
+      LittleMindsApp(
+        game: StubLearningGame(),
+        parentAuthController: auth,
+      ),
+    );
+    await _pumpFrames(tester);
+    await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
+    await _pumpFrames(tester);
+
+    for (final key in [
+      const Key('parent-auth-apple'),
+      const Key('parent-auth-google'),
+    ]) {
+      expect(tester.widget<OutlinedButton>(find.byKey(key)).onPressed, isNull);
+    }
+    expect(find.textContaining('unavailable'), findsNWidgets(2));
+  });
+
   testWidgets('TC-AUTH-W02 phone validation and OTP verify success',
       (tester) async {
     final repo = _RecordingParentAuthRepository(

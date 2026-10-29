@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../auth/auth_privacy_notice.dart';
 import '../auth/parent_auth_controller.dart';
 import '../auth/parent_auth_scope.dart';
+import '../auth/social_sign_in_config.dart';
 import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
 import '../shell/adaptive_shell.dart';
@@ -136,7 +137,6 @@ class ParentGateSurfaceState extends State<ParentGateSurface>
   }
 
   Widget _onboarding(BuildContext context, ParentAuthController auth) {
-    final social = auth.socialConfig;
     return Column(
       key: ParentGateSurface.onboardingKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -165,15 +165,17 @@ class ParentGateSurfaceState extends State<ParentGateSurface>
         const SizedBox(height: 24),
         _socialButton(
           label: 'Sign in with Apple',
-          enabled: social.appleSignInEnabled,
-          reason: 'Apple Sign In is not configured for this build.',
+          enabled: SocialSignInConfig.appleSignInEnabled,
+          reason:
+              'Sign in with Apple requires a future native SDK integration.',
           key: const Key('parent-auth-apple'),
         ),
         const SizedBox(height: 8),
         _socialButton(
           label: 'Sign in with Google',
-          enabled: social.googleSignInEnabled,
-          reason: 'Google Sign In is not configured for this build.',
+          enabled: SocialSignInConfig.googleSignInEnabled,
+          reason:
+              'Sign in with Google requires a future native SDK integration.',
           key: const Key('parent-auth-google'),
         ),
       ],

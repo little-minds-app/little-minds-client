@@ -9,6 +9,7 @@ import 'auth_error.dart';
 import 'auth_privacy_notice.dart';
 import 'auth_session.dart';
 import 'auth_token_store.dart';
+import 'parent_auth_profile_result.dart';
 
 /// Phone/email OTP + session lifecycle via generated OpenAPI client only.
 class ParentAuthRepository {
@@ -28,6 +29,7 @@ class ParentAuthRepository {
   final Uuid _uuid;
 
   String? _deviceId;
+  Future<AuthSession>? _refreshInFlight;
 
   Future<String> deviceId() async {
     _deviceId ??= _uuid.v4();
@@ -131,8 +133,9 @@ class ParentAuthRepository {
     }
   }
 
-  Future<ParentMeResponse> fetchParentProfile(AuthSession session) async {
-    _clients.setAccessToken(session.accessToken);
+  Future<ParentAuthProfileResult> fetchParentProfile(AuthSession session) async {
+    var active = session;
+    _clients.setAccessToken(active.accessToken);
     try {
       final me = await _clients.parent.getParentMe();
       if (me == null) {
@@ -141,25 +144,42 @@ class ParentAuthRepository {
           message: 'Session expired. Please sign in again.',
         );
       }
-      return me;
+      return ParentAuthProfileResult(profile: me, session: active);
     } on ApiException catch (e) {
       if (e.code == 401) {
-        final refreshed = await refreshSession(session);
-        _clients.setAccessToken(refreshed.accessToken);
+        active = await refreshSession(active);
+        _clients.setAccessToken(active.accessToken);
         final me = await _clients.parent.getParentMe();
         if (me == null) {
           throw ParentAuthFailure.fromApiException(e);
         }
-        return me;
+        return ParentAuthProfileResult(profile: me, session: active);
       }
       throw ParentAuthFailure.fromApiException(e);
     }
   }
 
   Future<AuthSession> refreshSession(AuthSession session) async {
+    if (_refreshInFlight != null) {
+      return _refreshInFlight!;
+    }
+    final future = _refreshSessionOnce(session);
+    _refreshInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_refreshInFlight, future)) {
+        _refreshInFlight = null;
+      }
+    }
+  }
+
+  Future<AuthSession> _refreshSessionOnce(AuthSession session) async {
+    final persisted = await _tokenStore.readSession();
+    final refreshToken = persisted?.refreshToken ?? session.refreshToken;
     try {
       final pair = await _clients.auth.refreshParentSession(
-        RefreshTokenRequest(refreshToken: session.refreshToken),
+        RefreshTokenRequest(refreshToken: refreshToken),
       );
       if (pair == null) {
         throw const ParentAuthFailure(
@@ -167,7 +187,8 @@ class ParentAuthRepository {
           message: 'Session expired. Please sign in again.',
         );
       }
-      final updated = session.copyWithTokens(pair);
+      final base = persisted ?? session;
+      final updated = base.copyWithTokens(pair);
       await _persist(updated);
       return updated;
     } on ApiException catch (e) {

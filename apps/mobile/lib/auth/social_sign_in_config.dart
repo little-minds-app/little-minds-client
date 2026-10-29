@@ -1,26 +1,15 @@
-/// Build-time gates for Apple/Google SDK wiring (LMP-37 MVP).
-///
-/// When disabled, onboarding shows safe disabled provider buttons — no silent
-/// no-ops and no placeholder tokens sent to the API.
+/// Apple/Google UI gates (LMP-37). Feature flags alone must not enable buttons.
 class SocialSignInConfig {
-  const SocialSignInConfig({
-    required this.appleSignInEnabled,
-    required this.googleSignInEnabled,
-  });
+  const SocialSignInConfig._();
 
-  final bool appleSignInEnabled;
-  final bool googleSignInEnabled;
+  /// Flip to true only when native Sign in with Apple / Google SDK wiring ships.
+  static const bool nativeSdkIntegrated = false;
 
-  static SocialSignInConfig fromEnvironment() {
-    return SocialSignInConfig(
-      appleSignInEnabled: const bool.fromEnvironment(
-        'LM_APPLE_SIGNIN_ENABLED',
-        defaultValue: false,
-      ),
-      googleSignInEnabled: const bool.fromEnvironment(
-        'LM_GOOGLE_SIGNIN_ENABLED',
-        defaultValue: false,
-      ),
-    );
-  }
+  static bool get appleSignInEnabled =>
+      nativeSdkIntegrated &&
+      const bool.fromEnvironment('LM_APPLE_SIGNIN_ENABLED', defaultValue: false);
+
+  static bool get googleSignInEnabled =>
+      nativeSdkIntegrated &&
+      const bool.fromEnvironment('LM_GOOGLE_SIGNIN_ENABLED', defaultValue: false);
 }

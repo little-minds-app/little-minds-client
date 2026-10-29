@@ -7,7 +7,6 @@ import 'auth_error.dart';
 import 'auth_session.dart';
 import 'openapi_enum_int.dart';
 import 'parent_auth_repository.dart';
-import 'social_sign_in_config.dart';
 
 enum ParentAuthStep {
   onboarding,
@@ -41,8 +40,6 @@ class ParentAuthController extends ChangeNotifier {
   String? get challengeId => _challengeId;
   int get resendAfterSeconds => _resendAfterSeconds;
   ParentAuthFailure? get lastError => _lastError;
-
-  SocialSignInConfig get socialConfig => SocialSignInConfig.fromEnvironment();
 
   Future<void> bootstrap() async {
     _lastError = null;
@@ -196,7 +193,9 @@ class ParentAuthController extends ChangeNotifier {
   }) async {
     _session = session;
     if (validateRemote) {
-      _profile = await _repository.fetchParentProfile(session);
+      final result = await _repository.fetchParentProfile(session);
+      _session = result.session;
+      _profile = result.profile;
     }
     _step = ParentAuthStep.authenticated;
     notifyListeners();
