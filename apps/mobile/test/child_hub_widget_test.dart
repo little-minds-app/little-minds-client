@@ -431,6 +431,8 @@ void main() {
     await tester.tap(find.byKey(ChildHubSurface.parentExitKey));
     await _pumpFrames(tester);
     expect(find.byKey(ParentGateSurface.surfaceKey), findsOneWidget);
+    expect(find.byKey(ParentGateSurface.onboardingKey), findsNothing);
+    expect(find.byKey(const Key('nav-parent-settings')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('nav-parent-settings')));
     await _pumpFrames(tester);
