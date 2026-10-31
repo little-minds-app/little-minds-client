@@ -140,8 +140,8 @@ jobs:
             echo '::warning::apps/web/package-lock.json is not committed. Build is checked but reproducibility remains blocked.'
           fi
 
-      - name: Run web tests
-        run: npm test
-
       - name: Build
         run: npm run build
+
+      - name: Run web HTTP integration and regression tests
+        run: npm test
