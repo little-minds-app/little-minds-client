@@ -31,6 +31,7 @@ export default function ParentHome() {
       if (!mounted) return;
       setParentId(typeof result.parent_id === 'string' ? result.parent_id : '');
       setState('signed_in');
+      if (new URLSearchParams(window.location.search).get('continue') === 'parent') window.location.replace('/parent');
     }).catch(() => { if (mounted) setState('signed_out'); });
     return () => { mounted = false; };
   }, []);
