@@ -21,7 +21,11 @@
     "/v1/auth/email/verify",
     "/v1/auth/identities/step-up",
     "/v1/auth/identities/link",
-    "/v1/auth/dev/session"
+    "/v1/auth/dev/session",
+    "/v1/auth/web/session",
+    "/v1/auth/web/me",
+    "/v1/auth/web/activity",
+    "/v1/auth/web/logout"
   ],
   "requiredOperations": [
     {
@@ -30,7 +34,11 @@
       "operationId": "getHealth",
       "responseStatus": "200",
       "schemaRef": "#/components/schemas/HealthStatus",
-      "requiredProperties": ["status", "service", "timestamp"]
+      "requiredProperties": [
+        "status",
+        "service",
+        "timestamp"
+      ]
     },
     {
       "path": "/v1/auth/phone/start",
@@ -38,7 +46,11 @@
       "operationId": "startPhoneOtp",
       "responseStatus": "200",
       "schemaRef": "#/components/schemas/PhoneOtpStartResponse",
-      "requiredProperties": ["challenge_id", "expires_in", "resend_after"]
+      "requiredProperties": [
+        "challenge_id",
+        "expires_in",
+        "resend_after"
+      ]
     },
     {
       "path": "/v1/auth/phone/verify",
@@ -61,7 +73,11 @@
       "operationId": "startEmailOtp",
       "responseStatus": "200",
       "schemaRef": "#/components/schemas/EmailOtpStartResponse",
-      "requiredProperties": ["challenge_id", "expires_in", "resend_after"]
+      "requiredProperties": [
+        "challenge_id",
+        "expires_in",
+        "resend_after"
+      ]
     },
     {
       "path": "/v1/auth/token/refresh",
@@ -84,16 +100,36 @@
       "operationId": "getParentMe",
       "responseStatus": "200",
       "schemaRef": "#/components/schemas/ParentMeResponse",
-      "requiredProperties": ["parent_id", "locale", "timezone", "lifecycle"]
+      "requiredProperties": [
+        "parent_id",
+        "locale",
+        "timezone",
+        "lifecycle"
+      ]
     }
   ],
   "requiredSchemas": {
     "HealthStatus": {
-      "required": ["status", "service", "timestamp"],
+      "required": [
+        "status",
+        "service",
+        "timestamp"
+      ],
       "properties": {
-        "status": { "enum": ["ok"] },
-        "service": { "enum": ["little-minds-backend"] },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "status": {
+          "enum": [
+            "ok"
+          ]
+        },
+        "service": {
+          "enum": [
+            "little-minds-backend"
+          ]
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "ActivitySessionV1": {
@@ -136,7 +172,10 @@
       "properties": {}
     },
     "AuthError": {
-      "required": ["error", "message"],
+      "required": [
+        "error",
+        "message"
+      ],
       "properties": {
         "error": {
           "enum": [
