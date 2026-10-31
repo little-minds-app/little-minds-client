@@ -16,8 +16,9 @@ export default async function ProtectedParentPage() {
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });
-  } catch { redirect('/'); }
-  if (!response.ok) redirect('/');
+  } catch { return <main><h1>Servise ulaşılamıyor</h1><p>Oturumunuz korunuyor. Daha sonra yeniden deneyin.</p><a href="/parent">Yeniden dene</a></main>; }
+  if (response.status === 401 || response.status === 403) redirect('/');
+  if (!response.ok) return <main><h1>Servis geçici olarak kullanılamıyor</h1><p>Oturumunuz kapatılmadı.</p><a href="/parent">Yeniden dene</a></main>;
   const parent = await response.json() as { parent_id?: string };
   return <main><h1>Ebeveyn alanı</h1><p>Oturum doğrulandı.</p><p>Parent: {parent.parent_id ?? 'Aktif'}</p><a href='/'>Ana sayfaya dön</a></main>;
 }
