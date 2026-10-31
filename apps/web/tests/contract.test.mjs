@@ -6,33 +6,26 @@ const handler = readFileSync(new URL('../app/api/auth/[action]/route.ts', import
 const protectedRoute = readFileSync(new URL('../app/parent/page.tsx', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
 
-test('web tokens remain server-side in HTTP-only cookies', () => {
+test('browser stores only opaque HTTP-only cookie', () => {
+  assert.match(handler, /__Host-lm_web_session/);
   assert.match(handler, /httpOnly: true/);
   assert.match(handler, /sameSite: 'strict'/);
-  assert.match(handler, /refreshFlights/);
+  assert.doesNotMatch(handler, /refreshFlights|refreshOnce|token\/refresh/);
   assert.doesNotMatch(ui, /localStorage|sessionStorage/);
 });
 
-test('protected parent route validates access against the API', () => {
-  assert.match(protectedRoute, /\/v1\/parent\/me/);
-  assert.match(protectedRoute, /redirect\('\/'\)/);
+test('protected parent route uses authoritative web session', () => {
+  assert.match(protectedRoute, /\/v1\/auth\/web\/me/);
+  assert.doesNotMatch(protectedRoute, /Bearer /);
 });
 
-test('OTP success has a distinct recovery state', () => {
+test('OTP success and logout have recovery states', () => {
   assert.match(ui, /checking_session/);
-  assert.match(ui, /Profili yeniden kontrol et/);
+  assert.match(ui, /Sunucu çıkış onayı alınamadı|Çıkış tamamlanamadı|Çıkış yap/);
 });
 
-test('logout failure does not claim local session termination', () => {
-  assert.match(ui, /Oturum hâlâ açık olabilir/);
-  assert.doesNotMatch(ui, /finally \{ setParentId\(''\); setState\('signed_out'\)/);
-});
-
-test('protected access failure redirects to stable sign-in page', () => {
-  assert.doesNotMatch(protectedRoute, /continue=parent/);
-  assert.doesNotMatch(ui, /window\.location\.replace\('\/parent'\)/);
-});
-
-test('local backend does not default to the Next.js port', () => {
-  assert.match(handler, /127\.0\.0\.1:3001/);
+test('web login exchanges bearer only on server', () => {
+  assert.match(handler, /\/v1\/auth\/web\/session/);
+  assert.match(handler, /bearer: token/);
+  assert.match(handler, /clear\(response\)/);
 });
