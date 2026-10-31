@@ -1,0 +1,1 @@
+export default function ParentWebShell() { return <main><h1>Little Minds</h1><p>Ebeveyn web uygulaması altyapısı hazır.</p><p>Giriş ve ebeveyn paneli ayrı Jira görevlerinde geliştirilecektir.</p></main>; }
