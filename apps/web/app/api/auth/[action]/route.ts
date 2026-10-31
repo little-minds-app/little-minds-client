@@ -72,6 +72,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
   }
   if (action === 'verify') {
     if (typeof body.challenge_id !== 'string' || typeof body.code !== 'string') return json({ error: 'invalid_request' }, 400);
+    const bffSecret = process.env.LM_WEB_BFF_SECRET;
+    if (!bffSecret || bffSecret.length < 32 || bffSecret.includes('CHANGE_ME')) return json({ error: 'web_config_unavailable', message: 'Web sign-in is temporarily unavailable.' }, 503);
     const verified = await backend('/v1/auth/phone/verify', {
       body: { challenge_id: body.challenge_id, code: body.code, client_surface: 'web' },
     });
@@ -79,11 +81,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
     // JWT/refresh-token pair stays within trusted Next.js and backend servers.
     const token = verified.data.access_token;
     if (typeof token !== 'string') return json({ error: 'invalid_token' }, 502);
-    const bffSecret = process.env.LM_WEB_BFF_SECRET;
-    if (!bffSecret || bffSecret.length < 32) {
-      await backend('/v1/auth/logout', { body: {}, bearer: token });
-      return json({ error: 'web_session_exchange_failed', message: 'Web sign-in is temporarily unavailable.' }, 503);
-    }
     const exchanged = await backend('/v1/auth/web/session', { body: {}, bearer: token, bffSecret });
     if (exchanged.status !== 201) {
       // OTP has been consumed; revoke the otherwise-orphaned native session.
