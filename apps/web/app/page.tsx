@@ -31,7 +31,7 @@ export default function ParentHome() {
       if (!mounted) return;
       setParentId(typeof result.parent_id === 'string' ? result.parent_id : '');
       setState('signed_in');
-      if (new URLSearchParams(window.location.search).get('continue') === 'parent') window.location.replace('/parent');
+      // Never auto-redirect: authorization failure must not create a redirect loop.
     }).catch(() => { if (mounted) setState('signed_out'); });
     return () => { mounted = false; };
   }, []);
@@ -61,9 +61,10 @@ export default function ParentHome() {
 
   async function logout() {
     setBusy(true); setError('');
-    try { await apiPostLogout(); }
-    catch { setError('Sunucu çıkış onayı alınamadı. Bu cihazda oturum ekranı kapatıldı; yeniden bağlanınca çıkışı kontrol edin.'); }
-    finally { setParentId(''); setState('signed_out'); setCode(''); setChallenge(''); setBusy(false); }
+    try { await apiPostLogout(); setParentId(''); setState('signed_out'); setCode(''); setChallenge(''); }
+    catch { setError('Çıkış tamamlanamadı. Oturum hâlâ açık olabilir; lütfen tekrar deneyin.'); }
+    finally { setBusy(false); }
+
   }
 
   async function apiPostLogout() { await api('logout', {}); }
