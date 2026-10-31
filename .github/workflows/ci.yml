@@ -130,11 +130,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies and validate lock when available
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+            echo '::warning::apps/web/package-lock.json is not committed. Build is checked but reproducibility remains blocked.'
+          fi
 
       - name: Run web tests
         run: npm test
