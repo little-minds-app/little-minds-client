@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 const ACCESS_COOKIE = 'lm_parent_access';
 const REFRESH_COOKIE = 'lm_parent_refresh';
 const COOKIE_PATH = '/';
-const BACKEND = process.env.LM_API_BASE_URL ?? 'http://127.0.0.1:3000';
+const BACKEND = process.env.LM_API_BASE_URL ?? 'http://127.0.0.1:3001';
 // Per-process refresh deduplication prevents two local requests from reusing one
 // single-use refresh token. Multi-instance deployment requires distributed locking.
 const refreshFlights = new Map<string, Promise<{ status: number; data: unknown }>>();
