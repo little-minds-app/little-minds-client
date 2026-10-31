@@ -9,7 +9,7 @@ export default async function ProtectedParentPage() {
   if (!access) redirect(jar.get('lm_parent_refresh') ? '/?continue=parent' : '/');
   let response: Response;
   try {
-    response = await fetch(new URL('/v1/parent/me', process.env.LM_API_BASE_URL ?? 'http://127.0.0.1:3000'), {
+    response = await fetch(new URL('/v1/parent/me', process.env.LM_API_BASE_URL ?? 'http://127.0.0.1:3001'), {
       headers: { authorization: 'Bearer ' + access },
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
