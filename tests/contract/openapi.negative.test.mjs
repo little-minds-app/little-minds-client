@@ -46,7 +46,7 @@ describe('LMP-27 negative: stale / mismatched pin', () => {
       () =>
         assertPinAndArtifactIntegrity({
           pin,
-          version: '0.7.1',
+          version: '0.8.0',
           openApiDoc: doc,
           openApiRaw,
         }),
@@ -64,7 +64,7 @@ describe('LMP-27 negative: stale / mismatched pin', () => {
       () =>
         assertPinAndArtifactIntegrity({
           pin,
-          version: '0.7.1',
+          version: '0.8.0',
           openApiDoc: doc,
           openApiRaw,
         }),
@@ -79,7 +79,7 @@ describe('LMP-27 negative: stale / mismatched pin', () => {
       () =>
         assertPinAndArtifactIntegrity({
           pin,
-          version: '0.7.1',
+          version: '0.8.0',
           openApiDoc: doc,
           openApiRaw,
         }),
@@ -95,7 +95,7 @@ describe('LMP-27 negative: stale / mismatched pin', () => {
       () =>
         assertPinAndArtifactIntegrity({
           pin: loadGoodPin(),
-          version: '0.7.1',
+          version: '0.8.0',
           openApiDoc: drifted,
           openApiRaw,
         }),
@@ -114,7 +114,7 @@ describe('LMP-27 negative: mutated OpenAPI spec', () => {
     const errors = evaluateCompatibility({
       doc: mutated,
       baseline: loadBaseline(),
-      version: '0.7.1',
+      version: '0.8.0',
     });
     assert.ok(
       errors.some((e) => e.includes('/v1/invented')),
@@ -134,7 +134,7 @@ describe('LMP-27 negative: mutated OpenAPI spec', () => {
     const errors = evaluateCompatibility({
       doc: mutated,
       baseline: loadBaseline(),
-      version: '0.7.1',
+      version: '0.8.0',
     });
     assert.ok(
       errors.some((e) => e.includes('/v1/events/batch')),
@@ -150,7 +150,7 @@ describe('LMP-27 negative: mutated OpenAPI spec', () => {
     const errors = evaluateCompatibility({
       doc: mutated,
       baseline: loadBaseline(),
-      version: '0.7.1',
+      version: '0.8.0',
     });
     assert.ok(
       errors.some((e) => /timestamp/i.test(e)),
@@ -165,7 +165,7 @@ describe('LMP-27 negative: mutated OpenAPI spec', () => {
     const errors = evaluateCompatibility({
       doc: mutated,
       baseline: loadBaseline(),
-      version: '0.7.1',
+      version: '0.8.0',
     });
     assert.ok(
       errors.some((e) => /ActivityEventV1/i.test(e)),
@@ -187,7 +187,7 @@ describe('LMP-27 negative: mutated OpenAPI spec', () => {
       () =>
         assertPinAndArtifactIntegrity({
           pin: loadGoodPin(),
-          version: '0.7.1',
+          version: '0.8.0',
           openApiDoc: doc,
           openApiRaw: mutatedRaw,
         }),
