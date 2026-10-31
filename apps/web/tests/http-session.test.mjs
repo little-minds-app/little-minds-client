@@ -32,6 +32,7 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
     if (path === '/v1/auth/phone/verify') return json(res, 200, { access_token: 'backend-only-access', refresh_token: 'backend-only-refresh' });
     if (path === '/v1/auth/web/session') {
       assert.equal(req.headers.authorization, 'Bearer backend-only-access');
+      assert.equal(req.headers['x-lm-bff-secret'], 'test-only-bff-secret-32-characters-long');
       issued = true;
       return json(res, 201, { handle, expires_at: new Date(Date.now() + 3600_000).toISOString() });
     }
@@ -53,7 +54,7 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
   const origin = 'http://127.0.0.1:' + port;
   const web = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port), '-H', '127.0.0.1'], {
     cwd: process.cwd(),
-    env: { ...process.env, LM_API_BASE_URL: 'http://127.0.0.1:' + backend.address().port },
+    env: { ...process.env, LM_API_BASE_URL: 'http://127.0.0.1:' + backend.address().port, LM_WEB_BFF_SECRET: 'test-only-bff-secret-32-characters-long' },
     stdio: 'ignore',
   });
   try {
