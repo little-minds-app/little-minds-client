@@ -21,7 +21,14 @@ function json(payload: unknown, status = 200) {
 }
 function originAllowed(request: NextRequest) {
   const origin = request.headers.get('origin');
-  return Boolean(origin && origin === request.nextUrl.origin);
+  if (!origin) return false;
+  try {
+    const parsed = new URL(origin);
+    // Behind a reverse proxy NextRequest.nextUrl.origin may normalize to localhost;
+    // the client-facing Host and scheme remain authoritative for same-origin POST.
+    return parsed.host === request.headers.get('host') &&
+      parsed.protocol === (request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', '')) + ':';
+  } catch { return false; }
 }
 type BackendResult = { status: number; data: Record<string, unknown> };
 async function backend(path: string, opts: { body?: object; bearer?: string; handle?: string } = {}): Promise<BackendResult> {
