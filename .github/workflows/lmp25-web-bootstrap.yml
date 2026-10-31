@@ -8,10 +8,34 @@ permissions:
   contents: read
 
 jobs:
+  generate-lockfile:
+    name: Generate deterministic web npm lockfile
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feature/lmp-25-nextjs-bootstrap'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/lmp-25-nextjs-bootstrap
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Commit npm-generated lockfile if missing
+        working-directory: apps/web
+        run: |
+          if [ -f package-lock.json ]; then exit 0; fi
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json
+          git commit -m '[LMP-25] Commit reproducible web dependency lockfile'
+          git push origin HEAD:feature/lmp-25-nextjs-bootstrap
   web-bootstrap:
     name: Next.js responsive shell - lint, typecheck, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: generate-lockfile
     defaults:
       run:
         working-directory: apps/web
@@ -20,14 +44,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci --no-audit --no-fund
-          else
-            npm install --no-audit --no-fund
-            echo "::warning::LMP-25: package-lock.json is missing; reproducible npm ci remains a release blocker"
-          fi
+      - name: Install pinned dependencies
+        run: npm ci --no-audit --no-fund
       - name: Static checks
         run: |
           npm run lint
