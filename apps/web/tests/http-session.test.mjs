@@ -27,6 +27,7 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
   let meCount = 0;
   let refreshCount = 0;
   let backendUnavailable = false;
+  let activityCount = 0;
   const backend = createServer(async (req, res) => {
     const path = req.url;
     if (path === '/v1/auth/phone/start') return json(res, 200, { challenge_id: '00000000-0000-4000-8000-000000000001' });
@@ -42,6 +43,11 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
       if (backendUnavailable) return json(res, 503, { error: 'backend_unavailable' });
       if (!issued || revoked || req.headers['x-lm-web-session'] !== handle) return json(res, 401, { error: 'invalid_token' });
       return json(res, 200, { parent_id: 'parent-1', locale: 'tr-TR', timezone: 'Europe/Istanbul' });
+    }
+    if (path === '/v1/auth/web/activity') {
+      activityCount += 1;
+      assert.equal(req.headers['x-lm-bff-secret'], 'test-only-bff-secret-32-characters-long');
+      return json(res, 200, { parent_id: 'parent-1' });
     }
     if (path === '/v1/auth/web/logout') {
       revoked = true;
@@ -89,6 +95,11 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
     assert.ok(profile.every((r) => r.status === 200));
     assert.equal(refreshCount, 0, 'browser web sessions do not rotate refresh tokens');
     assert.ok(meCount >= 8);
+    assert.equal(activityCount, 0, 'passive profile polling must not touch idle timeout');
+    assert.equal((await post('activity', {}, browserCookie)).status, 200);
+    assert.equal(activityCount, 1);
+    assert.equal((await post('activity', {}, browserCookie, false)).status, 403);
+    assert.equal(activityCount, 1, 'cross-origin/CSRF activity denied');
     const protectedPage = await fetch(origin + '/parent', { headers: { cookie: browserCookie }, redirect: 'manual' });
     assert.equal(protectedPage.status, 200);
     assert.match(await protectedPage.text(), /Ebeveyn alanı/);
