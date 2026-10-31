@@ -62,7 +62,16 @@ export default function ParentHome() {
   async function logout() {
     setBusy(true); setError('');
     try { await apiPostLogout(); setParentId(''); setState('signed_out'); setCode(''); setChallenge(''); }
-    catch { setError('Çıkış tamamlanamadı. Oturum hâlâ açık olabilir; lütfen tekrar deneyin.'); }
+    catch (cause) {
+      // An explicit 503 from our server means it cleared HttpOnly cookies but
+      // couldn't confirm backend revocation. Network failure means cookies may remain.
+      if (cause instanceof Error && cause.message === 'Server logout could not be confirmed') {
+        setParentId(''); setState('signed_out'); setCode(''); setChallenge('');
+        setError('Bu tarayıcıdaki oturum kapatıldı ancak sunucu iptali doğrulanamadı.');
+      } else {
+        setError('Çıkış tamamlanamadı. Oturum hâlâ açık olabilir; lütfen tekrar deneyin.');
+      }
+    }
     finally { setBusy(false); }
 
   }
