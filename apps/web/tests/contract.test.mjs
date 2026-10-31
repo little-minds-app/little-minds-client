@@ -23,13 +23,14 @@ test('OTP success has a distinct recovery state', () => {
   assert.match(ui, /Profili yeniden kontrol et/);
 });
 
-test('logout transport failure does not retain signed-in UI', () => {
-  assert.match(ui, /finally \{ setParentId\(''\); setState\('signed_out'\)/);
+test('logout failure does not claim local session termination', () => {
+  assert.match(ui, /Oturum hâlâ açık olabilir/);
+  assert.doesNotMatch(ui, /finally \{ setParentId\(''\); setState\('signed_out'\)/);
 });
 
-test('expired access with refresh cookie gets a recovery route', () => {
-  assert.match(protectedRoute, /continue=parent/);
-  assert.match(ui, /window\.location\.replace\('\/parent'\)/);
+test('protected access failure redirects to stable sign-in page', () => {
+  assert.doesNotMatch(protectedRoute, /continue=parent/);
+  assert.doesNotMatch(ui, /window\.location\.replace\('\/parent'\)/);
 });
 
 test('local backend does not default to the Next.js port', () => {
