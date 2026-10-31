@@ -31,7 +31,7 @@ function originAllowed(request: NextRequest) {
   } catch { return false; }
 }
 type BackendResult = { status: number; data: Record<string, unknown> };
-async function backend(path: string, opts: { body?: object; bearer?: string; handle?: string } = {}): Promise<BackendResult> {
+async function backend(path: string, opts: { body?: object; bearer?: string; handle?: string; bffSecret?: string } = {}): Promise<BackendResult> {
   try {
     const response = await fetch(new URL(path, BACKEND), {
       method: opts.body === undefined ? 'GET' : 'POST',
@@ -39,6 +39,7 @@ async function backend(path: string, opts: { body?: object; bearer?: string; han
         ...(opts.body !== undefined ? { 'content-type': 'application/json' } : {}),
         ...(opts.bearer ? { authorization: 'Bearer ' + opts.bearer } : {}),
         ...(opts.handle ? { 'x-lm-web-session': opts.handle } : {}),
+        ...(opts.bffSecret ? { 'x-lm-bff-secret': opts.bffSecret } : {}),
       },
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
       cache: 'no-store',
@@ -78,7 +79,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
     // JWT/refresh-token pair stays within trusted Next.js and backend servers.
     const token = verified.data.access_token;
     if (typeof token !== 'string') return json({ error: 'invalid_token' }, 502);
-    const exchanged = await backend('/v1/auth/web/session', { body: {}, bearer: token });
+    const bffSecret = process.env.LM_WEB_BFF_SECRET;
+    if (!bffSecret || bffSecret.length < 32) return json({ error: 'web_config_unavailable', message: 'Web sign-in is temporarily unavailable.' }, 503);
+    const exchanged = await backend('/v1/auth/web/session', { body: {}, bearer: token, bffSecret });
     if (exchanged.status !== 201) return json({ error: 'web_session_exchange_failed', message: 'OTP verified, but web session creation failed. Request a new code.' }, 503);
     const handle = exchanged.data.handle;
     const expiry = exchanged.data.expires_at;
