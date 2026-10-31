@@ -26,15 +26,15 @@ describe('LMP-23/27 OpenAPI pin and schema', () => {
     assert.match(pin.backendCommitSha, /^[0-9a-f]{40}$/i);
     assert.match(pin.artifactBlobSha, /^[0-9a-f]{40}$/i);
     assert.equal(pin.artifactPath, 'contracts/openapi.yaml');
-    assert.equal(pin.contractVersion, '0.7.1');
+    assert.equal(pin.contractVersion, '0.8.0');
     assert.equal(pin.backendRepository, 'little-minds-app/little-minds-backend');
     assert.equal(
       pin.backendCommitSha,
-      '83fbc6bad1057ff37419b4a0cc67243025102d36',
+      'bae3044857bc11479d4ca680ec55b5339779e025',
     );
     assert.equal(
       pin.backendPullRequest,
-      'https://github.com/little-minds-app/little-minds-backend/pull/20',
+      'https://github.com/little-minds-app/little-minds-backend/pull/22',
     );
     assert.notEqual(pin.backendCommitSha.toLowerCase(), 'main');
   });
@@ -44,7 +44,7 @@ describe('LMP-23/27 OpenAPI pin and schema', () => {
     const pin = JSON.parse(readFileSync(PIN_PATH, 'utf8'));
     const openApiRaw = readFileSync(OPENAPI_PATH);
     const doc = parseYaml(openApiRaw.toString('utf8'));
-    assert.equal(version, '0.7.1');
+    assert.equal(version, '0.8.0');
     assertPinAndArtifactIntegrity({ pin, version, openApiDoc: doc, openApiRaw });
     assert.equal(gitBlobShaFromFile(OPENAPI_PATH), pin.artifactBlobSha);
   });
