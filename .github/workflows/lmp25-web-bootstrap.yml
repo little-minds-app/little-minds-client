@@ -28,7 +28,7 @@ jobs:
         run: |
           npm run lint
           npm run typecheck
-      - name: Responsive shell regression
-        run: npm test
       - name: Production build
         run: npm run build
+      - name: Responsive shell and HTTP regression
+        run: npm test
