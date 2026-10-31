@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 
 type State = 'loading' | 'signed_out' | 'otp' | 'checking_session' | 'signed_in';
 type ErrorResponse = { error?: string; message?: string };
+type AuthFailure = Error & { code?: string; httpStatus?: number };
 
 export default function ParentHome() {
   const [state, setState] = useState<State>('loading');
@@ -21,7 +22,12 @@ export default function ParentHome() {
       cache: 'no-store',
     });
     const result = (await response.json()) as Record<string, unknown> & ErrorResponse;
-    if (!response.ok) throw new Error(result.message || 'İstek tamamlanamadı.');
+    if (!response.ok) {
+      const failure = new Error(result.message || 'İstek tamamlanamadı.') as AuthFailure;
+      failure.code = result.error;
+      failure.httpStatus = response.status;
+      throw failure;
+    }
     return result;
   }
 
@@ -55,7 +61,16 @@ export default function ParentHome() {
           setError('Giriş başarılı, ancak profil yüklenemedi. Tekrar kontrol edin.');
         }
       }
-    } catch (e) { setError(e instanceof Error ? e.message : 'Beklenmeyen hata.'); }
+    } catch (e) {
+      // Successful OTP can be consumed even when the subsequent server-only
+      // session exchange fails. Never invite replay of the consumed code.
+      if (state === 'otp' && (e as AuthFailure)?.code === 'web_session_exchange_failed') {
+        setState('signed_out'); setChallenge(''); setCode('');
+        setError('SMS kodu doğrulandı ama oturum açılamadı. Yeni kod isteyin.');
+      } else {
+        setError(e instanceof Error ? e.message : 'Beklenmeyen hata.');
+      }
+    }
     finally { setBusy(false); }
   }
 
