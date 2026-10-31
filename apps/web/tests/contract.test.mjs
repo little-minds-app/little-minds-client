@@ -29,3 +29,12 @@ test('web login exchanges bearer only on server', () => {
   assert.match(handler, /bearer: token/);
   assert.match(handler, /clear\(response\)/);
 });
+
+test('BFF secret is verified before OTP verification', () => {
+  assert.ok(handler.indexOf("const bffSecret = process.env.LM_WEB_BFF_SECRET") < handler.indexOf("const verified = await backend('/v1/auth/phone/verify'"));
+});
+
+test('backend outage preserves protected page rather than forcing logout', () => {
+  assert.match(protectedRoute, /Servis geçici olarak kullanılamıyor/);
+  assert.match(handler, /revocation_confirmed: confirmed/);
+});
