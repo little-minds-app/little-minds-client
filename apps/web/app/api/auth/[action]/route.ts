@@ -101,8 +101,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
     } catch { return json({ error: 'invalid_request' }, 502); }
   }
   const token = request.cookies.get(REFRESH_COOKIE)?.value;
-  if (token) await backend('/v1/auth/logout', { refresh_token: token });
-  const response = json({ signed_out: true });
+  const revoked = token ? await backend('/v1/auth/logout', { refresh_token: token }) : { status: 204, data: {} };
+  // Clear cookies regardless, but never claim server-side revocation on failure.
+  const ok = revoked.status === 204 || revoked.status === 200;
+  const response = ok
+    ? json({ signed_out: true })
+    : json({ error: 'logout_unconfirmed', message: 'Server logout could not be confirmed' }, 503);
   clear(response);
   return response;
 }
