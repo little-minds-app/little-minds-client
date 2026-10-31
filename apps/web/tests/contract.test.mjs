@@ -22,3 +22,16 @@ test('OTP success has a distinct recovery state', () => {
   assert.match(ui, /checking_session/);
   assert.match(ui, /Profili yeniden kontrol et/);
 });
+
+test('logout transport failure does not retain signed-in UI', () => {
+  assert.match(ui, /finally \{ setParentId\(''\); setState\('signed_out'\)/);
+});
+
+test('expired access with refresh cookie gets a recovery route', () => {
+  assert.match(protectedRoute, /continue=parent/);
+  assert.match(ui, /window\.location\.replace\('\/parent'\)/);
+});
+
+test('local backend does not default to the Next.js port', () => {
+  assert.match(handler, /127\.0\.0\.1:3001/);
+});
