@@ -1,17 +1,31 @@
 # Little Minds Parent Web — LMP-38 (development preview)
 
-This Next.js server-side authentication prototype is **not production ready**. LMP-25 web bootstrap is an outstanding prerequisite. No approved legal privacy notice copy is bundled.
+This Next.js browser-auth implementation depends on backend PR #22 (ADR-023), which adds database-owned opaque web sessions. **Both PRs are Draft; do not merge or deploy until both contracts, PostgreSQL tests and real HTTP tests pass.** LMP-25 web bootstrap remains a separate dependency. Privacy notice copy is an engineering placeholder pending qualified legal approval.
 
-Run locally with Node 22 and a backend configured for development:
+## Run locally
+
+Use Node 22. Run the **backend feature branch** on port 3001 with PostgreSQL migrated to the new `web_parent_sessions` table, and Next on port 3000:
 
 ```sh
 cd apps/web
 npm install
-npm run dev
+LM_API_BASE_URL=http://127.0.0.1:3001 npm run dev
 ```
 
-Visit http://localhost:3000 (run backend on 3001 or Next on 3002 with `npm run dev -- -p 3002`). Set `LM_API_BASE_URL=http://127.0.0.1:3001` to the backend address. Never point a production deployment at a development backend.
+No OTP code is ever returned by the API; the fake SMS development adapter needs a separate local test harness.
 
-The browser calls same-origin /api/auth endpoints only. Access/refresh tokens stay in HttpOnly SameSite cookies on the web origin; the Next server talks to the backend. OTP code is **not returned by the API**. Development fake SMS requires a separate local harness. Backend /v1/parent/me verifies the bearer and refresh rotates tokens on 401. Logout clears cookies on server response even if backend revocation fails (returns 503 and warns the user); if the browser never reaches the Next server, cookies cannot be cleared and the UI instructs the user to retry.
+## Security model
 
-**Before merge / production:** Finish LMP-25 with reproducible lockfile + CI Next.js job, replace per-process refresh deduplication with cross-instance coordination or a backend-owned web session, complete CSRF/security review, legal notice approval, real browser E2E for OTP / session / refresh / logout / guarded page and staging deployment. `app/parent` route is server-validated and redirects to the sign-in page for expired access; the root page can refresh the session without auto-redirect loops. This recovery is limited until a server-managed session architecture is implemented. This branch is a first implementation slice, not evidence of those checks passing.
+Browser -> same-origin Next route handlers -> backend. The browser receives **only an opaque 256-bit web session cookie**. Next calls `/v1/auth/phone/verify` and exchanges the short-lived server-only access token at `/v1/auth/web/session`. Backend hashes the opaque handle in PostgreSQL and ties it to an active parent account and existing parent session. Every `GET /v1/auth/web/me` validates DB state, including expiry/revocation, across any replica. Browser web sessions **never rotate refresh tokens**. On exchange, the backend removes the associated native refresh hash so it cannot be used again.
+
+Production cookie is `__Host-lm_web_session` (Secure/HttpOnly/SameSite=Strict/Path=/), with an explicit separate localhost development cookie. Backend remains source of truth for logout; Next clears cookies and reports an error if backend revocation cannot be confirmed. If no HTTP response reaches the browser, cookies cannot be deleted by JS. CSRF POST origin check is a defense-in-depth measure, not a substitute for a reviewed deployment proxy/TLS model.
+
+## Required verification before merge
+
+- Backend migration + Prisma generation + PostgreSQL DB integration suite; web Next.js build and actual HTTP integration tests.
+- Browser E2E against real backend for OTP, session persistence, direct protected route, expiry, logout transport failure, and accessibility.
+- Versioned OpenAPI contract pin/TypeScript client update for new backend API (backend PR #22).
+- Commit `apps/web/package-lock.json` and replace fallback `npm install` with reproducible `npm ci` (cannot fetch the npm registry in this execution environment).
+- LMP-25 bootstrap dependency, CSRF/proxy security review, qualified KVKK notice/legal approval and staging release review.
+
+**Note:** Do not interpret a standalone client CI pass against mock backend as evidence that the still-unmerged backend contract is compatible. The two PRs must be tested together.
