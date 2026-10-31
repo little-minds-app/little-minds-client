@@ -61,3 +61,7 @@ Agents must **not** silently close open ADRs or contradict Approved ADRs.
 ## LMP-19 doc tests
 
 Structure checks: `scripts/check-lmp19-docs.sh` (client) and the backend pointer equivalent.
+
+## ADR-023 — Accepted web parent session boundary (LMP-38)
+
+**Accepted 2026-10-31 by explicit Product Owner decision.** Backend-owned opaque web handle (no browser JWT/refresh), maximum 30-day absolute session lifetime, **30-minute meaningful-activity inactivity timeout**, immediate backend revocation, BFF-only exchange, Secure/HttpOnly/SameSite=Strict cookie. Backend inactivity enforcement has been committed in Draft PR #22, but the accepted policy remains subject to green current-head CI, full-stack E2E and security review; acceptance is not implementation sign-off. Normative decision: [backend ADR-023](https://github.com/little-minds-app/little-minds-backend/blob/design/lmp-38-backend-web-session/docs/adr/ADR-023-backend-owned-web-session.md). Keep client PR Draft until backend/client E2E, session-policy tests, privacy/deployment gates and human review pass.
