@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -7,6 +8,21 @@ const ACCESS_COOKIE = 'lm_parent_access';
 const REFRESH_COOKIE = 'lm_parent_refresh';
 const COOKIE_PATH = '/';
 const BACKEND = process.env.LM_API_BASE_URL ?? 'http://127.0.0.1:3000';
+// Per-process refresh deduplication prevents two local requests from reusing one
+// single-use refresh token. Multi-instance deployment requires distributed locking.
+const refreshFlights = new Map<string, Promise<{ status: number; data: unknown }>>();
+function refreshOnce(token: string) {
+  const key = createHash('sha256').update(token).digest('hex');
+  const existing = refreshFlights.get(key);
+  if (existing) return existing;
+  const work = backend('/v1/auth/token/refresh', { refresh_token: token });
+  refreshFlights.set(key, work);
+  void work.finally(() => {
+    // Leave the resolved result briefly for requests racing with Set-Cookie propagation.
+    setTimeout(() => { if (refreshFlights.get(key) === work) refreshFlights.delete(key); }, 1000);
+  });
+  return work;
+}
 
 function options() {
   return { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' as const, path: COOKIE_PATH };
@@ -19,7 +35,7 @@ function save(response: NextResponse, tokens: Record<string, unknown>) {
   if (typeof tokens.access_token !== 'string' || typeof tokens.refresh_token !== 'string') {
     throw new Error('Invalid token response');
   }
-  const age = typeof tokens.expires_in === 'number' ? tokens.expires_in : 900;
+  const age = typeof tokens.expires_in === 'number' && tokens.expires_in > 0 ? tokens.expires_in : 900;
   response.cookies.set(ACCESS_COOKIE, tokens.access_token, { ...options(), maxAge: age });
   response.cookies.set(REFRESH_COOKIE, tokens.refresh_token, { ...options() });
 }
@@ -106,16 +122,20 @@ export async function GET(request: NextRequest, context: { params: Promise<{ act
     clear(response);
     return response;
   }
-  const rotated = await backend('/v1/auth/token/refresh', { refresh_token: refresh });
+  const rotated = await refreshOnce(refresh);
   if (rotated.status !== 200) {
     const response = error(rotated);
     if (rotated.status === 401) clear(response);
     return response;
   }
   const tokens = rotated.data as Record<string, unknown>;
-  if (typeof tokens.access_token !== 'string') return json({ error: 'invalid_token' }, 502);
+  if (typeof tokens.access_token !== 'string' || typeof tokens.refresh_token !== 'string') return json({ error: 'invalid_token' }, 502);
   const profile = await backend('/v1/parent/me', undefined, tokens.access_token);
-  if (profile.status !== 200) return error(profile);
+  if (profile.status !== 200) {
+    const response = error(profile);
+    save(response, tokens); // never discard successfully rotated tokens
+    return response;
+  }
   const response = json(profile.data);
   save(response, tokens);
   return response;
