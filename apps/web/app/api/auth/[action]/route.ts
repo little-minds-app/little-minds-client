@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
   if (!originAllowed(request)) return json({ error: 'invalid_request', message: 'Invalid origin' }, 403);
   if (!request.headers.get('content-type')?.startsWith('application/json')) return json({ error: 'invalid_request' }, 415);
   const { action } = await context.params;
-  if (!['start', 'verify', 'logout'].includes(action)) return json({ error: 'not_found' }, 404);
+  if (!['start', 'verify', 'logout', 'activity'].includes(action)) return json({ error: 'not_found' }, 404);
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'invalid_request' }, 400);
   if (action === 'start') {
@@ -106,6 +106,18 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
     const response = json({ signed_in: true });
     clear(response); // remove legacy credential cookies
     response.cookies.set(WEB_COOKIE, handle, { ...cookieOptions(), maxAge });
+    return response;
+  }
+  if (action === 'activity') {
+    const handle = request.cookies.get(WEB_COOKIE)?.value;
+    if (!handle) return json({ error: 'invalid_token' }, 401);
+    const bffSecret = process.env.LM_WEB_BFF_SECRET;
+    if (!bffSecret || bffSecret.length < 32 || bffSecret.includes('CHANGE_ME')) {
+      return json({ error: 'backend_unavailable' }, 503);
+    }
+    const touched = await backend('/v1/auth/web/activity', { body: {}, handle, bffSecret });
+    const response = touched.status === 200 ? json({ active: true }) : error(touched);
+    if (touched.status === 401) clear(response);
     return response;
   }
   const handle = request.cookies.get(WEB_COOKIE)?.value;
