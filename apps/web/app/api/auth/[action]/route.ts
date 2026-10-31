@@ -83,11 +83,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
     if (typeof token !== 'string') return json({ error: 'invalid_token' }, 502);
     const exchanged = await backend('/v1/auth/web/session', { body: {}, bearer: token, bffSecret });
     if (exchanged.status !== 201) {
-      // OTP has been consumed; revoke the otherwise-orphaned native session.
-      // The backend exchange may have succeeded despite a lost response; logout
-      // by signed bearer then also revokes the opaque web session's parent.
-      await backend('/v1/auth/logout', { body: {}, bearer: token });
-      return json({ error: 'web_session_exchange_failed', message: 'OTP verified, but web session creation failed. Request a new code.' }, 503);
+      // OTP was consumed. The compensating revoke can also fail during an outage.
+      const revoked = await backend('/v1/auth/logout', { body: {}, bearer: token });
+      const confirmed = revoked.status === 204 || revoked.status === 200;
+      return json({ error: 'web_session_exchange_failed',
+        message: confirmed ? 'OTP verified but web session creation failed. Request a new code.' :
+          'OTP verified; the session could not be opened or its revocation confirmed. Contact support if this persists.',
+        revocation_confirmed: confirmed }, 503);
     }
     const handle = exchanged.data.handle;
     const expiry = exchanged.data.expires_at;
