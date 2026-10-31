@@ -38,3 +38,11 @@ test('backend outage preserves protected page rather than forcing logout', () =>
   assert.match(protectedRoute, /Servis geçici olarak kullanılamıyor/);
   assert.match(handler, /revocation_confirmed: confirmed/);
 });
+
+test('passive profile and protected-page checks never request an activity touch', () => {
+  assert.match(handler, /if \(action === 'activity'\)/);
+  assert.match(handler, /\/v1\/auth\/web\/activity/);
+  assert.match(handler, /\/v1\/auth\/web\/me/);
+  assert.doesNotMatch(protectedRoute, /\/v1\/auth\/web\/activity/);
+  assert.match(ui, /nativeEvent\.isTrusted/);
+});
