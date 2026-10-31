@@ -80,15 +80,30 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
     const token = verified.data.access_token;
     if (typeof token !== 'string') return json({ error: 'invalid_token' }, 502);
     const bffSecret = process.env.LM_WEB_BFF_SECRET;
-    if (!bffSecret || bffSecret.length < 32) return json({ error: 'web_config_unavailable', message: 'Web sign-in is temporarily unavailable.' }, 503);
+    if (!bffSecret || bffSecret.length < 32) {
+      await backend('/v1/auth/logout', { body: {}, bearer: token });
+      return json({ error: 'web_session_exchange_failed', message: 'Web sign-in is temporarily unavailable.' }, 503);
+    }
     const exchanged = await backend('/v1/auth/web/session', { body: {}, bearer: token, bffSecret });
-    if (exchanged.status !== 201) return json({ error: 'web_session_exchange_failed', message: 'OTP verified, but web session creation failed. Request a new code.' }, 503);
+    if (exchanged.status !== 201) {
+      // OTP has been consumed; revoke the otherwise-orphaned native session.
+      // The backend exchange may have succeeded despite a lost response; logout
+      // by signed bearer then also revokes the opaque web session's parent.
+      await backend('/v1/auth/logout', { body: {}, bearer: token });
+      return json({ error: 'web_session_exchange_failed', message: 'OTP verified, but web session creation failed. Request a new code.' }, 503);
+    }
     const handle = exchanged.data.handle;
     const expiry = exchanged.data.expires_at;
     if (typeof handle !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(handle) ||
-        typeof expiry !== 'string') return json({ error: 'invalid_token' }, 502);
+        typeof expiry !== 'string') {
+      await backend('/v1/auth/logout', { body: {}, bearer: token });
+      return json({ error: 'web_session_exchange_failed', message: 'Invalid web session exchange response' }, 502);
+    }
     const maxAge = Math.floor((Date.parse(expiry) - Date.now()) / 1000);
-    if (!Number.isFinite(maxAge) || maxAge <= 0) return json({ error: 'invalid_token' }, 502);
+    if (!Number.isFinite(maxAge) || maxAge <= 0) {
+      await backend('/v1/auth/logout', { body: {}, bearer: token });
+      return json({ error: 'web_session_exchange_failed', message: 'Expired web session exchange' }, 502);
+    }
     const response = json({ signed_in: true });
     clear(response); // remove legacy credential cookies
     response.cookies.set(WEB_COOKIE, handle, { ...cookieOptions(), maxAge });
