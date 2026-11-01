@@ -22,6 +22,7 @@ import 'surfaces/child_hub_surface.dart';
 import 'surfaces/near_far_demo_surface.dart';
 import 'surfaces/near_far_mentor_surface.dart';
 import 'surfaces/parent_gate_surface.dart';
+import 'surfaces/optional_parent_profile_surface.dart';
 import 'surfaces/parent_settings_surface.dart';
 import 'surfaces/profile_selection_surface.dart';
 import 'surfaces/screen_time_debug_inspector_surface.dart';
@@ -104,6 +105,7 @@ enum _ShellRoute {
   profileSelection,
   parentGate,
   parentSettings,
+  optionalParentProfile,
   nearFarDemo,
   nearFarMentor,
   screenTimeDebug,
@@ -288,8 +290,15 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
                     onBackToHub: () => _go(_ShellRoute.childHub),
                     onOpenSettings: () => _go(_ShellRoute.parentSettings),
                   );
+                case _ShellRoute.optionalParentProfile:
+                  return OptionalParentProfileSurface(
+                    auth: _parentAuth,
+                    config: widget.config,
+                    onBack: () => _go(_ShellRoute.parentSettings),
+                  );
                 case _ShellRoute.parentSettings:
                   return ParentSettingsSurface(
+                    onOpenOptionalParentProfile: () => _go(_ShellRoute.optionalParentProfile),
                     onOpenProfiles: () { _profileManageMode = true; _go(_ShellRoute.profileSelection); },
                     onBack: () => _go(_ShellRoute.parentGate),
                     onOpenNearFarDemo: () => _openNearFarDemo(
