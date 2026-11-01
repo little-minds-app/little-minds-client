@@ -160,7 +160,10 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
     const logout = await post('logout', {}, browserCookie);
     assert.equal(logout.status, 200);
     assert.equal((await fetch(origin + '/api/auth/me', { headers: { cookie: browserCookie } })).status, 401);
-    assert.equal((await fetch(origin + '/api/children', { headers: { cookie: browserCookie } })).status, 401, 'revoked web session denies child profiles');
+    const deniedChildren = await fetch(origin + '/api/children', { headers: { cookie: browserCookie } });
+    assert.equal(deniedChildren.status, 401, 'revoked web session denies child profiles');
+    assert.ok(deniedChildren.headers.getSetCookie().some((c) => c.includes('max-age=0')),
+      'revoked web session clears the stale browser cookie');
     assert.equal((await fetch(origin + '/parent', { headers: { cookie: browserCookie }, redirect: 'manual' })).status, 307);
   } finally {
     web.kill('SIGTERM');
