@@ -42,7 +42,14 @@ export async function forwardChildRequest(request: NextRequest, path: string, me
       signal: AbortSignal.timeout(8000),
     });
     const data = await response.json().catch(() => ({}));
-    return NextResponse.json(data, { status: response.status, headers: { 'cache-control': 'no-store' } });
+    const outgoing = NextResponse.json(data, { status: response.status, headers: { 'cache-control': 'no-store' } });
+    if (response.status === 401) {
+      outgoing.cookies.set(cookieName, '', {
+        httpOnly: true, secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict', path: '/', maxAge: 0,
+      });
+    }
+    return outgoing;
   } catch {
     return NextResponse.json({ error: 'backend_unavailable' }, { status: 503 });
   }
