@@ -172,6 +172,25 @@ class ParentAuthController extends ChangeNotifier {
     });
   }
 
+  /// Refresh a protected child-profile request after a genuine 401.
+  /// A failed refresh clears the parent identity and prevents stale child data.
+  Future<String?> refreshForChildProfiles() async {
+    final current = _session;
+    if (current == null) return null;
+    try {
+      final updated = await _repository.refreshSession(current);
+      _session = updated;
+      notifyListeners();
+      return updated.accessToken;
+    } on ParentAuthFailure {
+      _session = null;
+      _profile = null;
+      _step = ParentAuthStep.onboarding;
+      notifyListeners();
+      return null;
+    }
+  }
+
   void clearError() {
     _clearError();
     notifyListeners();
