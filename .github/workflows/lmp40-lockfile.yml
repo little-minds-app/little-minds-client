@@ -1,0 +1,30 @@
+name: LMP-40 One-time Web Test Lockfile
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  lockfile:
+    if: github.head_ref == 'fix/lmp-40-review-client' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --package-lock-only --ignore-scripts
+        working-directory: apps/web
+      - name: Commit reproducible lock
+        run: |
+          git add apps/web/package-lock.json
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "[LMP-40] Sync web component test lockfile"
+            git push origin HEAD:fix/lmp-40-review-client
+          fi
