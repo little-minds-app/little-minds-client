@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_api/api.dart';
@@ -15,11 +17,13 @@ class FakeChildProfiles extends ChildProfileRepository {
       : super(config: AppConfig.developmentLocal, auth: auth);
   final List<ChildProfileResponse> rows = [];
   bool failNextLoad = false;
+  Completer<List<ChildProfileResponse>>? pendingLoad;
   int creates = 0;
   int edits = 0;
 
   @override
   Future<List<ChildProfileResponse>> list() async {
+    if (pendingLoad != null) return pendingLoad!.future;
     if (failNextLoad) {
       failNextLoad = false;
       throw StateError('offline');
@@ -79,6 +83,31 @@ ParentAuthController signedIn(String parentId) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('stale result from prior parent cannot populate the next parent state', () async {
+    final auth = signedIn('11111111-1111-4111-8111-111111111111');
+    final fake = FakeChildProfiles(auth);
+    final pending = Completer<List<ChildProfileResponse>>();
+    fake.pendingLoad = pending;
+    final controller = ChildProfilesController(repository: fake, auth: auth);
+    final running = controller.load();
+    auth.seedAuthenticatedSessionForTests(const AuthSession(
+      accessToken: 'other-token', refreshToken: 'other-refresh',
+      parentId: '22222222-2222-4222-8222-222222222222',
+      sessionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      expiresInSeconds: 900,
+    ));
+    pending.complete([ChildProfileResponse(
+      childId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', nickname: 'Old family',
+      ageMonths: 24, preferredLocale: 'tr-TR',
+    )]);
+    await running;
+    expect(controller.children, isEmpty);
+    expect(controller.selectedId, isNull);
+    expect(controller.busy, isFalse);
+    controller.dispose();
+    auth.dispose();
+  });
 
   testWidgets('parent can create, select, and edit a fictional child without DOB', (tester) async {
     tester.view.physicalSize = const Size(1024, 650);
