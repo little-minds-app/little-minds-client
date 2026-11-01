@@ -1,3 +1,4 @@
+import ChildrenManager from './children-manager';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -20,5 +21,5 @@ export default async function ProtectedParentPage() {
   if (response.status === 401 || response.status === 403) redirect('/');
   if (!response.ok) return <main><h1>Servis geçici olarak kullanılamıyor</h1><p>Oturumunuz kapatılmadı.</p><a href="/parent">Yeniden dene</a></main>;
   const parent = await response.json() as { parent_id?: string };
-  return <main><h1>Ebeveyn alanı</h1><p>Oturum doğrulandı.</p><p>Parent: {parent.parent_id ?? 'Aktif'}</p><a href='/'>Ana sayfaya dön</a></main>;
+  return <main><h1>Ebeveyn alanı</h1><p>Oturum doğrulandı.</p><p>Parent: {parent.parent_id ?? 'Aktif'}</p><ChildrenManager/><a href='/'>Ana sayfaya dön</a></main>;
 }
