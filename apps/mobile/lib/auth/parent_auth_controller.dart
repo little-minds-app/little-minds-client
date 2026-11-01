@@ -179,10 +179,12 @@ class ParentAuthController extends ChangeNotifier {
     if (current == null) return null;
     try {
       final updated = await _repository.refreshSession(current);
+      if (_session?.parentId != current.parentId || _session?.sessionId != current.sessionId) return null;
       _session = updated;
       notifyListeners();
       return updated.accessToken;
     } on ParentAuthFailure {
+      if (_session?.parentId != current.parentId || _session?.sessionId != current.sessionId) return null;
       _session = null;
       _profile = null;
       _step = ParentAuthStep.onboarding;
