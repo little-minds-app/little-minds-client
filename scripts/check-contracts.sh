@@ -28,7 +28,7 @@ npm run contracts:generate
 
 if ! git diff --exit-code -- generated >/dev/null; then
   echo "FAIL contracts:drift — generated/ is out of date. Run: npm run contracts:generate"
-  git --no-pager diff -- generated | head -n 200
+  git --no-pager diff -- generated | sed -n '1,200p'
   exit 1
 fi
 

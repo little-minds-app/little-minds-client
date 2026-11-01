@@ -32,7 +32,8 @@ jobs:
         run: |
           npm run lint
           npm run typecheck
-      - name: Responsive shell regression
+      - name: Production build
+        run: npm run build
+      - name: Responsive shell and HTTP regression
         run: npm test
-      # Production build is already validated by Client CI / Next.js Build.
       # Keep this job and its legacy check name stable for existing PR policies.
