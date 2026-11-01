@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 type Profile = { child_id: string; nickname: string | null; age_months: number; preferred_locale: string };
 type Form = { nickname: string; age_months: string };
@@ -22,21 +22,58 @@ export function ChildProfiles() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const requestGeneration = useRef(0);
+  const parentIdentity = useRef<string | null>(null);
 
   const reload = useCallback(async () => {
+    const generation = ++requestGeneration.current;
+    setLoading(true);
     setError('');
+    // Fail closed until the active parent is verified. Never render cached
+    // child data from a previous account during a new request.
+    setProfiles([]);
+    setSelected(null);
     try {
-      const res = await fetch('/api/children', { cache: 'no-store' });
-      if (res.status === 401) { setProfiles([]); setSelected(null); throw new Error('Oturum sona erdi. Yeniden giriş yapın.'); }
-      if (!res.ok) throw new Error('Profiller yüklenemedi.');
-      const data = await res.json() as { children: Profile[] };
-      setProfiles(data.children);
-      setSelected((current) => data.children.some((p) => p.child_id === current) ? current : null);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Bağlantı hatası'); }
-    finally { setLoading(false); }
+      const me = await fetch('/api/auth/me', { cache: 'no-store' });
+      if (generation !== requestGeneration.current) return;
+      if (me.status === 401) throw new Error('Oturum sona erdi. Yeniden giriş yapın.');
+      if (!me.ok) throw new Error('Oturum doğrulanamadı.');
+      const identity = await me.json() as { parent_id?: string };
+      if (generation !== requestGeneration.current) return;
+      if (!identity.parent_id) throw new Error('Geçersiz ebeveyn oturumu.');
+      if (parentIdentity.current !== identity.parent_id) {
+        parentIdentity.current = identity.parent_id;
+        setEditing(null);
+        setForm(emptyForm);
+      }
+      const response = await fetch('/api/children', { cache: 'no-store' });
+      if (generation !== requestGeneration.current) return;
+      if (response.status === 401) throw new Error('Oturum sona erdi. Yeniden giriş yapın.');
+      if (!response.ok) throw new Error('Profiller yüklenemedi.');
+      const data = await response.json() as { children: Profile[] };
+      // A session can change between the two calls. Verify the same parent
+      // is still authenticated before publishing potentially sensitive rows.
+      const verify = await fetch('/api/auth/me', { cache: 'no-store' });
+      if (generation !== requestGeneration.current) return;
+      if (!verify.ok || (await verify.json() as { parent_id?: string }).parent_id !== identity.parent_id) {
+        throw new Error('Oturum değişti. Yeniden deneyin.');
+      }
+      if (generation !== requestGeneration.current) return;
+      setProfiles(Array.isArray(data.children) ? data.children : []);
+    } catch (e) {
+      if (generation !== requestGeneration.current) return;
+      setProfiles([]);
+      setSelected(null);
+      setError(e instanceof Error ? e.message : 'Bağlantı hatası');
+    } finally {
+      if (generation === requestGeneration.current) setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    void reload();
+    return () => { requestGeneration.current++; };
+  }, [reload]);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
