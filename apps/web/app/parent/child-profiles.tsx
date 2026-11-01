@@ -6,6 +6,14 @@ type Profile = { child_id: string; nickname: string | null; age_months: number; 
 type Form = { nickname: string; age_months: string };
 const emptyForm = { nickname: '', age_months: '32' };
 
+function istanbulToday(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const read = (part: string) => parts.find((item) => item.type === part)?.value ?? '';
+  return `${read('year')}-${read('month')}-${read('day')}`;
+}
+
 export function ChildProfiles() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -35,8 +43,8 @@ export function ChildProfiles() {
     const months = Number(form.age_months);
     if (!Number.isInteger(months) || months < 0 || months > 2147483647) { setError('Yaş geçerli bir ay sayısı olmalı.'); return; }
     const body = editing
-      ? { nickname: form.nickname.trim() || null, age_months: months, reference_date: new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }) }
-      : { nickname: form.nickname.trim() || undefined, age_months: months, reference_date: new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }) };
+      ? { nickname: form.nickname.trim() || null, age_months: months, reference_date: istanbulToday() }
+      : { nickname: form.nickname.trim() || undefined, age_months: months, reference_date: istanbulToday() };
     setBusy(true); setError('');
     try {
       const url = editing ? '/api/children/' + editing : '/api/children';
