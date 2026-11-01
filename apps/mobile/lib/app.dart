@@ -202,7 +202,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
     // Kids Hub + child profile transitions count; Parent / Mentor / Near-Far /
     // debug screen-time inspector do not.
     return route == _ShellRoute.childHub ||
-        route == _ShellRoute.profileSelection;
+        (route == _ShellRoute.profileSelection && !_profileManageMode);
   }
 
   void _go(_ShellRoute route) {
