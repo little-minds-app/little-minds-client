@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 type Profile = { child_id: string; nickname: string | null; age_months: number; preferred_locale: string };
 type Form = { nickname: string; age_months: string };
