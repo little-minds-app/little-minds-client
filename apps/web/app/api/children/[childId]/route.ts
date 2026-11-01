@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { forwardChildRequest } from '../route';
+import { forwardChildRequest } from '../forward';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
