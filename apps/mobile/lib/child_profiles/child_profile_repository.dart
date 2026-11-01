@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_initializing_formals
+
 import 'package:little_minds_api/api.dart';
 
 import '../auth/auth_api_clients.dart';
