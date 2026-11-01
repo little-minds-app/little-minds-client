@@ -33,9 +33,11 @@ export function OptionalParentProfile() {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const generation = useRef(0);
+  const loadedParent = useRef<string | null>(null);
 
   const reload = useCallback(async () => {
     const current = ++generation.current;
+    loadedParent.current = null;
     setLoading(true); setError(''); setInfo(''); setForm(empty);
     try {
       const me = await fetch('/api/auth/me', { cache: 'no-store' });
@@ -49,6 +51,7 @@ export function OptionalParentProfile() {
       const check = again.ok ? await again.json() as { parent_id?: string } : {};
       if (current !== generation.current) return;
       if (check.parent_id !== identity.parent_id) throw new Error('Oturum değişti; yeniden deneyin.');
+      loadedParent.current = identity.parent_id;
       setForm(result);
     } catch (caught) {
       if (current === generation.current) setError(caught instanceof Error ? caught.message : 'Bağlantı hatası');
@@ -61,22 +64,58 @@ export function OptionalParentProfile() {
   const update = (key: keyof Profile, value: string | number | null) =>
     setForm((current) => ({ ...current, [key]: value }));
   async function persist(method: 'PATCH' | 'DELETE') {
-    if (saving) return;
+    if (saving || loading) return;
+    const expected = loadedParent.current;
+    const current = generation.current;
+    if (!expected) {
+      setError('Oturum doğrulanamadı. Yeniden deneyin.');
+      return;
+    }
     setSaving(true); setError(''); setInfo('');
     try {
+      const me = await fetch('/api/auth/me', { cache: 'no-store' });
+      const identity = me.ok ? await me.json() as { parent_id?: string } : {};
+      if (current !== generation.current) return;
+      if (identity.parent_id !== expected) {
+        loadedParent.current = null;
+        setForm(empty);
+        throw new Error('Ebeveyn oturumu değişti. Profili yeniden yükleyin.');
+      }
       const response = await fetch('/api/parent-profile', {
         method,
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          'x-lm-expected-parent-id': expected,
+        },
         ...(method === 'PATCH' ? { body: JSON.stringify(form) } : {}),
       });
-      if (!response.ok) throw new Error(response.status === 401
-        ? 'Oturum sona erdi.' : 'İşlem tamamlanamadı.');
-      setForm(await response.json() as Profile);
+      if (current !== generation.current) return;
+      if (response.status === 409 || response.status === 401) {
+        loadedParent.current = null;
+        setForm(empty);
+        throw new Error('Ebeveyn oturumu değişti veya sona erdi. Yeniden yükleyin.');
+      }
+      if (!response.ok) throw new Error('İşlem tamamlanamadı.');
+      const saved = await response.json() as Profile;
+      const after = await fetch('/api/auth/me', { cache: 'no-store' });
+      const verified = after.ok ? await after.json() as { parent_id?: string } : {};
+      if (current !== generation.current) return;
+      if (verified.parent_id !== expected) {
+        loadedParent.current = null;
+        setForm(empty);
+        throw new Error('Oturum değişti. Profili yeniden yükleyin.');
+      }
+      setForm(saved);
       setInfo(method === 'DELETE' ? 'İsteğe bağlı bilgiler temizlendi.' : 'Profil kaydedildi.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Kaydetme hatası');
-    } finally { setSaving(false); }
+      if (current === generation.current) {
+        setError(caught instanceof Error ? caught.message : 'Kaydetme hatası');
+      }
+    } finally {
+      if (current === generation.current) setSaving(false);
+    }
   }
+
   if (loading) return <section aria-label="Ebeveyn profili"><p role="status">Profil yükleniyor…</p></section>;
   return <section aria-label="Ebeveyn profili">
     <h2>Ebeveyn profili (isteğe bağlı)</h2>
@@ -104,7 +143,7 @@ export function OptionalParentProfile() {
       </label>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, paddingTop: 12 }}>
         <button type="submit" disabled={saving}>Kaydet ve devam et</button>
-        <button type="button" disabled={saving} onClick={() => { setForm(empty); setInfo('Bu adımı atlayabilirsiniz.'); }}>Şimdi değil / Atla</button>
+        <button type="button" disabled={saving} onClick={() => { setInfo('Bu adımı atlayabilirsiniz.'); }}>Şimdi değil / Atla</button>
         <button type="button" disabled={saving} onClick={() => void persist('DELETE')}>Tüm isteğe bağlı bilgileri sil</button>
       </div>
     </form>
