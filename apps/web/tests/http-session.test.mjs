@@ -46,12 +46,12 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
       meCount += 1;
       if (backendUnavailable) return json(res, 503, { error: 'backend_unavailable' });
       if (!issued || revoked || req.headers['x-lm-web-session'] !== handle) return json(res, 401, { error: 'invalid_token' });
-      return json(res, 200, { parent_id: 'parent-1', locale: 'tr-TR', timezone: 'Europe/Istanbul' });
+      return json(res, 200, { parent_id: '11111111-1111-4111-8111-111111111111', locale: 'tr-TR', timezone: 'Europe/Istanbul' });
     }
     if (path === '/v1/auth/web/activity') {
       activityCount += 1;
       assert.equal(req.headers['x-lm-bff-secret'], 'test-only-bff-secret-32-characters-long');
-      return json(res, 200, { parent_id: 'parent-1' });
+      return json(res, 200, { parent_id: '11111111-1111-4111-8111-111111111111' });
     }
     if (path === '/v1/auth/web/logout') {
       revoked = true;
@@ -169,19 +169,21 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
     assert.equal((await after.json()).children[0].nickname, 'Updated');
     assert.equal(childApiCount, 4, 'invalid requests never reach backend');
     assert.equal((await fetch(origin + '/api/parent-profile')).status, 401);
-    const submitParent = (requestOrigin) => fetch(origin + '/api/parent-profile', {
+    const submitParent = (requestOrigin, expectedParent = '11111111-1111-4111-8111-111111111111') => fetch(origin + '/api/parent-profile', {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json', origin: requestOrigin, cookie: browserCookie },
+      headers: { 'content-type': 'application/json', origin: requestOrigin, cookie: browserCookie, 'x-lm-expected-parent-id': expectedParent },
       body: JSON.stringify({ first_name: 'Sample', occupation_optional: 'technology' }),
     });
     const initialCalls = profileCalls;
     assert.equal((await submitParent('https://invalid.example')).status, 403);
     assert.equal(profileCalls, initialCalls);
+    assert.equal((await submitParent(origin, '22222222-2222-4222-8222-222222222222')).status, 409, 'wrong parent context must fail closed');
+    assert.equal(profileCalls, initialCalls, 'rejected owner mismatch must not reach profile mutation');
     assert.equal((await submitParent(origin)).status, 200);
     const viewed = await fetch(origin + '/api/parent-profile', { headers: { cookie: browserCookie } });
     assert.equal((await viewed.json()).first_name, 'Sample');
     const cleared = await fetch(origin + '/api/parent-profile', {
-      method: 'DELETE', headers: { origin, cookie: browserCookie },
+      method: 'DELETE', headers: { origin, cookie: browserCookie, 'x-lm-expected-parent-id': '11111111-1111-4111-8111-111111111111' },
     });
     assert.equal(cleared.status, 200);
     assert.equal((await cleared.json()).first_name, null);
