@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'auth/auth_token_store.dart';
+import 'auth/installation_id_store.dart';
 import 'auth/parent_auth_controller.dart';
 import 'auth/parent_auth_repository.dart';
 import 'config/app_config.dart';
@@ -28,6 +29,7 @@ Future<void> main() async {
     repository: ParentAuthRepository(
       config: config,
       tokenStore: SecureAuthTokenStore(),
+      installationIdStore: SecureInstallationIdStore(),
     ),
   );
   await parentAuth.bootstrap();
