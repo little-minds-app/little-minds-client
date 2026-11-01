@@ -143,8 +143,8 @@ class _OptionalParentProfileSurfaceState extends State<OptionalParentProfileSurf
 
   Widget _choice(String title, String? value, List<MapEntry<String, String>> options, ValueChanged<String?> onChanged) {
     return DropdownButtonFormField<String>(
-      key: ValueKey('parent-profile-${title}'),
-      value: value,
+      key: ValueKey('parent-profile-$title'),
+      initialValue: value,
       isExpanded: true,
       decoration: InputDecoration(labelText: title),
       items: [
