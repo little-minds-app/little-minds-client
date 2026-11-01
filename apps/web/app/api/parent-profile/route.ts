@@ -23,6 +23,31 @@ async function forward(req: NextRequest, method: 'GET' | 'PATCH' | 'DELETE') {
   if (!secret || secret.length < 32 || secret.includes('CHANGE_ME')) {
     return NextResponse.json({ error: 'backend_unavailable' }, { status: 503 });
   }
+  // Bind every mutation to the parent who loaded the form. Both checks use
+  // the same opaque handle captured from this request, never a browser JWT.
+  if (method !== 'GET') {
+    const expected = req.headers.get('x-lm-expected-parent-id');
+    if (!expected || !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(expected)) {
+      return NextResponse.json({ error: 'invalid_parent_context' }, { status: 409 });
+    }
+    try {
+      const verification = await fetch(
+        new URL('/v1/auth/web/me', process.env.LM_API_BASE_URL ?? 'http://127.0.0.1:3001'), {
+          headers: { 'x-lm-web-session': handle, 'x-lm-bff-secret': secret },
+          cache: 'no-store', signal: AbortSignal.timeout(8000),
+        },
+      );
+      if (!verification.ok) {
+        return NextResponse.json({ error: 'invalid_parent_context' }, { status: 409 });
+      }
+      const parent: { parent_id?: string } = await verification.json();
+      if (parent.parent_id !== expected) {
+        return NextResponse.json({ error: 'parent_changed' }, { status: 409 });
+      }
+    } catch {
+      return NextResponse.json({ error: 'backend_unavailable' }, { status: 503 });
+    }
+  }
   let body: unknown;
   if (method === 'PATCH') {
     if (!req.headers.get('content-type')?.startsWith('application/json')) {
