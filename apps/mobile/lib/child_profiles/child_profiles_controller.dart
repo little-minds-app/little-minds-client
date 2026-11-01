@@ -25,6 +25,7 @@ class ChildProfilesController extends ChangeNotifier {
   String? _error;
   bool _busy = false;
   bool _loaded = false;
+  int _generation = 0;
 
   List<ChildProfileResponse> get children => List.unmodifiable(_children);
   String? get selectedId => _selectedId;
@@ -44,6 +45,8 @@ class ChildProfilesController extends ChangeNotifier {
     final newParent = _auth.session?.parentId;
     if (newParent == _parentId) return;
     _parentId = newParent;
+    _generation++;
+    _busy = false;
     _children = const [];
     _selectedId = null;
     _error = null;
@@ -61,21 +64,27 @@ class ChildProfilesController extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    final generation = _generation;
     _busy = true;
     _error = null;
     notifyListeners();
     try {
       final latest = await _repository.list();
+      if (generation != _generation) return;
       _children = latest;
       if (!_children.any((child) => child.childId == _selectedId)) {
         _selectedId = null;
       }
       _loaded = true;
     } catch (_) {
-      _error = 'Profiller alınamadı. Yeniden deneyin.';
+      if (generation == _generation) {
+        _error = 'Profiller alınamadı. Yeniden deneyin.';
+      }
     } finally {
-      _busy = false;
-      notifyListeners();
+      if (generation == _generation) {
+        _busy = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -102,6 +111,7 @@ class ChildProfilesController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    final generation = _generation;
     _busy = true;
     _error = null;
     notifyListeners();
@@ -111,24 +121,31 @@ class ChildProfilesController extends ChangeNotifier {
         final createdId = await _repository.create(
           ageMonths: ageMonths, nickname: nickname, referenceDate: date,
         );
+        if (generation != _generation) return false;
         _selectedId = createdId;
       } else {
         if (!_children.any((child) => child.childId == childId)) return false;
         await _repository.edit(
           childId: childId, ageMonths: ageMonths, nickname: nickname, referenceDate: date,
         );
+        if (generation != _generation) return false;
       }
       final latest = await _repository.list();
+      if (generation != _generation) return false;
       _children = latest;
       if (!_children.any((child) => child.childId == _selectedId)) _selectedId = null;
       _loaded = true;
       return true;
     } catch (_) {
-      _error = 'Profil kaydedilemedi. Yeniden deneyin.';
+      if (generation == _generation) {
+        _error = 'Profil kaydedilemedi. Yeniden deneyin.';
+      }
       return false;
     } finally {
-      _busy = false;
-      notifyListeners();
+      if (generation == _generation) {
+        _busy = false;
+        notifyListeners();
+      }
     }
   }
 
