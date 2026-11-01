@@ -26,8 +26,9 @@ class ChildProfileRepository {
       return await request(_clients.parent);
     } on ApiException catch (error) {
       if (error.code != 401) rethrow;
+      if (_auth.session?.parentId != session.parentId) throw StateError('Parent account changed');
       final refreshed = await _auth.refreshForChildProfiles();
-      if (refreshed == null) throw StateError('Parent session expired');
+      if (refreshed == null || _auth.session?.parentId != session.parentId) throw StateError('Parent session expired or changed');
       _clients.setAccessToken(refreshed);
       return request(_clients.parent);
     }
