@@ -8,6 +8,8 @@ import 'auth/parent_auth_controller.dart';
 import 'auth/parent_auth_repository.dart';
 import 'auth/parent_auth_scope.dart';
 import 'child_hub/hub_audio_guidance.dart';
+import 'child_profiles/child_profile_repository.dart';
+import 'child_profiles/child_profiles_controller.dart';
 import 'config/app_config.dart';
 import 'config/app_config_scope.dart';
 import 'game/flame_host.dart';
@@ -47,6 +49,7 @@ class LittleMindsApp extends StatefulWidget {
     this.mentorInjectedCard,
     this.screenTime,
     this.parentAuthController,
+    this.childProfilesController,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -89,6 +92,9 @@ class LittleMindsApp extends StatefulWidget {
   /// Parent authentication (LMP-37). Production injects from [main]; tests may omit.
   final ParentAuthController? parentAuthController;
 
+  /// Injectable state for profile widget tests and real app navigation.
+  final ChildProfilesController? childProfilesController;
+
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
 }
@@ -120,6 +126,9 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
   late final bool _ownsScreenTime;
   late final ParentAuthController _parentAuth;
   late final bool _ownsParentAuth;
+  late final ChildProfilesController _profiles;
+  late final bool _ownsProfiles;
+  bool _profileManageMode = false;
 
   @override
   void initState() {
@@ -134,6 +143,11 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
             tokenStore: InMemoryAuthTokenStore(),
           ),
         );
+    _ownsProfiles = widget.childProfilesController == null;
+    _profiles = widget.childProfilesController ?? ChildProfilesController(
+      repository: ChildProfileRepository(config: widget.config, auth: _parentAuth),
+      auth: _parentAuth,
+    );
     // ignore: discarded_futures
     _bootstrapScreenTime();
     if (_ownsParentAuth) {
@@ -188,7 +202,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
     // Kids Hub + child profile transitions count; Parent / Mentor / Near-Far /
     // debug screen-time inspector do not.
     return route == _ShellRoute.childHub ||
-        route == _ShellRoute.profileSelection;
+        (route == _ShellRoute.profileSelection && !_profileManageMode);
   }
 
   void _go(_ShellRoute route) {
@@ -218,6 +232,9 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
   void dispose() {
     if (_ownsScreenTime) {
       _screenTime.dispose();
+    }
+    if (_ownsProfiles) {
+      _profiles.dispose();
     }
     if (_ownsParentAuth) {
       _parentAuth.dispose();
@@ -257,12 +274,14 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
                     game: _game,
                     audioGuidance: widget.audioGuidance,
                     forceShowEnvBadge: widget.forceShowEnvBadge,
-                    onOpenProfiles: () => _go(_ShellRoute.profileSelection),
+                    onOpenProfiles: () { _profileManageMode = false; _go(_ShellRoute.profileSelection); },
                     onOpenParentGate: () => _go(_ShellRoute.parentGate),
                   );
                 case _ShellRoute.profileSelection:
                   return ProfileSelectionSurface(
-                    onBackToHub: () => _go(_ShellRoute.childHub),
+                    onBackToHub: () => _go(_profileManageMode ? _ShellRoute.parentSettings : _ShellRoute.childHub),
+                    controller: _isWidgetTestBinding && widget.childProfilesController == null ? null : _profiles,
+                    allowManage: _profileManageMode,
                   );
                 case _ShellRoute.parentGate:
                   return ParentGateSurface(
@@ -271,6 +290,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
                   );
                 case _ShellRoute.parentSettings:
                   return ParentSettingsSurface(
+                    onOpenProfiles: () { _profileManageMode = true; _go(_ShellRoute.profileSelection); },
                     onBack: () => _go(_ShellRoute.parentGate),
                     onOpenNearFarDemo: () => _openNearFarDemo(
                       returnTo: _ShellRoute.parentSettings,

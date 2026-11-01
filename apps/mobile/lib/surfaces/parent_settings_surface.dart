@@ -21,6 +21,7 @@ class ParentSettingsSurface extends StatelessWidget {
   const ParentSettingsSurface({
     super.key,
     this.onBack,
+    this.onOpenProfiles,
     this.onOpenNearFarDemo,
     this.onOpenNearFarMentor,
     this.onOpenScreenTimeDebug,
@@ -28,6 +29,9 @@ class ParentSettingsSurface extends StatelessWidget {
   });
 
   final VoidCallback? onBack;
+
+  /// Opens child profile management from the authenticated parent area.
+  final VoidCallback? onOpenProfiles;
 
   /// Opens the dedicated Near/Far Kids Mode demo route (LMP-45).
   ///
@@ -91,6 +95,14 @@ class ParentSettingsSurface extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
+                    if (onOpenProfiles != null) ...[
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        key: const Key('parent-settings-child-profiles'),
+                        onPressed: onOpenProfiles,
+                        child: const Text('Çocuk profillerini yönet'),
+                      ),
+                    ],
                     if (showScreenTimeDebug) ...[
                       const SizedBox(height: 24),
                       ConstrainedBox(
