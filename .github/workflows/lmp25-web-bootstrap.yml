@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -32,3 +36,4 @@ jobs:
         run: npm run build
       - name: Responsive shell and HTTP regression
         run: npm test
+      # Keep this job and its legacy check name stable for existing PR policies.
