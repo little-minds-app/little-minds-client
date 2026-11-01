@@ -216,6 +216,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/children": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List only the authenticated parent's non-deleted child profiles */
+        get: operations["listChildProfiles"];
+        put?: never;
+        /** Create an approximate-age child profile owned by the authenticated parent */
+        post: operations["createChildProfile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/children/{childId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a non-deleted child profile only when owned by authenticated parent */
+        get: operations["getChildProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a child profile owned by the authenticated parent */
+        patch: operations["updateChildProfile"];
+        trace?: never;
+    };
+    "/v1/web/children": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Server-side BFF child list using an opaque parent web session */
+        get: operations["listWebChildProfiles"];
+        put?: never;
+        /** Server-side BFF child creation using opaque session */
+        post: operations["createWebChildProfile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/web/children/{childId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Server-side BFF child edit using opaque parent web session */
+        patch: operations["updateWebChildProfile"];
+        trace?: never;
+    };
     "/v1/parent/me": {
         parameters: {
             query?: never;
@@ -487,6 +558,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ChildProfileResponse: {
+            /** Format: uuid */
+            child_id: string;
+            nickname: string | null;
+            /** Format: int32 */
+            age_months: number;
+            preferred_locale: string;
+        };
         HealthStatus: {
             /**
              * @description Liveness indicator
@@ -1218,6 +1297,318 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AuthError"];
                 };
+            };
+        };
+    };
+    listChildProfiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Parent-owned child profiles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        children: components["schemas"]["ChildProfileResponse"][];
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createChildProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int32 */
+                    age_months: number;
+                    /** Format: date */
+                    reference_date: string;
+                    nickname?: string;
+                    /** @description IANA time zone; defaults to Europe/Istanbul */
+                    timezone?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created child profile owned by parent */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        child_id: string;
+                    };
+                };
+            };
+            /** @description Invalid approximate age or reference date */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Parent account inactive or unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getChildProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                childId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Parent-owned child profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        child_id: string;
+                        nickname: string | null;
+                        age_months: number;
+                        preferred_locale: string;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, soft-deleted, or not-owned child profile (uniform) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateChildProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                childId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int32 */
+                    age_months?: number;
+                    /** Format: date */
+                    reference_date?: string;
+                    nickname?: string | null;
+                    timezone?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChildProfileResponse"];
+                };
+            };
+            /** @description Invalid profile input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not owned */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listWebChildProfiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owned profiles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        children: components["schemas"]["ChildProfileResponse"][];
+                    };
+                };
+            };
+            /** @description Invalid web session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createWebChildProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int32 */
+                    age_months: number;
+                    /** Format: date */
+                    reference_date: string;
+                    nickname?: string;
+                    timezone?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created child */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        child_id: string;
+                    };
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid web session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateWebChildProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                childId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    nickname?: string | null;
+                    /** Format: int32 */
+                    age_months?: number;
+                    /** Format: date */
+                    reference_date?: string;
+                    timezone?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated owned profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChildProfileResponse"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid web session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not owned */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

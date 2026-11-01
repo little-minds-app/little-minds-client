@@ -41,12 +41,17 @@ part 'model/activity_session_provenance.dart';
 part 'model/activity_session_v1.dart';
 part 'model/apple_auth_request.dart';
 part 'model/auth_error.dart';
+part 'model/child_profile_response.dart';
 part 'model/consent_scope.dart';
+part 'model/create_child_profile201_response.dart';
+part 'model/create_child_profile_request.dart';
 part 'model/create_parent_web_session201_response.dart';
+part 'model/create_web_child_profile_request.dart';
 part 'model/dev_session_request.dart';
 part 'model/email_otp_start_request.dart';
 part 'model/email_otp_start_response.dart';
 part 'model/email_otp_verify_request.dart';
+part 'model/get_child_profile200_response.dart';
 part 'model/get_parent_web_session200_response.dart';
 part 'model/google_auth_request.dart';
 part 'model/google_pkce_start_request.dart';
@@ -54,6 +59,7 @@ part 'model/google_pkce_start_response.dart';
 part 'model/health_status.dart';
 part 'model/link_identity_request.dart';
 part 'model/link_identity_response.dart';
+part 'model/list_child_profiles200_response.dart';
 part 'model/logout_all_response.dart';
 part 'model/logout_request.dart';
 part 'model/oidc_nonce_request.dart';
@@ -70,6 +76,8 @@ part 'model/refresh_token_request.dart';
 part 'model/step_up_request.dart';
 part 'model/step_up_response.dart';
 part 'model/token_pair_response.dart';
+part 'model/update_child_profile_request.dart';
+part 'model/update_web_child_profile_request.dart';
 
 
 /// An [ApiClient] instance that uses the default values obtained from
