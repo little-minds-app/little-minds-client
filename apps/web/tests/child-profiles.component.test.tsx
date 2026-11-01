@@ -7,10 +7,10 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http:
 Object.assign(globalThis, {
   window: dom.window,
   document: dom.window.document,
-  navigator: dom.window.navigator,
   HTMLElement: dom.window.HTMLElement,
   MutationObserver: dom.window.MutationObserver,
 });
+Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
 const { cleanup, fireEvent, render, screen, waitFor } = await import('@testing-library/react');
 const { ChildProfiles } = await import('../app/parent/child-profiles');
 
