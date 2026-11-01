@@ -1,0 +1,35 @@
+name: LMP-41 One-time Client Contract Sync
+on:
+  push:
+    branches: [feature/lmp-41-parent-profile]
+    paths: ['contracts/openapi.yaml', 'contracts/VERSION', 'contracts/pin.json', '.github/workflows/lmp41-contract-sync.yml']
+concurrency:
+  group: lmp41-client-contract
+  cancel-in-progress: true
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: |
+          git fetch origin feature/lmp-41-parent-profile
+          git checkout -B feature/lmp-41-parent-profile origin/feature/lmp-41-parent-profile
+          npm ci
+          npm run contracts:generate
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add contracts/generated
+          if ! git diff --cached --quiet; then
+            git commit -m "[LMP-41] Regenerate Dart and TypeScript API clients"
+            git push origin HEAD:feature/lmp-41-parent-profile
+          fi
