@@ -168,6 +168,23 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
     const after = await fetch(origin + '/api/children', { headers: { cookie: browserCookie } });
     assert.equal((await after.json()).children[0].nickname, 'Updated');
     assert.equal(childApiCount, 4, 'invalid requests never reach backend');
+    assert.equal((await fetch(origin + '/api/parent-profile')).status, 401);
+    const submitParent = (requestOrigin) => fetch(origin + '/api/parent-profile', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', origin: requestOrigin, cookie: browserCookie },
+      body: JSON.stringify({ first_name: 'Sample', occupation_optional: 'technology' }),
+    });
+    const initialCalls = profileCalls;
+    assert.equal((await submitParent('https://invalid.example')).status, 403);
+    assert.equal(profileCalls, initialCalls);
+    assert.equal((await submitParent(origin)).status, 200);
+    const viewed = await fetch(origin + '/api/parent-profile', { headers: { cookie: browserCookie } });
+    assert.equal((await viewed.json()).first_name, 'Sample');
+    const cleared = await fetch(origin + '/api/parent-profile', {
+      method: 'DELETE', headers: { origin, cookie: browserCookie },
+    });
+    assert.equal(cleared.status, 200);
+    assert.equal((await cleared.json()).first_name, null);
     backendUnavailable = true;
     const unavailable = await fetch(origin + '/parent', { headers: { cookie: browserCookie }, redirect: 'manual' });
     assert.equal(unavailable.status, 200, 'backend outage must not redirect to sign-in');
