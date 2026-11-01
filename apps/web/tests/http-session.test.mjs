@@ -30,6 +30,8 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
   let activityCount = 0;
   let childApiCount = 0;
   let children = [];
+  let profileCalls = 0;
+  let parentInfo = { first_name: null, occupation_optional: null };
   const backend = createServer(async (req, res) => {
     const path = req.url;
     if (path === '/v1/auth/phone/start') return json(res, 200, { challenge_id: '00000000-0000-4000-8000-000000000001' });
@@ -73,6 +75,20 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
         return json(res, 200, children[0]);
       }
       return json(res, 404, { error: 'not_found' });
+    }
+    if (path === '/v1/auth/web/profile') {
+      profileCalls++;
+      if (req.headers['x-lm-bff-secret'] !== 'test-only-bff-secret-32-characters-long') return json(res, 401, {});
+      if (!issued || revoked || req.headers['x-lm-web-session'] !== handle) return json(res, 401, {});
+      if (req.method === 'GET') return json(res, 200, parentInfo);
+      if (req.method === 'DELETE') {
+        parentInfo = { first_name: null, occupation_optional: null };
+        return json(res, 200, parentInfo);
+      }
+      let content = '';
+      for await (const piece of req) content += piece;
+      parentInfo = { ...parentInfo, ...JSON.parse(content) };
+      return json(res, 200, parentInfo);
     }
     if (path === '/v1/auth/token/refresh') refreshCount += 1;
     return json(res, 404, { error: 'not_found' });
