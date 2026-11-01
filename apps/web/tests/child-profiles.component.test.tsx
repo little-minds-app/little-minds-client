@@ -11,8 +11,8 @@ Object.assign(globalThis, {
   MutationObserver: dom.window.MutationObserver,
 });
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
-const { cleanup, fireEvent, render, screen, waitFor } = await import('@testing-library/react');
-const { ChildProfiles } = await import('../app/parent/child-profiles');
+const { cleanup, fireEvent, render, screen, waitFor } = require('@testing-library/react') as typeof import('@testing-library/react');
+const { ChildProfiles } = require('../app/parent/child-profiles') as typeof import('../app/parent/child-profiles');
 
 afterEach(() => {
   cleanup();
