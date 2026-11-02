@@ -21,3 +21,19 @@ Backend contract: `POST /v1/events/batch` from backend PR #31 (`contracts/openap
 6. **429 Retry-After and network-size budgets:** Exponential backoff is implemented; explicit Retry-After handling and a full request byte cap are still acceptance gates for production use.
 
 **Never merge or mark LMP-51 Done before Phases C/D review and explicit human merge authorization.** No production deployment has occurred.
+
+## Phase D architecture decision (2026-11-02; unmerged)
+
+**Decision: retain encrypted, atomic file-per-event persistence for V1**, conditional on the gates below. SQLite is a fallback, not an automatic rewrite. Current implementation uses per-parent partitions, AES-GCM codec, bounded records, per-record atomic rename, and account-scoped ACK. Do not claim cross-process or multi-record transactional guarantees.
+
+**Release-blocking evidence required:**
+
+- Run Flutter tests on the exact PR head, including restart/crash recovery, failed or ambiguous ACK, partial ACK, account switch, consent purge, encryption and quota overflow; attach run SHA and results.
+- Prove app bootstrap selects the production adapter only with authenticated parent, registered device and published content UUID; demo fixture identifiers must never be transmitted.
+- Validate client payloads against backend OpenAPI 0.12.0 and exact pinned backend commit; enforce server-side ownership, consent and schema checks.
+- Validate retry on 401, 429 Retry-After, 5xx and malformed ACK, with no silent loss or cross-account delivery. Confirm actual request byte budget and batch split behavior.
+- Run PostgreSQL migration/ingestion E2E, including concurrent idempotency, replay after commit/timeout, parent-only events, out-of-order sessions and revoked consent.
+- Approve retention, quarantine cleanup, disk-capacity policy and storage encryption/key lifecycle before release. Never invent retention windows.
+- Independently review privacy and security; require final A-D human approval before merge. **No PR merge or deployment authorized.**
+
+**Fallback trigger:** move to SQLite only if reproducible corruption, concurrency, quota/recovery or lifecycle evidence demonstrates that file-per-event cannot satisfy these gates. Record the failure and migration/rollback plan first.
