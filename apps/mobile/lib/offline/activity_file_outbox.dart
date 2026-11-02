@@ -206,30 +206,15 @@ class ActivityFileOutbox {
     await _atomicWrite(file, current.retryAfter(nextAttemptAt).toJson());
   });
 
-  /// Permanently rejected events are not retried. The original immutable
-  /// envelope remains quarantined for explicit cleanup/diagnostics, without
-  /// ever sending it again on the next app resume.
+  /// Permanently rejected events are retained for explicit diagnostics or
+  /// deletion, but never automatically resent after a server rejection.
   Future<void> quarantine(
     String parentId,
     String eventId,
     String reasonCode,
   ) => _serialized(() async {
-    if (!RegExp(r'^[a-z0-9_.-]{1,100}
-    final dir = _partition(parentId);
-    if (await dir.exists()) await dir.delete(recursive: true);
-  });
-
-  Future<void> _atomicWrite(File destination, Map<String, dynamic> value) async {
-    final temp = File('${destination.path}.${const Uuid().v4()}.tmp');
-    try {
-      await temp.writeAsString(jsonEncode(value), flush: true);
-      await temp.rename(destination.path);
-    } finally {
-      if (await temp.exists()) await temp.delete();
-    }
-  }
-}
-).hasMatch(reasonCode)) {
+    final safeReason = RegExp(r'^[a-z0-9_.-]{1,100}\$');
+    if (!safeReason.hasMatch(reasonCode)) {
       throw ArgumentError('invalid rejection reason');
     }
     final file = _entry(parentId, eventId);
@@ -238,8 +223,7 @@ class ActivityFileOutbox {
     }
   });
 
-  /// Remove optional analytics captured before withdrawal. This method must
-  /// be called by consent-state UI when the parent withdraws the scope.
+  /// Purge unacknowledged optional analytics when consent is withdrawn.
   Future<int> purgeConsentScope(String parentId, String scope) =>
       _serialized(() async {
         final dir = _partition(parentId);
@@ -250,7 +234,7 @@ class ActivityFileOutbox {
             continue;
           }
           final data = PendingActivityEvent.fromJson(
-              jsonDecode(await entity.readAsString()) as Map<String, dynamic>);
+            jsonDecode(await entity.readAsString()) as Map<String, dynamic>);
           if (data.parentId == parentId &&
               data.payload['consent_scope'] == scope) {
             await entity.delete();
@@ -262,7 +246,9 @@ class ActivityFileOutbox {
 
   Future<void> purgePartition(String parentId) => _serialized(() async {
     final dir = _partition(parentId);
-    if (await dir.exists()) await dir.delete(recursive: true);
+    if (await dir.exists()) {
+      await dir.delete(recursive: true);
+    }
   });
 
   Future<void> _atomicWrite(File destination, Map<String, dynamic> value) async {
@@ -271,7 +257,9 @@ class ActivityFileOutbox {
       await temp.writeAsString(jsonEncode(value), flush: true);
       await temp.rename(destination.path);
     } finally {
-      if (await temp.exists()) await temp.delete();
+      if (await temp.exists()) {
+        await temp.delete();
+      }
     }
   }
 }
