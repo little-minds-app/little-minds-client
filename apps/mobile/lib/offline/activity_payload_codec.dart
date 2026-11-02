@@ -15,7 +15,6 @@ abstract class ActivityPayloadCodec {
 }
 
 class SecureActivityPayloadCodec implements ActivityPayloadCodec {
-  // ignore: prefer_initializing_formals
   SecureActivityPayloadCodec({FlutterSecureStorage? storage,
       Future<SecretKey> Function(String)? testKeyProvider})
       : _testKeyProvider = testKeyProvider,
