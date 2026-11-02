@@ -85,6 +85,40 @@ void main() {
       if (await root.exists()) await root.delete(recursive: true);
     }
   });
+  test('production adapter rejects incorrect consent scope and policy', () async {
+    final root = await Directory.systemTemp.createTemp('lmp51-consent-');
+    try {
+      const deviceId = '22222222-2222-4222-8222-222222222222';
+      const contentId = '33333333-3333-4333-8333-333333333333';
+      const sessionId = '44444444-4444-4444-8444-444444444444';
+      final emitter = ActivityEventEmitter(
+        outbox: ActivityFileOutbox.forTesting(root),
+        session: const AuthSession(
+          parentId: '11111111-1111-4111-8111-111111111111',
+          sessionId: 'auth-session', accessToken: 'test',
+          refreshToken: 'test', expiresInSeconds: 300,
+        ),
+        deviceId: deviceId, contentVersionId: contentId,
+        consentPolicyVersion: 'privacy-notice-draft-0',
+      );
+      Map<String, dynamic> metadata(String scope, String policy) => {
+        'schema_version': '1.0.0', 'play_session_id': sessionId,
+        'device_id': deviceId, 'content_version_id': contentId,
+        'consent': {'consent_scope': scope, 'policy_version': policy},
+      };
+      for (final invalid in [
+        metadata('optional_product_analytics', 'privacy-notice-draft-0'),
+        metadata('essential_play_events', 'wrong-policy'),
+      ]) {
+        expect(() => NearFarProductionEventBuffer(
+          emitter: emitter, sessionPayload: invalid,
+          deviceId: deviceId, contentVersionId: contentId,
+        ), throwsArgumentError);
+      }
+    } finally {
+      if (await root.exists()) await root.delete(recursive: true);
+    }
+  });
   test('production adapter rejects demo and mismatched identifiers', () async {
     final root = await Directory.systemTemp.createTemp('lmp51-id-guard-');
     try {
