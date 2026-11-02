@@ -14,6 +14,7 @@ class OptionalParentProfileSurface extends StatefulWidget {
     required this.auth,
     required this.config,
     required this.onBack,
+    this.gateToken,
     this.loadForTest,
     this.saveForTest,
     this.clearForTest,
@@ -21,6 +22,7 @@ class OptionalParentProfileSurface extends StatefulWidget {
   final ParentAuthController auth;
   final AppConfig config;
   final VoidCallback onBack;
+  final String? gateToken;
   final Future<OptionalParentProfile?> Function()? loadForTest;
   final Future<OptionalParentProfile?> Function(UpdateOptionalParentProfile)? saveForTest;
   final Future<OptionalParentProfile?> Function()? clearForTest;
@@ -30,7 +32,8 @@ class OptionalParentProfileSurface extends StatefulWidget {
 }
 
 class _OptionalParentProfileSurfaceState extends State<OptionalParentProfileSurface> {
-  late final AuthApiClients _clients = AuthApiClients(basePath: widget.config.apiBaseUrlString);
+  late final AuthApiClients _clients = AuthApiClients(basePath: widget.config.apiBaseUrlString)
+    ..apiClient.addDefaultHeader('X-Parent-Gate-Token', widget.gateToken ?? '');
   final _first = TextEditingController();
   final _last = TextEditingController();
   final _count = TextEditingController();
