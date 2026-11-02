@@ -38,10 +38,33 @@ class _ParentPinSurfaceState extends State<ParentPinSurface> {
   String? _challengeId;
   String? _proof;
   String? _error;
+  String? _boundSessionId;
+  String? _boundParentId;
+
+  bool get _sameAccount => widget.auth.session?.sessionId == _boundSessionId &&
+      widget.auth.session?.parentId == _boundParentId;
+
+  void _authChanged() {
+    if (_sameAccount || !mounted) return;
+    _pin.clear();
+    _confirmation.clear();
+    _identity.clear();
+    _otp.clear();
+    _proof = null;
+    _challengeId = null;
+    widget.onBack();
+  }
+
+  void _assertAccount() {
+    if (!_sameAccount) throw StateError('Parent session changed');
+  }
 
   @override
   void initState() {
     super.initState();
+    _boundSessionId = widget.auth.session?.sessionId;
+    _boundParentId = widget.auth.session?.parentId;
+    widget.auth.addListener(_authChanged);
     _load();
   }
 
@@ -51,6 +74,7 @@ class _ParentPinSurfaceState extends State<ParentPinSurface> {
       widget.onBack();
       return;
     }
+    _assertAccount();
     _api.authorize(session);
     try {
       final configured = await _api.configured();
@@ -83,7 +107,9 @@ class _ParentPinSurfaceState extends State<ParentPinSurface> {
   });
 
   Future<void> _sendOtp() => _perform(() async {
+    _assertAccount();
     final challenge = await _api.beginIdentityProof(_provider, _identity.text.trim());
+    _assertAccount();
     if (!mounted) return;
     setState(() => _challengeId = challenge);
   });
@@ -91,7 +117,9 @@ class _ParentPinSurfaceState extends State<ParentPinSurface> {
   Future<void> _confirmOtp() => _perform(() async {
     final id = _challengeId;
     if (id == null) throw StateError('Missing challenge');
+    _assertAccount();
     final proof = await _api.confirmIdentityProof(_provider, id, _otp.text.trim());
+    _assertAccount();
     if (!mounted) return;
     _otp.clear();
     setState(() => _proof = proof);
@@ -103,7 +131,9 @@ class _ParentPinSurfaceState extends State<ParentPinSurface> {
     if (!RegExp(r'^[0-9]{6}$').hasMatch(_pin.text) || _pin.text != _confirmation.text) {
       throw StateError('Invalid PIN');
     }
+    _assertAccount();
     await _api.setPin(_pin.text, _confirmation.text, proof, reset: _configured);
+    _assertAccount();
     if (!mounted) return;
     _pin.clear();
     _confirmation.clear();
@@ -188,6 +218,7 @@ class _ParentPinSurfaceState extends State<ParentPinSurface> {
 
   @override
   void dispose() {
+    widget.auth.removeListener(_authChanged);
     _pin.dispose(); _confirmation.dispose(); _identity.dispose(); _otp.dispose();
     super.dispose();
   }
