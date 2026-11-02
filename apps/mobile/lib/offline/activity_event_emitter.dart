@@ -125,7 +125,7 @@ class ActivityEventEmitter {
       'schema_version': '1.0.0',
       'event_id': id,
       'event_type': eventType,
-      if (!parentOnly) 'play_session_id': playSessionId,
+      'play_session_id': ?playSessionId,
       'device_id': deviceId,
       'content_version_id': contentVersionId,
       'occurred_at': now.toIso8601String().replaceFirst('+00:00', 'Z'),
