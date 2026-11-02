@@ -15,6 +15,7 @@ dependencies:
   flame: ^1.38.2
   flutter_secure_storage: ^9.2.4
   intl: any
+  path_provider: ^2.1.5
   little_minds_api:
     path: ../../generated/dart
   shared_preferences: ^2.5.6
