@@ -382,6 +382,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                   return OptionalParentProfileSurface(
                     auth: _parentAuth,
                     config: widget.config,
+                    gateToken: _gateToken,
                     onBack: () => _go(_ShellRoute.parentSettings),
                   );
                 case _ShellRoute.parentSettings:
