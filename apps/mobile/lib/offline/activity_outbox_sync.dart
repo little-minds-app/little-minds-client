@@ -93,7 +93,9 @@ class ActivityOutboxSync {
         for (final item in pending) {
           if (item.sessionPayload != null) {
             final sessionId = item.sessionPayload!['play_session_id'];
-            if (sessionId is! String) return;
+            if (sessionId is! String) {
+              return;
+            }
             // Prefer the terminal metadata if the same session was completed.
             if (!uniqueSessions.containsKey(sessionId) ||
                 item.sessionPayload!['ended_at'] != null) {
@@ -118,13 +120,17 @@ class ActivityOutboxSync {
       }
       if (!_sameAccount(initial)) return;
       final rows = result['results'];
-      if (rows is! List) return;
+      if (rows is! List) {
+        return;
+      }
       final acked = <String, String>{};
       for (final entry in rows) {
         if (entry is! Map || entry['event_id'] is! String ||
             entry['status'] is! String) return;
         final id = entry['event_id'] as String;
-        if (acked.containsKey(id)) return;
+        if (acked.containsKey(id)) {
+          return;
+        }
         acked[id] = entry['status'] as String;
       }
       // Validate the full ACK before acknowledging any record.
@@ -132,7 +138,9 @@ class ActivityOutboxSync {
           pending.any((e) => !acked.containsKey(e.eventId)) ||
           acked.values.any((v) => !{
             'accepted', 'duplicate_noop', 'rejected', 'retryable'
-          }.contains(v))) return;
+          }.contains(v))) {
+        return;
+      }
       for (final item in pending) {
         if (!_sameAccount(initial)) return;
         final status = acked[item.eventId];
