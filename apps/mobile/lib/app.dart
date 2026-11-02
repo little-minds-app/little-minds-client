@@ -174,6 +174,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
 
   String? _gateToken;
   String? _gateSessionId;
+  AuthSession? _gateSession;
   DateTime? _gateExpiresAt;
   bool get _adultUnlocked =>
       (widget.testOnlyAdultAccess && _isWidgetTestBinding && !kReleaseMode &&
@@ -276,11 +277,12 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
 
   void _clearAdultGrant({bool revoke = true}) {
     final token = _gateToken;
-    final session = _parentAuth.session;
+    final session = _gateSession;
     _gateTimer?.cancel();
     _gateTimer = null;
     _gateToken = null;
     _gateSessionId = null;
+    _gateSession = null;
     _gateExpiresAt = null;
     if (revoke && token != null && session != null) {
       _pendingRevokes.add((
@@ -318,7 +320,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     if (!mounted) return;
     if (_gateSessionId != null &&
         _parentAuth.session?.sessionId != _gateSessionId) {
-      _clearAdultGrant(revoke: false);
+      _clearAdultGrant();
       if (_route == _ShellRoute.parentPinGate) {
         _go(_ShellRoute.parentGate);
         return;
@@ -439,6 +441,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                     onUnlocked: (token) {
                       _gateToken = token;
                       _gateSessionId = _parentAuth.session?.sessionId;
+                      _gateSession = _parentAuth.session;
                       _gateExpiresAt = DateTime.now().add(const Duration(minutes: 5));
                       _gateTimer?.cancel();
                       _gateTimer = Timer(const Duration(minutes: 5), () {
