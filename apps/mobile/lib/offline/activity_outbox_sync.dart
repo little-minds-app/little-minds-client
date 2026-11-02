@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:little_minds_api/api.dart';
+
 import '../auth/auth_session.dart';
 import 'activity_file_outbox.dart';
 
@@ -23,7 +25,23 @@ class ActivityHttpBatchSender {
     List<Map<String, dynamic>> events,
     List<Map<String, dynamic>> sessions,
   ) async {
-    final encoded = utf8.encode(jsonEncode({'sessions': sessions, 'events': events}));
+    // Parse through the pinned generated OpenAPI models, not an independent
+    // hand-maintained envelope. Preserve the HTTP transport for Retry-After.
+    final typedSessions = <ActivitySessionV1>[];
+    final typedEvents = <ActivityEventV1>[];
+    for (final json in sessions) {
+      final parsed = ActivitySessionV1.fromJson(json);
+      if (parsed == null) throw const FormatException('batch.invalid_session');
+      typedSessions.add(parsed);
+    }
+    for (final json in events) {
+      final parsed = ActivityEventV1.fromJson(json);
+      if (parsed == null) throw const FormatException('batch.invalid_event');
+      typedEvents.add(parsed);
+    }
+    final request = IngestActivityEventBatchRequest(
+        sessions: typedSessions, events: typedEvents);
+    final encoded = utf8.encode(jsonEncode(request.toJson()));
     if (encoded.length > 256 * 1024) {
       throw const ActivityRequestTooLarge();
     }
@@ -38,6 +56,12 @@ class ActivityHttpBatchSender {
     if (response.statusCode == 200) {
       final body = jsonDecode(responseBody);
       if (body is! Map<String, dynamic> || body['results'] is! List) {
+        throw const FormatException('batch.invalid_response');
+      }
+      // Fail closed on a response that no longer conforms to the pinned
+      // generated batch acknowledgment schema.
+      final typedAck = IngestActivityEventBatch200Response.fromJson(body);
+      if (typedAck == null) {
         throw const FormatException('batch.invalid_response');
       }
       return body;
