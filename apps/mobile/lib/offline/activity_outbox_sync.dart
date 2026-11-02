@@ -123,7 +123,7 @@ class ActivityOutboxSync {
       if (rows is! List) {
         return;
       }
-      final acked = <String, String>{};
+      final acked = <String, ({String status, String? reason})>{};
       for (final entry in rows) {
         if (entry is! Map || entry['event_id'] is! String ||
             entry['status'] is! String) return;
@@ -131,24 +131,31 @@ class ActivityOutboxSync {
         if (acked.containsKey(id)) {
           return;
         }
-        acked[id] = entry['status'] as String;
+        acked[id] = (status: entry['status'] as String,
+            reason: entry['reason_code'] as String?);
       }
       // Validate the full ACK before acknowledging any record.
       if (acked.length != pending.length ||
           pending.any((e) => !acked.containsKey(e.eventId)) ||
           acked.values.any((v) => !{
             'accepted', 'duplicate_noop', 'rejected', 'retryable'
-          }.contains(v))) {
+          }.contains(v.status))) {
         return;
       }
       for (final item in pending) {
         if (!_sameAccount(initial)) return;
-        final status = acked[item.eventId];
-        if (status == 'accepted' || status == 'duplicate_noop') {
+        final ack = acked[item.eventId]!;
+        if (ack.status == 'accepted' || ack.status == 'duplicate_noop') {
           await outbox.acknowledge(initial.parentId, item.eventId);
+        } else if (ack.status == 'rejected') {
+          if (ack.reason == 'consent.not_authorized' &&
+              item.payload['consent_scope'] == 'optional_product_analytics') {
+            await outbox.acknowledge(initial.parentId, item.eventId);
+          } else {
+            await outbox.quarantine(initial.parentId, item.eventId,
+                ack.reason ?? 'server.rejected');
+          }
         } else {
-          // Permanent server rejections require explicit quarantine/UX policy.
-          // Conservatively retain data rather than dropping it.
           await outbox.postpone(item, _nextRetry(item.attempts));
         }
       }
