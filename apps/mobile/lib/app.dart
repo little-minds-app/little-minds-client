@@ -17,6 +17,8 @@ import 'l10n/app_localizations.dart';
 import 'mentor/mentor_card.dart';
 import 'mentor/mentor_card_fixtures.dart';
 import 'near_far/near_far_activity.dart';
+import 'parent_gate/parent_gate_api.dart';
+import 'parent_gate/parent_pin_surface.dart';
 import 'screen_time/screen_time.dart';
 import 'surfaces/child_hub_surface.dart';
 import 'surfaces/near_far_demo_surface.dart';
@@ -104,6 +106,7 @@ enum _ShellRoute {
   childHub,
   profileSelection,
   parentGate,
+  parentPinGate,
   parentSettings,
   optionalParentProfile,
   nearFarDemo,
@@ -116,7 +119,7 @@ bool get _isWidgetTestBinding =>
           'TestWidgetsFlutterBinding',
         );
 
-class _LittleMindsAppState extends State<LittleMindsApp> {
+class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObserver {
   late final StubLearningGame _game = widget.game ?? StubLearningGame();
   late _ShellRoute _route =
       widget.initialNearFarDemo ? _ShellRoute.nearFarDemo : _ShellRoute.childHub;
@@ -131,10 +134,17 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
   late final ChildProfilesController _profiles;
   late final bool _ownsProfiles;
   bool _profileManageMode = false;
+  String? _gateToken;
+  String? _gateSessionId;
+  DateTime? _gateExpiresAt;
+  bool get _adultUnlocked => _gateToken != null &&
+      _gateSessionId == _parentAuth.session?.sessionId &&
+      _gateExpiresAt != null && DateTime.now().isBefore(_gateExpiresAt!);
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ownsScreenTime = widget.screenTime == null;
     _screenTime = widget.screenTime ?? _createFallbackScreenTime();
     _ownsParentAuth = widget.parentAuthController == null;
@@ -219,20 +229,53 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
         (route == _ShellRoute.profileSelection && _profileManageMode);
   }
 
-  void _handleAuthChange() {
-    if (!mounted || _parentAuth.isAuthenticated ||
-        !_requiresParentSession(_route)) {
-      return;
+  void _clearAdultGrant({bool revoke = true}) {
+    final token = _gateToken;
+    final session = _parentAuth.session;
+    _gateToken = null;
+    _gateSessionId = null;
+    _gateExpiresAt = null;
+    if (revoke && token != null && session != null) {
+      final api = ParentGateApi(widget.config)..authorize(session);
+      // ignore: discarded_futures
+      api.lock().catchError((Object _) {});
     }
-    _profileManageMode = false;
-    setState(() => _route = _ShellRoute.parentGate);
-    _screenTime.setKidsModeShellActive(false);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _clearAdultGrant();
+      if (mounted && _requiresParentSession(_route)) {
+        _profileManageMode = false;
+        _go(_ShellRoute.parentGate);
+      }
+    }
+  }
+
+  void _handleAuthChange() {
+    if (!mounted) return;
+    if (_gateSessionId != null &&
+        _parentAuth.session?.sessionId != _gateSessionId) {
+      _clearAdultGrant(revoke: false);
+    }
+    if ((!_parentAuth.isAuthenticated || !_adultUnlocked) &&
+        _requiresParentSession(_route)) {
+      _profileManageMode = false;
+      setState(() => _route = _ShellRoute.parentGate);
+      _screenTime.setKidsModeShellActive(false);
+    }
   }
 
   void _go(_ShellRoute route) {
-    final target = _requiresParentSession(route) &&
-            !_parentAuth.isAuthenticated
-        ? _ShellRoute.parentGate
+    if (route == _ShellRoute.childHub || route == _ShellRoute.parentGate) {
+      _clearAdultGrant();
+    }
+    final target = _requiresParentSession(route)
+        ? (!_parentAuth.isAuthenticated ? _ShellRoute.parentGate
+            : !_adultUnlocked ? _ShellRoute.parentPinGate : route)
         : route;
     if (target != route) _profileManageMode = false;
     setState(() => _route = target);
@@ -240,8 +283,8 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
   }
 
   void _openNearFarDemo({required _ShellRoute returnTo}) {
-    if (!_parentAuth.isAuthenticated) {
-      _go(_ShellRoute.parentGate);
+    if (!_parentAuth.isAuthenticated || !_adultUnlocked) {
+      _go(_ShellRoute.parentPinGate);
       return;
     }
     setState(() {
@@ -263,6 +306,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _parentAuth.removeListener(_handleAuthChange);
     if (_ownsScreenTime) {
       _screenTime.dispose();
@@ -321,6 +365,18 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
                   return ParentGateSurface(
                     onBackToHub: () => _go(_ShellRoute.childHub),
                     onOpenSettings: () => _go(_ShellRoute.parentSettings),
+                  );
+                case _ShellRoute.parentPinGate:
+                  return ParentPinSurface(
+                    auth: _parentAuth,
+                    config: widget.config,
+                    onBack: () => _go(_ShellRoute.childHub),
+                    onUnlocked: (token) {
+                      _gateToken = token;
+                      _gateSessionId = _parentAuth.session?.sessionId;
+                      _gateExpiresAt = DateTime.now().add(const Duration(minutes: 5));
+                      _go(_ShellRoute.parentSettings);
+                    },
                   );
                 case _ShellRoute.optionalParentProfile:
                   return OptionalParentProfileSurface(
