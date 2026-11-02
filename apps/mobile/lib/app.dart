@@ -149,6 +149,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   bool _profileManageMode = false;
   Timer? _gateTimer;
   Timer? _revokeRetryTimer;
+  Timer? _offlineSyncTimer;
   final List<({String token, AuthSession session, DateTime expiresAt})> _pendingRevokes = [];
   bool _revokeInFlight = false;
 
@@ -214,6 +215,11 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     _parentAuth.addListener(_handleAuthChange);
     if (widget.offlineSync != null) {
       unawaited(widget.offlineSync!.flush());
+      _offlineSyncTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+        if (mounted && _parentAuth.isAuthenticated) {
+          unawaited(widget.offlineSync!.flush());
+        }
+      });
     }
     // ignore: discarded_futures
     _bootstrapScreenTime();
@@ -388,6 +394,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     WidgetsBinding.instance.removeObserver(this);
     _gateTimer?.cancel();
     _revokeRetryTimer?.cancel();
+    _offlineSyncTimer?.cancel();
     _parentAuth.removeListener(_handleAuthChange);
     if (_ownsScreenTime) {
       _screenTime.dispose();
