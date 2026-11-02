@@ -190,6 +190,14 @@ void main() {
     expect((await outbox.pending(parentA)).map((e) => e.eventId), [eventB]);
   });
 
+  test('Retry-After understands seconds and HTTP-date, with safe bounds', () {
+    expect(parseActivityRetryAfter('120'), const Duration(seconds: 120));
+    expect(parseActivityRetryAfter('7200'), const Duration(hours: 1));
+    expect(parseActivityRetryAfter('Mon, 02 Nov 2026 12:02:00 GMT',
+      now: DateTime.utc(2026, 11, 2, 12)), const Duration(minutes: 2));
+    expect(parseActivityRetryAfter('not-a-date'), isNull);
+  });
+
   test('429 Retry-After schedules next attempt without deleting event', () async {
     await outbox.enqueue(event(parentA, eventA));
     final sync = ActivityOutboxSync(
