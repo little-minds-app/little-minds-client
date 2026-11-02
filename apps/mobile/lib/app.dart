@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -134,6 +135,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   late final ChildProfilesController _profiles;
   late final bool _ownsProfiles;
   bool _profileManageMode = false;
+  Timer? _gateTimer;
   String? _gateToken;
   String? _gateSessionId;
   DateTime? _gateExpiresAt;
@@ -232,6 +234,8 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   void _clearAdultGrant({bool revoke = true}) {
     final token = _gateToken;
     final session = _parentAuth.session;
+    _gateTimer?.cancel();
+    _gateTimer = null;
     _gateToken = null;
     _gateSessionId = null;
     _gateExpiresAt = null;
@@ -260,6 +264,10 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     if (_gateSessionId != null &&
         _parentAuth.session?.sessionId != _gateSessionId) {
       _clearAdultGrant(revoke: false);
+      if (_route == _ShellRoute.parentPinGate) {
+        _go(_ShellRoute.parentGate);
+        return;
+      }
     }
     if ((!_parentAuth.isAuthenticated || !_adultUnlocked) &&
         _requiresParentSession(_route)) {
@@ -307,6 +315,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _gateTimer?.cancel();
     _parentAuth.removeListener(_handleAuthChange);
     if (_ownsScreenTime) {
       _screenTime.dispose();
@@ -375,6 +384,13 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                       _gateToken = token;
                       _gateSessionId = _parentAuth.session?.sessionId;
                       _gateExpiresAt = DateTime.now().add(const Duration(minutes: 5));
+                      _gateTimer?.cancel();
+                      _gateTimer = Timer(const Duration(minutes: 5), () {
+                        if (!mounted) return;
+                        _clearAdultGrant();
+                        _profileManageMode = false;
+                        _go(_ShellRoute.parentGate);
+                      });
                       _go(_ShellRoute.parentSettings);
                     },
                   );
