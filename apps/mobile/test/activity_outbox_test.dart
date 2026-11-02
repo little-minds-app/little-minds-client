@@ -223,4 +223,40 @@ void main() {
     )), throwsArgumentError);
     expect(await outbox.pending(parentA), isEmpty);
   });
+  test('oversized batch keeps events and backs off instead of hot looping', () async {
+    await outbox.enqueue(event(parentA, eventA));
+    var calls = 0;
+    final sync = ActivityOutboxSync(
+      outbox: outbox, currentSession: () => sessionA,
+      clock: () => DateTime.utc(2026, 11, 2),
+      send: (_, _, _) async {
+        calls++;
+        throw const ActivityRequestTooLarge();
+      },
+    );
+    await sync.flush();
+    await sync.flush();
+    expect(calls, 1);
+    expect(await outbox.pending(parentA, now: DateTime.utc(2026, 11, 3)),
+        hasLength(1));
+  });
+
+  test('batch-level permanent HTTP failure retains and postpones events', () async {
+    await outbox.enqueue(event(parentA, eventA));
+    var calls = 0;
+    final sync = ActivityOutboxSync(
+      outbox: outbox, currentSession: () => sessionA,
+      clock: () => DateTime.utc(2026, 11, 2),
+      send: (_, _, _) async {
+        calls++;
+        throw const ActivityPermanentHttp(422);
+      },
+    );
+    await sync.flush();
+    await sync.flush();
+    expect(calls, 1);
+    expect(await outbox.pending(parentA, now: DateTime.utc(2026, 11, 3)),
+        hasLength(1));
+  });
+
 }
