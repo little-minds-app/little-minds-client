@@ -248,6 +248,26 @@ class ActivityFileOutbox {
         return removed;
       });
 
+  /// Apply an explicit policy cutoff to quarantined records. Does not touch
+  /// active essential events, and does not invent a retention deadline.
+  Future<int> purgeQuarantineBefore(String parentId, DateTime cutoff) =>
+      _serialized(() async {
+        final dir = _partition(parentId);
+        if (!await dir.exists()) return 0;
+        var removed = 0;
+        await for (final entity in dir.list(followLinks: false)) {
+          if (entity is! File || !entity.path.endsWith('.json.rejected')) {
+            continue;
+          }
+          final modified = (await entity.stat()).modified.toUtc();
+          if (modified.isBefore(cutoff.toUtc())) {
+            await entity.delete();
+            removed++;
+          }
+        }
+        return removed;
+      });
+
   Future<void> purgePartition(String parentId) => _serialized(() async {
     final dir = _partition(parentId);
     if (await dir.exists()) {
