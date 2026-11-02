@@ -57,8 +57,8 @@ class ParentGateApi {
     return token;
   }
 
-  Future<void> lock() async {
-    await _request('DELETE', 'grant');
+  Future<void> lock(String token) async {
+    await _request('DELETE', 'grant', gateToken: token);
   }
 
   Future<bool> check(String token) async =>
