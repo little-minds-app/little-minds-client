@@ -8,6 +8,7 @@ import 'auth_api_clients.dart';
 import 'auth_error.dart';
 import 'auth_privacy_notice.dart';
 import 'auth_session.dart';
+import 'installation_id_store.dart';
 import 'auth_token_store.dart';
 import 'parent_auth_profile_result.dart';
 
@@ -18,23 +19,22 @@ class ParentAuthRepository {
     required AuthTokenStore tokenStore,
     AuthApiClients? clients,
     Uuid? uuid,
+    InstallationIdStore? installationIdStore,
   })  : _config = config,
         _tokenStore = tokenStore,
         _clients = clients ?? AuthApiClients(basePath: config.apiBaseUrlString),
-        _uuid = uuid ?? const Uuid();
+        _installationIdStore = installationIdStore ?? MemoryInstallationIdStore(uuid: uuid);
 
   final AppConfig _config;
   final AuthTokenStore _tokenStore;
   final AuthApiClients _clients;
-  final Uuid _uuid;
+  final InstallationIdStore _installationIdStore;
 
-  String? _deviceId;
+  Future<String>? _deviceIdInFlight;
   Future<AuthSession>? _refreshInFlight;
 
-  Future<String> deviceId() async {
-    _deviceId ??= _uuid.v4();
-    return _deviceId!;
-  }
+  Future<String> deviceId() =>
+      _deviceIdInFlight ??= _installationIdStore.getOrCreate();
 
   Future<AuthSession?> loadPersistedSession() => _tokenStore.readSession();
 
