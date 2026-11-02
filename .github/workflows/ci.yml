@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
 
@@ -17,6 +18,7 @@ permissions:
 
 jobs:
   ci-smoke-test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: CI Infrastructure Check
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -37,6 +39,7 @@ jobs:
           ./scripts/check-lmp19-docs.sh
 
   contract-checks:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: OpenAPI Generated Clients
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -67,6 +70,7 @@ jobs:
         run: npm test
 
   detect-projects:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: Detect Client Projects
     runs-on: ubuntu-latest
     outputs:
@@ -93,6 +97,7 @@ jobs:
           fi
 
   flutter-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: Flutter Analysis
     needs: detect-projects
     if: needs.detect-projects.outputs.flutter == 'true'
@@ -119,6 +124,7 @@ jobs:
         run: flutter test
 
   nextjs-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: Next.js Build
     needs: detect-projects
     if: needs.detect-projects.outputs.nextjs == 'true'
