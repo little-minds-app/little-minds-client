@@ -10,18 +10,23 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 abstract class ActivityPayloadCodec {
   Future<String> seal(String parentId, Map<String, dynamic> plain);
   Future<Map<String, dynamic>> open(String parentId, String encoded);
+  Future<void> forgetParent(String parentId);
 }
 
 class SecureActivityPayloadCodec implements ActivityPayloadCodec {
-  SecureActivityPayloadCodec({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage(
+  SecureActivityPayloadCodec({FlutterSecureStorage? storage,
+      Future<SecretKey> Function(String)? testKeyProvider})
+      : _testKeyProvider = testKeyProvider,
+        _storage = storage ?? const FlutterSecureStorage(
           aOptions: AndroidOptions(encryptedSharedPreferences: true));
   final FlutterSecureStorage _storage;
+  final Future<SecretKey> Function(String)? _testKeyProvider;
   final AesGcm _cipher = AesGcm.with256bits();
   final _random = Random.secure();
   static const _prefix = 'lm_activity_outbox_key_v1_';
 
   Future<SecretKey> _key(String parentId) async {
+    if (_testKeyProvider != null) return _testKeyProvider(parentId);
     final keyName = '$_prefix$parentId';
     final stored = await _storage.read(key: keyName);
     if (stored != null) {
@@ -35,6 +40,12 @@ class SecureActivityPayloadCodec implements ActivityPayloadCodec {
         List<int>.generate(32, (_) => _random.nextInt(256)));
     await _storage.write(key: keyName, value: base64Encode(bytes));
     return SecretKey(bytes);
+  }
+
+  @override
+  Future<void> forgetParent(String parentId) async {
+    if (_testKeyProvider != null) return;
+    await _storage.delete(key: '$_prefix$parentId');
   }
 
   @override
@@ -76,6 +87,8 @@ class SecureActivityPayloadCodec implements ActivityPayloadCodec {
 /// Unit-test adapter; never use for production, and never imports platform keys.
 class TestPlainActivityPayloadCodec implements ActivityPayloadCodec {
   const TestPlainActivityPayloadCodec();
+  @override
+  Future<void> forgetParent(String parentId) async {}
   @override
   Future<String> seal(String parentId, Map<String, dynamic> plain) async =>
       jsonEncode(plain);
