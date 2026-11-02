@@ -91,6 +91,8 @@ Duration? parseActivityRetryAfter(String? value, {DateTime? now}) {
         ? const Duration(hours: 1) : remaining;
   } on FormatException {
     return null;
+  } on HttpException {
+    return null;
   }
 }
 
