@@ -143,6 +143,35 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   late final bool _ownsProfiles;
   bool _profileManageMode = false;
   Timer? _gateTimer;
+  Timer? _revokeRetryTimer;
+  final List<({String token, AuthSession session, DateTime expiresAt})> _pendingRevokes = [];
+  bool _revokeInFlight = false;
+
+  Future<void> _flushPendingRevokes() async {
+    if (_revokeInFlight) return;
+    _revokeInFlight = true;
+    try {
+      for (final item in List.of(_pendingRevokes)) {
+        if (DateTime.now().isAfter(item.expiresAt)) {
+          _pendingRevokes.remove(item);
+          continue;
+        }
+        try {
+          await (ParentGateApi(widget.config)..authorize(item.session)).lock(item.token);
+          _pendingRevokes.remove(item);
+        } catch (_) {
+          // Keep the old grant queued; retry on resume and until server TTL.
+        }
+      }
+    } finally {
+      _revokeInFlight = false;
+      if (_pendingRevokes.isEmpty) {
+        _revokeRetryTimer?.cancel();
+        _revokeRetryTimer = null;
+      }
+    }
+  }
+
   String? _gateToken;
   String? _gateSessionId;
   DateTime? _gateExpiresAt;
@@ -254,14 +283,26 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     _gateSessionId = null;
     _gateExpiresAt = null;
     if (revoke && token != null && session != null) {
-      final api = ParentGateApi(widget.config)..authorize(session);
+      _pendingRevokes.add((
+        token: token,
+        session: session,
+        expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+      ));
+      _revokeRetryTimer ??= Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _flushPendingRevokes(),
+      );
       // ignore: discarded_futures
-      api.lock(token).catchError((Object _) {});
+      _flushPendingRevokes();
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // ignore: discarded_futures
+      _flushPendingRevokes();
+    }
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
@@ -330,6 +371,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _gateTimer?.cancel();
+    _revokeRetryTimer?.cancel();
     _parentAuth.removeListener(_handleAuthChange);
     if (_ownsScreenTime) {
       _screenTime.dispose();
