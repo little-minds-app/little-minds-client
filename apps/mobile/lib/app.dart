@@ -150,6 +150,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
       repository: ChildProfileRepository(config: widget.config, auth: _parentAuth),
       auth: _parentAuth,
     );
+    _parentAuth.addListener(_handleAuthChange);
     // ignore: discarded_futures
     _bootstrapScreenTime();
     if (_ownsParentAuth) {
@@ -207,12 +208,40 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
         (route == _ShellRoute.profileSelection && !_profileManageMode);
   }
 
+  // LMP-42: navigation checks live parent identity, not the visibility of a
+  // button on the previous screen. Child routes remain reachable signed out.
+  bool _requiresParentSession(_ShellRoute route) {
+    return route == _ShellRoute.parentSettings ||
+        route == _ShellRoute.optionalParentProfile ||
+        route == _ShellRoute.nearFarMentor ||
+        route == _ShellRoute.nearFarDemo ||
+        route == _ShellRoute.screenTimeDebug ||
+        (route == _ShellRoute.profileSelection && _profileManageMode);
+  }
+
+  void _handleAuthChange() {
+    if (!mounted || _parentAuth.isAuthenticated ||
+        !_requiresParentSession(_route)) return;
+    _profileManageMode = false;
+    setState(() => _route = _ShellRoute.parentGate);
+    _screenTime.setKidsModeShellActive(false);
+  }
+
   void _go(_ShellRoute route) {
-    setState(() => _route = route);
-    _screenTime.setKidsModeShellActive(_isKidsModeRoute(route));
+    final target = _requiresParentSession(route) &&
+            !_parentAuth.isAuthenticated
+        ? _ShellRoute.parentGate
+        : route;
+    if (target != route) _profileManageMode = false;
+    setState(() => _route = target);
+    _screenTime.setKidsModeShellActive(_isKidsModeRoute(target));
   }
 
   void _openNearFarDemo({required _ShellRoute returnTo}) {
+    if (!_parentAuth.isAuthenticated) {
+      _go(_ShellRoute.parentGate);
+      return;
+    }
     setState(() {
       _nearFarDemoReturn = returnTo;
       _route = _ShellRoute.nearFarDemo;
@@ -232,6 +261,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
 
   @override
   void dispose() {
+    _parentAuth.removeListener(_handleAuthChange);
     if (_ownsScreenTime) {
       _screenTime.dispose();
     }
