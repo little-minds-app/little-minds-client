@@ -48,6 +48,7 @@ class LittleMindsApp extends StatefulWidget {
     this.audioGuidance,
     this.forceShowEnvBadge = false,
     this.initialNearFarDemo = false,
+    this.testOnlyAdultAccess = false,
     this.nearFarActivity,
     this.mentorCardLoader,
     this.mentorInjectedCard,
@@ -72,6 +73,9 @@ class LittleMindsApp extends StatefulWidget {
 
   /// Opens the dedicated Near/Far demo route (LMP-45) — not Hub catalog.
   final bool initialNearFarDemo;
+
+  /// Test fixture only; ignored in release builds and outside Flutter widget tests.
+  final bool testOnlyAdultAccess;
 
   /// Optional injected Near/Far activity for widget tests.
   final NearFarActivity? nearFarActivity;
@@ -123,7 +127,10 @@ bool get _isWidgetTestBinding =>
 class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObserver {
   late final StubLearningGame _game = widget.game ?? StubLearningGame();
   late _ShellRoute _route =
-      widget.initialNearFarDemo ? _ShellRoute.parentGate : _ShellRoute.childHub;
+      widget.initialNearFarDemo && widget.testOnlyAdultAccess &&
+              _isWidgetTestBinding && !kReleaseMode
+          ? _ShellRoute.nearFarDemo
+          : widget.initialNearFarDemo ? _ShellRoute.parentGate : _ShellRoute.childHub;
 
   /// Where Near/Far demo should return (mentor card or Parent Settings).
   _ShellRoute _nearFarDemoReturn = _ShellRoute.parentSettings;
@@ -139,9 +146,12 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   String? _gateToken;
   String? _gateSessionId;
   DateTime? _gateExpiresAt;
-  bool get _adultUnlocked => _gateToken != null &&
+  bool get _adultUnlocked =>
+      (widget.testOnlyAdultAccess && _isWidgetTestBinding && !kReleaseMode &&
+          _parentAuth.isAuthenticated) ||
+      (_gateToken != null &&
       _gateSessionId == _parentAuth.session?.sessionId &&
-      _gateExpiresAt != null && DateTime.now().isBefore(_gateExpiresAt!);
+      _gateExpiresAt != null && DateTime.now().isBefore(_gateExpiresAt!));
 
   @override
   void initState() {
