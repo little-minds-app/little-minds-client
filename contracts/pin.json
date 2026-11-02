@@ -1,9 +1,9 @@
 {
-  "$comment": "ADR-014 pinned immutable backend contract commit for LMP-41.",
+  "$comment": "LMP-51 immutable backend activity batch contract for Flutter client",
   "backendRepository": "little-minds-app/little-minds-backend",
-  "backendCommitSha": "9e97f955305563676b5cb214ae9f644b31824280",
+  "backendCommitSha": "9dec78c55b8ed9ae2005e185ad7b80b170954968",
   "artifactPath": "contracts/openapi.yaml",
-  "artifactBlobSha": "c1985d39212ff28a426a386a553d38297aaa1705",
-  "contractVersion": "0.10.0",
-  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/27"
+  "artifactBlobSha": "1579bafcabe35a59decb110c006a917579a1c0da",
+  "contractVersion": "0.12.0",
+  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/31"
 }
