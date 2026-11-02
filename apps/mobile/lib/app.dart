@@ -159,7 +159,11 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
         );
     _ownsProfiles = widget.childProfilesController == null;
     _profiles = widget.childProfilesController ?? ChildProfilesController(
-      repository: ChildProfileRepository(config: widget.config, auth: _parentAuth),
+      repository: ChildProfileRepository(
+        config: widget.config,
+        auth: _parentAuth,
+        gateTokenProvider: () => _gateToken,
+      ),
       auth: _parentAuth,
     );
     _parentAuth.addListener(_handleAuthChange);
