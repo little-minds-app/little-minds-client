@@ -7,7 +7,8 @@ import '../auth/auth_session.dart';
 import 'activity_file_outbox.dart';
 
 typedef EventBatchSender = Future<Map<String, dynamic>> Function(
-  AuthSession session, List<Map<String, dynamic>> events);
+  AuthSession session, List<Map<String, dynamic>> events,
+  List<Map<String, dynamic>> sessions);
 
 /// Uses the LMP-51 API wire contract. Auth token stays only in request header.
 class ActivityHttpBatchSender {
@@ -20,13 +21,14 @@ class ActivityHttpBatchSender {
   Future<Map<String, dynamic>> send(
     AuthSession session,
     List<Map<String, dynamic>> events,
+    List<Map<String, dynamic>> sessions,
   ) async {
     final req = await _client.postUrl(_endpoint).timeout(
       const Duration(seconds: 15));
     req.headers.contentType = ContentType.json;
     req.headers.set(HttpHeaders.authorizationHeader,
         'Bearer ${session.accessToken}');
-    req.add(utf8.encode(jsonEncode({'sessions': [], 'events': events})));
+    req.add(utf8.encode(jsonEncode({'sessions': sessions, 'events': events})));
     final response = await req.close().timeout(const Duration(seconds: 20));
     final responseBody = await utf8.decoder.bind(response).join();
     if (response.statusCode == 200) {
@@ -87,7 +89,20 @@ class ActivityOutboxSync {
       if (!_sameAccount(initial)) return;
       Map<String, dynamic> result;
       try {
-        result = await send(initial, pending.map((e) => e.payload).toList());
+        final uniqueSessions = <String, Map<String, dynamic>>{};
+        for (final item in pending) {
+          if (item.sessionPayload != null) {
+            final sessionId = item.sessionPayload!['play_session_id'];
+            if (sessionId is! String) return;
+            // Prefer the terminal metadata if the same session was completed.
+            if (!uniqueSessions.containsKey(sessionId) ||
+                item.sessionPayload!['ended_at'] != null) {
+              uniqueSessions[sessionId] = item.sessionPayload!;
+            }
+          }
+        }
+        result = await send(initial, pending.map((e) => e.payload).toList(),
+            uniqueSessions.values.toList());
       } on ActivityAuthExpired {
         // No token refresh inside worker; caller must reauthenticate first.
         return;
