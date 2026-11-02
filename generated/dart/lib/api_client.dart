@@ -233,6 +233,12 @@ class ApiClient {
           return GooglePkceStartResponse.fromJson(value);
         case 'HealthStatus':
           return HealthStatus.fromJson(value);
+        case 'IngestActivityEventBatch200Response':
+          return IngestActivityEventBatch200Response.fromJson(value);
+        case 'IngestActivityEventBatch200ResponseResultsInner':
+          return IngestActivityEventBatch200ResponseResultsInner.fromJson(value);
+        case 'IngestActivityEventBatchRequest':
+          return IngestActivityEventBatchRequest.fromJson(value);
         case 'LinkIdentityRequest':
           return LinkIdentityRequest.fromJson(value);
         case 'LinkIdentityResponse':
@@ -249,6 +255,22 @@ class ApiClient {
           return OidcNonceResponse.fromJson(value);
         case 'OptionalParentProfile':
           return OptionalParentProfile.fromJson(value);
+        case 'ParentGateAuthorized':
+          return ParentGateAuthorized.fromJson(value);
+        case 'ParentGateLocked':
+          return ParentGateLocked.fromJson(value);
+        case 'ParentGateProofRequest':
+          return ParentGateProofRequest.fromJson(value);
+        case 'ParentGateProofResponse':
+          return ParentGateProofResponse.fromJson(value);
+        case 'ParentGateSetPinRequest':
+          return ParentGateSetPinRequest.fromJson(value);
+        case 'ParentGateStatus':
+          return ParentGateStatus.fromJson(value);
+        case 'ParentGateVerifyRequest':
+          return ParentGateVerifyRequest.fromJson(value);
+        case 'ParentGateVerifyResponse':
+          return ParentGateVerifyResponse.fromJson(value);
         case 'ParentMeResponse':
           return ParentMeResponse.fromJson(value);
         case 'ParentSessionListResponse':
