@@ -123,7 +123,7 @@ bool get _isWidgetTestBinding =>
 class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObserver {
   late final StubLearningGame _game = widget.game ?? StubLearningGame();
   late _ShellRoute _route =
-      widget.initialNearFarDemo ? _ShellRoute.nearFarDemo : _ShellRoute.childHub;
+      widget.initialNearFarDemo ? _ShellRoute.parentGate : _ShellRoute.childHub;
 
   /// Where Near/Far demo should return (mentor card or Parent Settings).
   _ShellRoute _nearFarDemoReturn = _ShellRoute.parentSettings;
