@@ -18,13 +18,19 @@ class NearFarProductionEventBuffer extends NearFarLocalEventBuffer {
     required String deviceId,
     required String contentVersionId,
   }) : super(deviceId: deviceId, contentVersionId: contentVersionId) {
-    // Never allow the local demo's fabricated identifiers or a mismatched
-    // emitter/session binding to reach the production ingestion queue.
+    // Fail closed on fixture identifiers and mismatched emitter binding.
     final uuid = RegExp(
-      r'^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}['schema_version'] != '1.0.0' ||
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    );
+    if (!uuid.hasMatch(deviceId) ||
+        !uuid.hasMatch(contentVersionId) ||
+        !uuid.hasMatch(sessionPayload['play_session_id']?.toString() ?? '') ||
+        emitter.deviceId != deviceId ||
+        emitter.contentVersionId != contentVersionId ||
+        sessionPayload['schema_version'] != '1.0.0' ||
         sessionPayload['device_id'] != deviceId ||
-        sessionPayload['content_version_id'] != contentVersionId ||
-        sessionPayload['play_session_id'] is! String) {
+        sessionPayload['content_version_id'] != contentVersionId) {
       throw ArgumentError('production Near/Far session must be server-bound');
     }
   }
