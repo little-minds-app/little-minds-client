@@ -206,6 +206,58 @@ class ActivityFileOutbox {
     await _atomicWrite(file, current.retryAfter(nextAttemptAt).toJson());
   });
 
+  /// Permanently rejected events are not retried. The original immutable
+  /// envelope remains quarantined for explicit cleanup/diagnostics, without
+  /// ever sending it again on the next app resume.
+  Future<void> quarantine(
+    String parentId,
+    String eventId,
+    String reasonCode,
+  ) => _serialized(() async {
+    if (!RegExp(r'^[a-z0-9_.-]{1,100}
+    final dir = _partition(parentId);
+    if (await dir.exists()) await dir.delete(recursive: true);
+  });
+
+  Future<void> _atomicWrite(File destination, Map<String, dynamic> value) async {
+    final temp = File('${destination.path}.${const Uuid().v4()}.tmp');
+    try {
+      await temp.writeAsString(jsonEncode(value), flush: true);
+      await temp.rename(destination.path);
+    } finally {
+      if (await temp.exists()) await temp.delete();
+    }
+  }
+}
+).hasMatch(reasonCode)) {
+      throw ArgumentError('invalid rejection reason');
+    }
+    final file = _entry(parentId, eventId);
+    if (await file.exists()) {
+      await file.rename('${file.path}.rejected');
+    }
+  });
+
+  /// Remove optional analytics captured before withdrawal. This method must
+  /// be called by consent-state UI when the parent withdraws the scope.
+  Future<int> purgeConsentScope(String parentId, String scope) =>
+      _serialized(() async {
+        final dir = _partition(parentId);
+        if (!await dir.exists()) return 0;
+        var removed = 0;
+        await for (final entity in dir.list(followLinks: false)) {
+          if (entity is! File || !entity.path.endsWith('.json')) continue;
+          final data = PendingActivityEvent.fromJson(
+              jsonDecode(await entity.readAsString()) as Map<String, dynamic>);
+          if (data.parentId == parentId &&
+              data.payload['consent_scope'] == scope) {
+            await entity.delete();
+            removed++;
+          }
+        }
+        return removed;
+      });
+
   Future<void> purgePartition(String parentId) => _serialized(() async {
     final dir = _partition(parentId);
     if (await dir.exists()) await dir.delete(recursive: true);
