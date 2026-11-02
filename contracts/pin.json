@@ -1,9 +1,9 @@
 {
-  "$comment": "ADR-014 client pin — never point generators at floating main. Bump deliberately when adopting a new backend contract revision. artifactBlobSha is git hash-object of the vendored openapi.yaml (offline integrity; no live backend clone required).",
+  "$comment": "ADR-014 pinned immutable backend contract commit for LMP-41.",
   "backendRepository": "little-minds-app/little-minds-backend",
-  "backendCommitSha": "4b9559d6a17a339d8741cf563b0450948840f5eb",
+  "backendCommitSha": "9e97f955305563676b5cb214ae9f644b31824280",
   "artifactPath": "contracts/openapi.yaml",
-  "artifactBlobSha": "09472ae9ec73eafdfbf42e9f9b07031551c35d69",
-  "contractVersion": "0.9.0",
-  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/25"
+  "artifactBlobSha": "c1985d39212ff28a426a386a553d38297aaa1705",
+  "contractVersion": "0.10.0",
+  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/27"
 }
