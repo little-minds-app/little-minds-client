@@ -23,12 +23,16 @@ class ActivityHttpBatchSender {
     List<Map<String, dynamic>> events,
     List<Map<String, dynamic>> sessions,
   ) async {
+    final encoded = utf8.encode(jsonEncode({'sessions': sessions, 'events': events}));
+    if (encoded.length > 256 * 1024) {
+      throw const ActivityRequestTooLarge();
+    }
     final req = await _client.postUrl(_endpoint).timeout(
       const Duration(seconds: 15));
     req.headers.contentType = ContentType.json;
     req.headers.set(HttpHeaders.authorizationHeader,
         'Bearer ${session.accessToken}');
-    req.add(utf8.encode(jsonEncode({'sessions': sessions, 'events': events})));
+    req.add(encoded);
     final response = await req.close().timeout(const Duration(seconds: 20));
     final responseBody = await utf8.decoder.bind(response).join();
     if (response.statusCode == 200) {
@@ -40,7 +44,11 @@ class ActivityHttpBatchSender {
     }
     if (response.statusCode == 401) throw const ActivityAuthExpired();
     if (response.statusCode == 429 || response.statusCode >= 500) {
-      throw ActivityRetryableHttp(response.statusCode);
+      final rawRetry = response.headers.value('retry-after');
+      final seconds = rawRetry == null ? null : int.tryParse(rawRetry);
+      final retryDelay = seconds == null ? null
+          : Duration(seconds: seconds.clamp(1, 3600));
+      throw ActivityRetryableHttp(response.statusCode, retryAfter: retryDelay);
     }
     throw ActivityPermanentHttp(response.statusCode);
   }
@@ -50,8 +58,12 @@ class ActivityAuthExpired implements Exception {
   const ActivityAuthExpired();
 }
 class ActivityRetryableHttp implements Exception {
-  const ActivityRetryableHttp(this.status);
+  const ActivityRetryableHttp(this.status, {this.retryAfter});
   final int status;
+  final Duration? retryAfter;
+}
+class ActivityRequestTooLarge implements Exception {
+  const ActivityRequestTooLarge();
 }
 class ActivityPermanentHttp implements Exception {
   const ActivityPermanentHttp(this.status);
@@ -107,6 +119,17 @@ class ActivityOutboxSync {
             uniqueSessions.values.toList());
       } on ActivityAuthExpired {
         // No token refresh inside worker; caller must reauthenticate first.
+        return;
+      } on ActivityRequestTooLarge {
+        // Retain safely; batch split policy is a separate contract decision.
+        return;
+      } on ActivityRetryableHttp catch (error) {
+        if (!_sameAccount(initial)) return;
+        for (final item in pending) {
+          await outbox.postpone(item, error.retryAfter == null
+              ? _nextRetry(item.attempts)
+              : _clock().toUtc().add(error.retryAfter!));
+        }
         return;
       } on ActivityPermanentHttp {
         // Do not delete or silently lose events for ambiguous batch failures.
