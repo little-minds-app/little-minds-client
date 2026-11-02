@@ -119,8 +119,11 @@ class ActivityOutboxSync {
     if (initial == null) return;
     _running = true;
     try {
+      // Each persisted record is capped at 16 KiB (including its session).
+      // Twelve records plus the batch envelope fit under the 256 KiB cap.
+      // A bounded prefix avoids one oversized batch blocking the entire queue.
       final pending = await outbox.pending(initial.parentId,
-          now: _clock().toUtc());
+          now: _clock().toUtc(), limit: 12);
       if (pending.isEmpty) return;
       if (!_sameAccount(initial)) return;
       Map<String, dynamic> result;
