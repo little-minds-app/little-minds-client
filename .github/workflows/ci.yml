@@ -97,7 +97,6 @@ jobs:
           fi
 
   flutter-check:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: Flutter Analysis
     needs: detect-projects
     if: needs.detect-projects.outputs.flutter == 'true'
@@ -124,7 +123,6 @@ jobs:
         run: flutter test
 
   nextjs-check:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: Next.js Build
     needs: detect-projects
     if: needs.detect-projects.outputs.nextjs == 'true'
