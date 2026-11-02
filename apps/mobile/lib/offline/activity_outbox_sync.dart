@@ -68,13 +68,29 @@ class ActivityHttpBatchSender {
     }
     if (response.statusCode == 401) throw const ActivityAuthExpired();
     if (response.statusCode == 429 || response.statusCode >= 500) {
-      final rawRetry = response.headers.value('retry-after');
-      final seconds = rawRetry == null ? null : int.tryParse(rawRetry);
-      final retryDelay = seconds == null ? null
-          : Duration(seconds: seconds.clamp(1, 3600));
-      throw ActivityRetryableHttp(response.statusCode, retryAfter: retryDelay);
+      throw ActivityRetryableHttp(response.statusCode,
+          retryAfter: parseActivityRetryAfter(
+              response.headers.value('retry-after')));
     }
     throw ActivityPermanentHttp(response.statusCode);
+  }
+}
+
+/// RFC 9110 Retry-After supports delta-seconds and an HTTP-date.
+Duration? parseActivityRetryAfter(String? value, {DateTime? now}) {
+  if (value == null) return null;
+  final seconds = int.tryParse(value.trim());
+  if (seconds != null) {
+    return Duration(seconds: seconds.clamp(1, 3600));
+  }
+  try {
+    final until = HttpDate.parse(value).toUtc();
+    final remaining = until.difference((now ?? DateTime.now()).toUtc());
+    if (remaining <= Duration.zero) return const Duration(seconds: 1);
+    return remaining > const Duration(hours: 1)
+        ? const Duration(hours: 1) : remaining;
+  } on FormatException {
+    return null;
   }
 }
 
