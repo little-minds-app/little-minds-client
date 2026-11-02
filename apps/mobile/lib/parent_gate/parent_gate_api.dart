@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:little_minds_api/api.dart';
 
 import '../auth/auth_api_clients.dart';
@@ -12,6 +13,9 @@ class ParentGateApi {
       : _clients = AuthApiClients(basePath: config.apiBaseUrlString);
 
   final AuthApiClients _clients;
+
+  String get _surface => defaultTargetPlatform == TargetPlatform.android
+      ? 'android' : 'ios';
 
   void authorize(AuthSession session) {
     _clients.setAccessToken(session.accessToken);
@@ -62,7 +66,7 @@ class ParentGateApi {
         phone: identifier,
         noticeVersion: AuthPrivacyNotice.version,
         noticeLocale: AuthPrivacyNotice.locale,
-        clientSurface: 'ios',
+        clientSurface: _surface,
       ));
       if (result == null) throw StateError('OTP start failed');
       return result.challengeId;
