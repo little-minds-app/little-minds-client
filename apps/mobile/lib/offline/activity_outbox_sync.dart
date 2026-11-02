@@ -166,7 +166,12 @@ class ActivityOutboxSync {
         // No token refresh inside worker; caller must reauthenticate first.
         return;
       } on ActivityRequestTooLarge {
-        // Retain safely; batch split policy is a separate contract decision.
+        // Keep the original immutable events. Avoid a tight retry loop until
+        // the request-size policy is reviewed or the batch is split.
+        if (!_sameAccount(initial)) return;
+        for (final item in pending) {
+          await outbox.postpone(item, _nextRetry(item.attempts));
+        }
         return;
       } on ActivityRetryableHttp catch (error) {
         if (!_sameAccount(initial)) return;
@@ -177,7 +182,12 @@ class ActivityOutboxSync {
         }
         return;
       } on ActivityPermanentHttp {
-        // Do not delete or silently lose events for ambiguous batch failures.
+        // Unknown batch-level rejection: preserve events for investigation,
+        // but back off rather than retrying on every foreground tick.
+        if (!_sameAccount(initial)) return;
+        for (final item in pending) {
+          await outbox.postpone(item, _nextRetry(item.attempts));
+        }
         return;
       } catch (_) {
         if (!_sameAccount(initial)) return;
