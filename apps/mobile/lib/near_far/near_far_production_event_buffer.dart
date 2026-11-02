@@ -28,6 +28,9 @@ class NearFarProductionEventBuffer extends NearFarLocalEventBuffer {
         !uuid.hasMatch(sessionPayload['play_session_id']?.toString() ?? '') ||
         emitter.deviceId != deviceId ||
         emitter.contentVersionId != contentVersionId ||
+        sessionPayload['consent'] is! Map ||
+        (sessionPayload['consent'] as Map)['consent_scope'] != 'essential_play_events' ||
+        (sessionPayload['consent'] as Map)['policy_version'] != emitter.consentPolicyVersion ||
         sessionPayload['schema_version'] != '1.0.0' ||
         sessionPayload['device_id'] != deviceId ||
         sessionPayload['content_version_id'] != contentVersionId) {
