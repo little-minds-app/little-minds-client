@@ -66,7 +66,7 @@ void main() {
     final sync = ActivityOutboxSync(
       outbox: outbox, currentSession: () => sessionA,
       clock: () => DateTime.utc(2026, 11, 2),
-      send: (_, __, ___) async => throw const SocketException('offline'),
+      send: (_, _, _) async => throw const SocketException('offline'),
     );
     await sync.flush();
     expect(await outbox.pending(parentA, now: DateTime.utc(2026, 11, 2)),
@@ -82,7 +82,7 @@ void main() {
     final sync = ActivityOutboxSync(
       outbox: outbox, currentSession: () => sessionA,
       clock: () => DateTime.utc(2026, 11, 2),
-      send: (_, __, ___) async => {
+      send: (_, _, _) async => {
         'results': [
           {'event_id': eventA, 'status': 'accepted'},
           {'event_id': eventB, 'status': 'retryable'}
@@ -99,7 +99,7 @@ void main() {
     await outbox.enqueue(event(parentA, eventB));
     final sync = ActivityOutboxSync(
       outbox: outbox, currentSession: () => sessionA,
-      send: (_, __, ___) async => {'results': [{'event_id': eventA, 'status': 'accepted'}]},
+      send: (_, _, _) async => {'results': [{'event_id': eventA, 'status': 'accepted'}]},
     );
     await sync.flush();
     expect(await outbox.pending(parentA), hasLength(2));
@@ -110,7 +110,7 @@ void main() {
     AuthSession? active = sessionA;
     final sync = ActivityOutboxSync(
       outbox: outbox, currentSession: () => active,
-      send: (_, __, ___) async {
+      send: (_, _, _) async {
         active = sessionB;
         return {'results': [{'event_id': eventA, 'status': 'accepted'}]};
       },
