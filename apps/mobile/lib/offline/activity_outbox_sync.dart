@@ -126,7 +126,9 @@ class ActivityOutboxSync {
       final acked = <String, ({String status, String? reason})>{};
       for (final entry in rows) {
         if (entry is! Map || entry['event_id'] is! String ||
-            entry['status'] is! String) return;
+            entry['status'] is! String) {
+          return;
+        }
         final id = entry['event_id'] as String;
         if (acked.containsKey(id)) {
           return;
