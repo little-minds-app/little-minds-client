@@ -18,6 +18,7 @@ import 'l10n/app_localizations.dart';
 import 'mentor/mentor_card.dart';
 import 'mentor/mentor_card_fixtures.dart';
 import 'near_far/near_far_activity.dart';
+import 'offline/activity_outbox_sync.dart';
 import 'parent_gate/parent_gate_api.dart';
 import 'parent_gate/parent_pin_surface.dart';
 import 'screen_time/screen_time.dart';
@@ -54,6 +55,7 @@ class LittleMindsApp extends StatefulWidget {
     this.mentorInjectedCard,
     this.screenTime,
     this.parentAuthController,
+    this.offlineSync,
     this.childProfilesController,
   }) : config = config ?? AppConfig.developmentLocal;
 
@@ -99,6 +101,9 @@ class LittleMindsApp extends StatefulWidget {
 
   /// Parent authentication (LMP-37). Production injects from [main]; tests may omit.
   final ParentAuthController? parentAuthController;
+
+  /// LMP-51: flush only the current authenticated parent's durable outbox.
+  final ActivityOutboxSync? offlineSync;
 
   /// Injectable state for profile widget tests and real app navigation.
   final ChildProfilesController? childProfilesController;
@@ -207,6 +212,9 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
       auth: _parentAuth,
     );
     _parentAuth.addListener(_handleAuthChange);
+    if (widget.offlineSync != null) {
+      unawaited(widget.offlineSync!.flush());
+    }
     // ignore: discarded_futures
     _bootstrapScreenTime();
     if (_ownsParentAuth) {
@@ -304,6 +312,9 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     if (state == AppLifecycleState.resumed) {
       // ignore: discarded_futures
       _flushPendingRevokes();
+      if (widget.offlineSync != null) {
+        unawaited(widget.offlineSync!.flush());
+      }
     }
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
@@ -318,6 +329,9 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
 
   void _handleAuthChange() {
     if (!mounted) return;
+    if (_parentAuth.isAuthenticated && widget.offlineSync != null) {
+      unawaited(widget.offlineSync!.flush());
+    }
     if (_gateSessionId != null &&
         _parentAuth.session?.sessionId != _gateSessionId) {
       _clearAdultGrant();
