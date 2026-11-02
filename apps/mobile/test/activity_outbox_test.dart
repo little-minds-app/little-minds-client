@@ -120,6 +120,37 @@ void main() {
     expect(await outbox.pending(parentB), isEmpty);
   });
 
+  test('permanent rejection quarantines instead of infinite retry', () async {
+    await outbox.enqueue(event(parentA, eventA));
+    final sync = ActivityOutboxSync(
+      outbox: outbox, currentSession: () => sessionA,
+      send: (_, _, _) async => {
+        'results': [
+          {'event_id': eventA, 'status': 'rejected',
+           'reason_code': 'schema.invalid_event'}
+        ]
+      },
+    );
+    await sync.flush();
+    expect(await outbox.pending(parentA), isEmpty);
+    expect(File('${directory.path}/$parentA/$eventA.json.rejected').existsSync(),
+        isTrue);
+  });
+
+  test('consent withdrawal purges optional pending records only', () async {
+    final optional = event(parentA, eventA);
+    await outbox.enqueue(PendingActivityEvent(
+      parentId: parentA, eventId: eventA,
+      createdAt: optional.createdAt,
+      payload: {...optional.payload,
+        'consent_scope': 'optional_product_analytics'},
+    ));
+    await outbox.enqueue(event(parentA, eventB));
+    expect(await outbox.purgeConsentScope(
+        parentA, 'optional_product_analytics'), 1);
+    expect((await outbox.pending(parentA)).map((e) => e.eventId), [eventB]);
+  });
+
   test('invalid UUID and forbidden identity fields fail before disk write', () async {
     await expectLater(outbox.enqueue(event('parent A', eventA)), throwsArgumentError);
     final original = event(parentA, eventA);
