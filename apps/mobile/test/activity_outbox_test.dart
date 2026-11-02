@@ -94,6 +94,45 @@ void main() {
         .map((e) => e.eventId), [eventB]);
   });
 
+  test('durably attaches session metadata to event batch and ACK', () async {
+    const playSessionId = '55555555-5555-4555-8555-555555555555';
+    final original = event(parentA, eventA);
+    final wire = {...original.payload,
+      'play_session_id': playSessionId,
+      'device_id': '66666666-6666-4666-8666-666666666666',
+      'content_version_id': '77777777-7777-4777-8777-777777777777',
+    };
+    final session = <String, dynamic>{
+      'schema_version': '1.0.0',
+      'play_session_id': playSessionId,
+      'device_id': wire['device_id'],
+      'content_version_id': wire['content_version_id'],
+      'started_at': '2026-11-02T12:00:00Z',
+    };
+    await outbox.enqueue(PendingActivityEvent(
+      parentId: parentA, eventId: eventA, payload: wire,
+      sessionPayload: session, createdAt: original.createdAt,
+    ));
+    final persisted = ActivityFileOutbox.forTesting(directory);
+    expect((await persisted.pending(parentA)).single.sessionPayload,
+        containsPair('play_session_id', playSessionId));
+    var sentSessionCount = 0;
+    final sync = ActivityOutboxSync(
+      outbox: persisted, currentSession: () => sessionA,
+      send: (_, events, sessions) async {
+        expect(events.single['play_session_id'], playSessionId);
+        expect(sessions.single['play_session_id'], playSessionId);
+        sentSessionCount = sessions.length;
+        return {
+          'results': [{'event_id': eventA, 'status': 'accepted'}]
+        };
+      },
+    );
+    await sync.flush();
+    expect(sentSessionCount, 1);
+    expect(await persisted.pending(parentA), isEmpty);
+  });
+
   test('malformed or partial ACK must not delete any record', () async {
     await outbox.enqueue(event(parentA, eventA));
     await outbox.enqueue(event(parentA, eventB));
