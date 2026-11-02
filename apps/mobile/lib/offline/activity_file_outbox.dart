@@ -74,8 +74,9 @@ class PendingActivityEvent {
 class ActivityFileOutbox {
   ActivityFileOutbox._(this._root, this._codec);
 
-  factory ActivityFileOutbox.forTesting(Directory root) =>
-      ActivityFileOutbox._(root, const TestPlainActivityPayloadCodec());
+  factory ActivityFileOutbox.forTesting(Directory root,
+      {ActivityPayloadCodec codec = const TestPlainActivityPayloadCodec()}) =>
+      ActivityFileOutbox._(root, codec);
 
   static Future<ActivityFileOutbox> open() async {
     final directory = await getApplicationSupportDirectory();
@@ -252,6 +253,7 @@ class ActivityFileOutbox {
     if (await dir.exists()) {
       await dir.delete(recursive: true);
     }
+    await _codec.forgetParent(parentId);
   });
 
   Future<void> _atomicWrite(File destination, Map<String, dynamic> value) async {
