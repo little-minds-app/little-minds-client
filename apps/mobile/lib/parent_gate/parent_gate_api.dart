@@ -32,7 +32,7 @@ class ParentGateApi {
       method,
       [],
       payload,
-      {if (gateToken != null) 'X-Parent-Gate-Token': gateToken},
+      {?'X-Parent-Gate-Token': gateToken},
       {},
       payload != null ? 'application/json' : null,
     );
