@@ -246,7 +246,9 @@ class ActivityFileOutbox {
         if (!await dir.exists()) return 0;
         var removed = 0;
         await for (final entity in dir.list(followLinks: false)) {
-          if (entity is! File || !entity.path.endsWith('.json')) continue;
+          if (entity is! File || !entity.path.endsWith('.json')) {
+            continue;
+          }
           final data = PendingActivityEvent.fromJson(
               jsonDecode(await entity.readAsString()) as Map<String, dynamic>);
           if (data.parentId == parentId &&
