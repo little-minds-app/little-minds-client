@@ -256,7 +256,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     if (revoke && token != null && session != null) {
       final api = ParentGateApi(widget.config)..authorize(session);
       // ignore: discarded_futures
-      api.lock().catchError((Object _) {});
+      api.lock(token).catchError((Object _) {});
     }
   }
 
