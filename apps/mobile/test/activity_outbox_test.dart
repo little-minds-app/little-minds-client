@@ -190,6 +190,22 @@ void main() {
     expect((await outbox.pending(parentA)).map((e) => e.eventId), [eventB]);
   });
 
+  test('429 Retry-After schedules next attempt without deleting event', () async {
+    await outbox.enqueue(event(parentA, eventA));
+    final sync = ActivityOutboxSync(
+      outbox: outbox, currentSession: () => sessionA,
+      clock: () => DateTime.utc(2026, 11, 2),
+      send: (_, _, _) async => throw const ActivityRetryableHttp(429,
+          retryAfter: Duration(seconds: 120)),
+    );
+    await sync.flush();
+    final later = await outbox.pending(parentA,
+        now: DateTime.utc(2026, 11, 2, 0, 1));
+    expect(later, isEmpty);
+    expect(await outbox.pending(parentA,
+        now: DateTime.utc(2026, 11, 2, 0, 3)), hasLength(1));
+  });
+
   test('invalid UUID and forbidden identity fields fail before disk write', () async {
     await expectLater(outbox.enqueue(event('parent A', eventA)), throwsArgumentError);
     final original = event(parentA, eventA);
