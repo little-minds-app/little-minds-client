@@ -221,7 +221,9 @@ class _LittleMindsAppState extends State<LittleMindsApp> {
 
   void _handleAuthChange() {
     if (!mounted || _parentAuth.isAuthenticated ||
-        !_requiresParentSession(_route)) return;
+        !_requiresParentSession(_route)) {
+      return;
+    }
     _profileManageMode = false;
     setState(() => _route = _ShellRoute.parentGate);
     _screenTime.setKidsModeShellActive(false);
