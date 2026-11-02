@@ -27,12 +27,16 @@ class ParentGateApi {
     Map<String, dynamic>? payload,
     String? gateToken,
   }) async {
+    final headers = <String, String>{};
+    if (gateToken != null) {
+      headers['X-Parent-Gate-Token'] = gateToken;
+    }
     final response = await _clients.apiClient.invokeAPI(
       '/v1/parent/gate/$route',
       method,
       [],
       payload,
-      {?'X-Parent-Gate-Token': gateToken},
+      headers,
       {},
       payload != null ? 'application/json' : null,
     );
