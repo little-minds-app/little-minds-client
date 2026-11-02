@@ -218,6 +218,7 @@ void main() {
       );
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           audioGuidance: RecordingHubAudioGuidance(),
           mentorInjectedCard: approvedCard,
         ),
@@ -382,6 +383,7 @@ void main() {
       );
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           config: _productionConfig,
@@ -421,6 +423,7 @@ void main() {
       );
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           mentorInjectedCard: draftCard,
@@ -456,6 +459,7 @@ void main() {
       );
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
         ),
@@ -479,6 +483,7 @@ void main() {
       );
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           audioGuidance: RecordingHubAudioGuidance(),
           mentorInjectedCard: draftCard,
         ),
@@ -504,6 +509,7 @@ void main() {
       );
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           audioGuidance: RecordingHubAudioGuidance(),
           locale: const Locale('en', 'US'),
           // Future.value loader — no AssetBundle; flushes on tester.pump().
