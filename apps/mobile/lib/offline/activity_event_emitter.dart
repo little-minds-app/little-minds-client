@@ -129,7 +129,7 @@ class ActivityEventEmitter {
       'device_id': deviceId,
       'content_version_id': contentVersionId,
       'occurred_at': now.toIso8601String().replaceFirst('+00:00', 'Z'),
-      if (durationSeconds != null) 'monotonic_duration_seconds': durationSeconds,
+      'monotonic_duration_seconds': ?durationSeconds,
       'consent_scope': consentScope,
       'consent_policy_version': consentPolicyVersion,
       'provenance': {
