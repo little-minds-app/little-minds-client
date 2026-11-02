@@ -213,7 +213,7 @@ class ActivityFileOutbox {
     String eventId,
     String reasonCode,
   ) => _serialized(() async {
-    final safeReason = RegExp(r'^[a-z0-9_.-]{1,100}\$');
+    final safeReason = RegExp(r'^[a-z0-9_.-]{1,100}$');
     if (!safeReason.hasMatch(reasonCode)) {
       throw ArgumentError('invalid rejection reason');
     }
