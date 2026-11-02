@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+import 'activity_payload_codec.dart';
+
 /// Immutable, account-bound record. No tokens or child PII are persisted.
 class PendingActivityEvent {
   const PendingActivityEvent({
@@ -68,22 +70,23 @@ class PendingActivityEvent {
 ///
 /// Scope: mobile platforms with atomic same-volume rename. This is a durable
 /// initial outbox implementation, NOT a SQLite multi-record transaction.
-/// A production quota/retention policy and encrypted storage require review.
+/// Production uses AES-GCM ciphertext with a Keychain/Keystore managed key.
 class ActivityFileOutbox {
-  // ignore: prefer_initializing_formals
-  ActivityFileOutbox({required Directory root}) : _root = root;
+  ActivityFileOutbox._(this._root, this._codec);
 
   factory ActivityFileOutbox.forTesting(Directory root) =>
-      ActivityFileOutbox(root: root);
+      ActivityFileOutbox._(root, const TestPlainActivityPayloadCodec());
 
   static Future<ActivityFileOutbox> open() async {
     final directory = await getApplicationSupportDirectory();
-    return ActivityFileOutbox(
-      root: Directory('${directory.path}/activity_outbox_v1'),
+    return ActivityFileOutbox._(
+      Directory('${directory.path}/activity_outbox_v1'),
+      SecureActivityPayloadCodec(),
     );
   }
 
   final Directory _root;
+  final ActivityPayloadCodec _codec;
   /// Safety caps: exceed -> visible storage error; never silently drop a child event.
   static const maxRecordsPerParent = 2000;
   static const maxEventBytes = 16384;
@@ -145,7 +148,7 @@ class ActivityFileOutbox {
     await file.parent.create(recursive: true);
     if (await file.exists()) {
       final existing = PendingActivityEvent.fromJson(
-        jsonDecode(await file.readAsString()) as Map<String, dynamic>);
+        await _codec.open(event.parentId, await file.readAsString()));
       if (jsonEncode(existing.payload) != jsonEncode(event.payload) ||
           jsonEncode(existing.sessionPayload) != jsonEncode(event.sessionPayload)) {
         throw StateError('same event ID has different content');
@@ -174,7 +177,7 @@ class ActivityFileOutbox {
       ..sort((a, b) => a.path.compareTo(b.path));
     for (final file in files) {
       final event = PendingActivityEvent.fromJson(
-        jsonDecode(await file.readAsString()) as Map<String, dynamic>);
+        await _codec.open(parentId, await file.readAsString()));
       if (event.parentId != parentId ||
           event.eventId.toLowerCase() != file.uri.pathSegments.last.replaceFirst('.json', '')) {
         throw StateError('outbox account binding corrupted');
@@ -201,7 +204,7 @@ class ActivityFileOutbox {
     final file = _entry(event.parentId, event.eventId);
     if (!await file.exists()) return;
     final current = PendingActivityEvent.fromJson(
-      jsonDecode(await file.readAsString()) as Map<String, dynamic>);
+      await _codec.open(event.parentId, await file.readAsString()));
     if (current.parentId != event.parentId) throw StateError('account mismatch');
     await _atomicWrite(file, current.retryAfter(nextAttemptAt).toJson());
   });
@@ -234,7 +237,7 @@ class ActivityFileOutbox {
             continue;
           }
           final data = PendingActivityEvent.fromJson(
-            jsonDecode(await entity.readAsString()) as Map<String, dynamic>);
+            await _codec.open(parentId, await entity.readAsString()));
           if (data.parentId == parentId &&
               data.payload['consent_scope'] == scope) {
             await entity.delete();
@@ -254,7 +257,8 @@ class ActivityFileOutbox {
   Future<void> _atomicWrite(File destination, Map<String, dynamic> value) async {
     final temp = File('${destination.path}.${const Uuid().v4()}.tmp');
     try {
-      await temp.writeAsString(jsonEncode(value), flush: true);
+      final parentId = destination.parent.uri.pathSegments.where((x) => x.isNotEmpty).last;
+      await temp.writeAsString(await _codec.seal(parentId, value), flush: true);
       await temp.rename(destination.path);
     } finally {
       if (await temp.exists()) {
