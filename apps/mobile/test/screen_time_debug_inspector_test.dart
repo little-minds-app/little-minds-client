@@ -118,6 +118,7 @@ void main() {
       final st = await readyCoordinator();
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           screenTime: st,
@@ -140,6 +141,7 @@ void main() {
       final st = await readyCoordinator();
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           screenTime: st,
@@ -169,6 +171,7 @@ void main() {
       final st = await readyCoordinator();
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           screenTime: st,
@@ -200,6 +203,7 @@ void main() {
 
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           screenTime: st,
@@ -243,6 +247,7 @@ void main() {
       final st = await readyCoordinator();
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           screenTime: st,
@@ -264,6 +269,7 @@ void main() {
       final st = await readyCoordinator();
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           screenTime: st,
@@ -288,6 +294,7 @@ void main() {
 
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           screenTime: st,
@@ -321,6 +328,7 @@ void main() {
       final st = await readyCoordinator();
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           screenTime: st,
@@ -381,6 +389,7 @@ void main() {
       final st = await readyCoordinator();
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           screenTime: st,
@@ -405,6 +414,7 @@ void main() {
       final st = await readyCoordinator();
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
           screenTime: st,
