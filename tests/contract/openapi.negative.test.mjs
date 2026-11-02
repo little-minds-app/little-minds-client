@@ -123,10 +123,10 @@ describe('LMP-27 negative: mutated OpenAPI spec', () => {
     );
   });
 
-  it('fails compatibility when an event ingest path is invented', () => {
+  it('fails compatibility when an unknown event ingest path is invented', () => {
     const { doc } = loadGoodDocAndRaw();
     const mutated = structuredClone(doc);
-    mutated.paths['/v1/events/batch'] = {
+    mutated.paths['/v1/events/unsafe-upload'] = {
       post: {
         operationId: 'postEventsBatch',
         responses: { '202': { description: 'nope' } },
@@ -138,7 +138,7 @@ describe('LMP-27 negative: mutated OpenAPI spec', () => {
       version: CURRENT_VERSION,
     });
     assert.ok(
-      errors.some((e) => e.includes('/v1/events/batch')),
+      errors.some((e) => e.includes('/v1/events/unsafe-upload')),
       `expected ingest-path error, got: ${errors.join('; ')}`,
     );
   });
