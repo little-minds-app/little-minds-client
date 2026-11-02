@@ -106,6 +106,16 @@ class ActivityEventEmitter {
     if (parentOnly && sessionPayload != null) {
       throw ArgumentError('parent event cannot contain session metadata');
     }
+    if (sessionPayload != null &&
+        (sessionPayload['schema_version'] != '1.0.0' ||
+         sessionPayload['play_session_id'] != playSessionId ||
+         sessionPayload['device_id'] != deviceId ||
+         sessionPayload['content_version_id'] != contentVersionId ||
+         sessionPayload['consent'] is! Map ||
+         (sessionPayload['consent'] as Map)['consent_scope'] != consentScope ||
+         (sessionPayload['consent'] as Map)['policy_version'] != consentPolicyVersion)) {
+      throw ArgumentError('session identity or consent mismatch');
+    }
     if (sessionPayload != null && !_isSafe(sessionPayload)) {
       throw ArgumentError('session contains forbidden fields');
     }
