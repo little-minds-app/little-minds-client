@@ -70,6 +70,7 @@ class PendingActivityEvent {
 /// initial outbox implementation, NOT a SQLite multi-record transaction.
 /// A production quota/retention policy and encrypted storage require review.
 class ActivityFileOutbox {
+  // ignore: prefer_initializing_formals
   ActivityFileOutbox({required Directory root}) : _root = root;
 
   factory ActivityFileOutbox.forTesting(Directory root) =>
@@ -202,7 +203,7 @@ class ActivityFileOutbox {
     final current = PendingActivityEvent.fromJson(
       jsonDecode(await file.readAsString()) as Map<String, dynamic>);
     if (current.parentId != event.parentId) throw StateError('account mismatch');
-    await _atomicWrite(file, current.retryAfter(nextAttemptAt));
+    await _atomicWrite(file, current.retryAfter(nextAttemptAt).toJson());
   });
 
   Future<void> purgePartition(String parentId) => _serialized(() async {
