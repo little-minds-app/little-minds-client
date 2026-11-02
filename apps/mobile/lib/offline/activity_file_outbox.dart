@@ -11,6 +11,7 @@ class PendingActivityEvent {
     required this.parentId,
     required this.eventId,
     required this.payload,
+    this.sessionPayload,
     required this.createdAt,
     this.attempts = 0,
     this.nextAttemptAt,
@@ -19,6 +20,7 @@ class PendingActivityEvent {
   final String parentId;
   final String eventId;
   final Map<String, dynamic> payload;
+  final Map<String, dynamic>? sessionPayload;
   final DateTime createdAt;
   final int attempts;
   final DateTime? nextAttemptAt;
@@ -27,6 +29,7 @@ class PendingActivityEvent {
     parentId: parentId,
     eventId: eventId,
     payload: payload,
+    sessionPayload: sessionPayload,
     createdAt: createdAt,
     attempts: attempts + 1,
     nextAttemptAt: instant,
@@ -36,6 +39,7 @@ class PendingActivityEvent {
     'parent_id': parentId,
     'event_id': eventId,
     'payload': payload,
+    if (sessionPayload != null) 'session_payload': sessionPayload,
     'created_at': createdAt.toUtc().toIso8601String(),
     'attempts': attempts,
     if (nextAttemptAt != null)
@@ -47,6 +51,8 @@ class PendingActivityEvent {
       parentId: json['parent_id'] as String,
       eventId: json['event_id'] as String,
       payload: Map<String, dynamic>.from(json['payload'] as Map),
+      sessionPayload: json['session_payload'] == null ? null :
+          Map<String, dynamic>.from(json['session_payload'] as Map),
       createdAt: DateTime.parse(json['created_at'] as String).toUtc(),
       attempts: json['attempts'] as int? ?? 0,
       nextAttemptAt: json['next_attempt_at'] == null
@@ -118,6 +124,20 @@ class ActivityFileOutbox {
         event.payload.containsKey('received_at')) {
       throw ArgumentError('event is not valid for offline persistence');
     }
+    final session = event.sessionPayload;
+    if (event.payload['play_session_id'] != null) {
+      if (session == null ||
+          session['play_session_id'] != event.payload['play_session_id'] ||
+          session['device_id'] != event.payload['device_id'] ||
+          session['content_version_id'] != event.payload['content_version_id'] ||
+          session['schema_version'] != '1.0.0' ||
+          session.containsKey('child_id') ||
+          session.containsKey('parent_id')) {
+        throw ArgumentError('child event requires matching session envelope');
+      }
+    } else if (session != null) {
+      throw ArgumentError('parent-only event must not include session');
+    }
     final file = _entry(event.parentId, event.eventId);
     final bytes = utf8.encode(jsonEncode(event.toJson())).length;
     if (bytes > maxEventBytes) throw StateError('outbox.event_too_large');
@@ -125,7 +145,8 @@ class ActivityFileOutbox {
     if (await file.exists()) {
       final existing = PendingActivityEvent.fromJson(
         jsonDecode(await file.readAsString()) as Map<String, dynamic>);
-      if (jsonEncode(existing.payload) != jsonEncode(event.payload)) {
+      if (jsonEncode(existing.payload) != jsonEncode(event.payload) ||
+          jsonEncode(existing.sessionPayload) != jsonEncode(event.sessionPayload)) {
         throw StateError('same event ID has different content');
       }
       return; // Never reset retry metadata on accidental re-enqueue.
