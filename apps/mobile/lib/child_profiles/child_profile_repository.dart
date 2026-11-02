@@ -12,16 +12,26 @@ class ChildProfileRepository {
     required AppConfig config,
     required ParentAuthController auth,
     AuthApiClients? clients,
+    String? Function()? gateTokenProvider,
   })  : _auth = auth,
+        _gateTokenProvider = gateTokenProvider,
         _clients = clients ?? AuthApiClients(basePath: config.apiBaseUrlString);
 
   final ParentAuthController _auth;
   final AuthApiClients _clients;
+  final String? Function()? _gateTokenProvider;
 
   Future<T> _authorized<T>(Future<T> Function(ParentApi api) request) async {
     final session = _auth.session;
     if (session == null) throw StateError('Parent authentication required');
     _clients.setAccessToken(session.accessToken);
+    // Adult mutations are gated server-side; never persist the grant.
+    final token = _gateTokenProvider?.call();
+    if (token == null) {
+      _clients.apiClient.defaultHeaderMap.remove('X-Parent-Gate-Token');
+    } else {
+      _clients.apiClient.addDefaultHeader('X-Parent-Gate-Token', token);
+    }
     try {
       return await request(_clients.parent);
     } on ApiException catch (error) {

@@ -79,6 +79,7 @@ void main() {
     );
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         locale: const Locale('en', 'US'),
@@ -109,6 +110,7 @@ void main() {
     );
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         locale: const Locale('tr', 'TR'),
@@ -134,6 +136,7 @@ void main() {
     await _setLandscape(tester, width: 844, height: 390);
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         audioGuidance: RecordingHubAudioGuidance(),
@@ -193,6 +196,7 @@ void main() {
     await _setLandscape(tester, width: 844, height: 390);
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         audioGuidance: RecordingHubAudioGuidance(),
@@ -221,6 +225,7 @@ void main() {
       MediaQuery(
         data: const MediaQueryData(disableAnimations: true),
         child: LittleMindsApp(
+        testOnlyAdultAccess: true,
           initialNearFarDemo: true,
           nearFarActivity: activity,
           audioGuidance: RecordingHubAudioGuidance(),
@@ -240,6 +245,7 @@ void main() {
     await _setLandscape(tester, width: 844, height: 390);
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         game: game,
         audioGuidance: RecordingHubAudioGuidance(),
       ),
@@ -261,7 +267,8 @@ void main() {
       (tester) async {
     await _setLandscape(tester, width: 844, height: 390);
     await tester.pumpWidget(
-      LittleMindsApp(audioGuidance: RecordingHubAudioGuidance()),
+      LittleMindsApp(
+        testOnlyAdultAccess: true,audioGuidance: RecordingHubAudioGuidance()),
     );
     await _pumpFrames(tester, 12);
 
@@ -299,6 +306,7 @@ void main() {
     await _setLandscape(tester, width: 844, height: 390);
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         audioGuidance: RecordingHubAudioGuidance(),
@@ -358,6 +366,7 @@ void main() {
           textScaler: TextScaler.linear(1.3),
         ),
         child: LittleMindsApp(
+        testOnlyAdultAccess: true,
           initialNearFarDemo: true,
           nearFarActivity: activity,
           audioGuidance: RecordingHubAudioGuidance(),
@@ -407,6 +416,7 @@ void main() {
     await _setLandscape(tester, width: 844, height: 390);
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         locale: const Locale('en', 'US'),
@@ -442,6 +452,7 @@ void main() {
     await _setLandscape(tester, width: 844, height: 390);
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         locale: const Locale('tr', 'TR'),
@@ -474,6 +485,7 @@ void main() {
     await _setLandscape(tester, width: 844, height: 390);
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         audioGuidance: RecordingHubAudioGuidance(),
@@ -509,6 +521,7 @@ void main() {
     await _setLandscape(tester, width: 844, height: 390);
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         audioGuidance: RecordingHubAudioGuidance(),
@@ -541,6 +554,7 @@ void main() {
     await _setLandscape(tester, width: 844, height: 390);
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         audioGuidance: RecordingHubAudioGuidance(),
@@ -579,6 +593,7 @@ void main() {
     );
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         initialNearFarDemo: true,
         nearFarActivity: activity,
         audioGuidance: RecordingHubAudioGuidance(),

@@ -76,7 +76,8 @@ void main() {
       height: ScaffoldingViewports.compactPhoneWidth,
     );
     await tester.pumpWidget(
-      LittleMindsApp(game: StubLearningGame(), audioGuidance: audio),
+      LittleMindsApp(
+        testOnlyAdultAccess: true,game: StubLearningGame(), audioGuidance: audio),
     );
     await _pumpFrames(tester);
 
@@ -104,6 +105,7 @@ void main() {
     );
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         game: StubLearningGame(registry: ActivityRegistry()),
         audioGuidance: RecordingHubAudioGuidance(),
       ),
@@ -125,6 +127,7 @@ void main() {
     );
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         game: StubLearningGame(
           registry: ActivityRegistry([_PassiveRegistered()]),
         ),
@@ -169,6 +172,7 @@ void main() {
     );
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         game: StubLearningGame(),
         audioGuidance: RecordingHubAudioGuidance(),
       ),
@@ -194,6 +198,7 @@ void main() {
     );
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         game: StubLearningGame(),
         audioGuidance: RecordingHubAudioGuidance(),
       ),
@@ -215,6 +220,7 @@ void main() {
       await _setLandscape(tester, width: 667, height: 375);
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
         ),
@@ -290,6 +296,7 @@ void main() {
 
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         game: StubLearningGame(),
         locale: const Locale('en', 'US'),
         audioGuidance: RecordingHubAudioGuidance(),
@@ -303,6 +310,7 @@ void main() {
 
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         game: StubLearningGame(),
         locale: const Locale('tr', 'TR'),
         audioGuidance: RecordingHubAudioGuidance(),
@@ -325,6 +333,7 @@ void main() {
       );
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(),
           audioGuidance: RecordingHubAudioGuidance(),
         ),
@@ -363,6 +372,7 @@ void main() {
       );
       await tester.pumpWidget(
         LittleMindsApp(
+        testOnlyAdultAccess: true,
           game: StubLearningGame(
             registry: ActivityRegistry([
               _PlayableShapeMatching(),
@@ -419,6 +429,7 @@ void main() {
     );
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         game: StubLearningGame(),
         audioGuidance: RecordingHubAudioGuidance(),
       ),
@@ -485,6 +496,7 @@ void main() {
     );
     await tester.pumpWidget(
       LittleMindsApp(
+        testOnlyAdultAccess: true,
         game: StubLearningGame(
           registry: ActivityRegistry([_PlayableShapeMatching()]),
         ),
