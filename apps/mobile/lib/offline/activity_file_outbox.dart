@@ -77,6 +77,9 @@ class ActivityFileOutbox {
   }
 
   final Directory _root;
+  /// Safety caps: exceed -> visible storage error; never silently drop a child event.
+  static const maxRecordsPerParent = 2000;
+  static const maxEventBytes = 16384;
   Future<void> _tail = Future<void>.value();
 
   static final _uuid = RegExp(
@@ -116,6 +119,8 @@ class ActivityFileOutbox {
       throw ArgumentError('event is not valid for offline persistence');
     }
     final file = _entry(event.parentId, event.eventId);
+    final bytes = utf8.encode(jsonEncode(event.toJson())).length;
+    if (bytes > maxEventBytes) throw StateError('outbox.event_too_large');
     await file.parent.create(recursive: true);
     if (await file.exists()) {
       final existing = PendingActivityEvent.fromJson(
@@ -124,6 +129,11 @@ class ActivityFileOutbox {
         throw StateError('same event ID has different content');
       }
       return; // Never reset retry metadata on accidental re-enqueue.
+    }
+    final existing = await file.parent.list(followLinks: false).toList();
+    if (existing.whereType<File>().where((f) => f.path.endsWith('.json')).length >=
+        maxRecordsPerParent) {
+      throw StateError('outbox.capacity_exceeded');
     }
     await _atomicWrite(file, event.toJson());
   });
