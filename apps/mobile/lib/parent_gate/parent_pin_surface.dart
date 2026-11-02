@@ -12,19 +12,21 @@ class ParentPinSurface extends StatefulWidget {
     required this.config,
     required this.onUnlocked,
     required this.onBack,
+    this.api,
   });
 
   final ParentAuthController auth;
   final AppConfig config;
   final ValueChanged<String> onUnlocked;
   final VoidCallback onBack;
+  final ParentGateApi? api;
 
   @override
   State<ParentPinSurface> createState() => _ParentPinSurfaceState();
 }
 
 class _ParentPinSurfaceState extends State<ParentPinSurface> {
-  late final ParentGateApi _api = ParentGateApi(widget.config);
+  late final ParentGateApi _api = widget.api ?? ParentGateApi(widget.config);
   final _pin = TextEditingController();
   final _confirmation = TextEditingController();
   final _identity = TextEditingController();
