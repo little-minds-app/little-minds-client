@@ -86,6 +86,7 @@ class ActivityEventEmitter {
     required String source,
     required String emitter,
     String? playSessionId,
+    Map<String, dynamic>? sessionPayload,
     int? durationSeconds,
   }) async {
     final parentOnly = parentTypes.contains(eventType);
@@ -98,6 +99,15 @@ class ActivityEventEmitter {
     if ((parentOnly && playSessionId != null) ||
         (!parentOnly && (playSessionId == null || !_id.hasMatch(playSessionId)))) {
       throw ArgumentError('invalid play session relation');
+    }
+    if (!parentOnly && sessionPayload == null) {
+      throw ArgumentError('child event requires session metadata');
+    }
+    if (parentOnly && sessionPayload != null) {
+      throw ArgumentError('parent event cannot contain session metadata');
+    }
+    if (sessionPayload != null && !_isSafe(sessionPayload)) {
+      throw ArgumentError('session contains forbidden fields');
     }
     if (parentOnly && emitter != 'parent_dashboard') {
       throw ArgumentError('parent event must be emitted from parent UI');
@@ -134,6 +144,7 @@ class ActivityEventEmitter {
       parentId: session.parentId,
       eventId: id,
       payload: wire,
+      sessionPayload: sessionPayload,
       createdAt: now,
     ));
     return id;
