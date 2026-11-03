@@ -9,11 +9,11 @@ This client repository **pins** a backend commit and vendors that revision of th
 |---|---|
 | File | `contracts/pin.json` |
 | Backend repo | `little-minds-app/little-minds-backend` |
-| Commit SHA | see `backendCommitSha` in `pin.json` (currently `a638e00eeed56e9aacb583d434d05a24e677576f`) |
+| Commit SHA | see `backendCommitSha` in `pin.json` (currently `b0120759b419e271a7cf30f718faf1aef19ce7c5`) |
 | Artifact path | `contracts/openapi.yaml` |
 | Artifact blob SHA | `artifactBlobSha` — `git hash-object` of the vendored YAML (offline integrity) |
-| Contract version | `contracts/VERSION` (must match OpenAPI `info.version`; currently `0.13.0`) |
-| Backend PR | see `backendPullRequest` in `pin.json` (LMP-52 → `#32`) |
+| Contract version | `contracts/VERSION` (must match OpenAPI `info.version`; currently `0.14.1`) |
+| Backend PR | see `backendPullRequest` in `pin.json` (LMP-130 → `#33`) |
 
 **Never** point generators at floating `main`. Bump the pin deliberately when adopting a new backend contract revision.
 
@@ -40,8 +40,9 @@ Optional future live check (not required, **do not commit tokens**): a repositor
 | `../generated/typescript/` | TypeScript types (`openapi-typescript`) |
 | `../generated/dart/` | Dart client (`openapi-generator` / `dart`) |
 
-**Current surface:** Auth, parent/child, activity ingestion and session KPI endpoints (LMP-52).
-**LMP-52:** `GET /v1/insights/session-kpis` is included (parent bearer).
+**Current surface:** Auth, parent/child, activity ingestion, session KPI endpoints (LMP-52), and mission status / caregiver feedback (LMP-130).
+**LMP-52:** `GET /v1/insights/session-kpis` (parent bearer).
+**LMP-130:** `GET /v1/children/{childId}/missions` (parent bearer); `POST …/missions/{missionId}/feedback` (parent bearer + Parent Gate).
 
 ## Commands
 

@@ -1,9 +1,9 @@
 {
-  "$comment": "LMP-52 immutable backend session KPI contract for Flutter + web client",
+  "$comment": "LMP-130 immutable backend mission status + session KPI contract for Flutter + web client",
   "backendRepository": "little-minds-app/little-minds-backend",
-  "backendCommitSha": "a638e00eeed56e9aacb583d434d05a24e677576f",
+  "backendCommitSha": "b0120759b419e271a7cf30f718faf1aef19ce7c5",
   "artifactPath": "contracts/openapi.yaml",
-  "artifactBlobSha": "dab9d0302dda670eae76e44018d4e654d75e5089",
-  "contractVersion": "0.13.0",
-  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/32"
+  "artifactBlobSha": "b2125d9d84ae94b2d508ebbff6111217238b914e",
+  "contractVersion": "0.14.1",
+  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/33"
 }
