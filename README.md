@@ -23,8 +23,8 @@ Backend owns OpenAPI. This repo pins a **backend commit SHA** and regenerates cl
 | Pin file | [`contracts/pin.json`](contracts/pin.json) |
 | Artifact | `contracts/openapi.yaml` (vendored from pin) |
 | Blob SHA | `artifactBlobSha` in pin (`git hash-object` of vendored YAML) |
-| Contract version | `0.2.0` (backend PR `#12` @ `fd66fcba…`) |
-| Surface | `GET /health` only (+ Activity* OpenAPI components; no event ingest path) |
+| Contract version | `0.13.0` (backend PR `#32` @ `a638e00e…`) |
+| Surface | Auth, activity ingestion and parent-scoped session KPI endpoint |
 
 ```bash
 npm ci
