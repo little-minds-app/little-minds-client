@@ -52,6 +52,20 @@ flutter run \
   --dart-define=LM_API_BASE_URL=http://localhost:3000
 ```
 
+## Regression runner (LMP-132)
+
+Single local command for contract, web, and Flutter checks:
+
+```bash
+bash scripts/run-client-regression.sh
+```
+
+Options: `--contracts-only`, `--web-only`, `--flutter-only`, `--dashboard-uat` (delegates to existing `scripts/uat-dashboard.sh` for LMP-53/54 without duplicating its cases). See `bash scripts/run-client-regression.sh --help`.
+
+LMP-53/54 dashboard UAT alone: `bash scripts/uat-dashboard.sh` ([docs/lmp-53-54-uat-automation.md](docs/lmp-53-54-uat-automation.md)).
+
+Delivered-feature coverage matrix (LMP-132): [docs/lmp-132-coverage-matrix.md](docs/lmp-132-coverage-matrix.md).
+
 ## CI
 
 `.github/workflows/ci.yml` runs:
@@ -60,3 +74,5 @@ flutter run \
 - **OpenAPI generated clients** (validate, compatibility, regenerate + drift, Node contract tests)
 - Flutter analyze + test when `apps/mobile/pubspec.yaml` exists
 - Next.js build when `apps/web` exists
+
+Full web lint, typecheck, and component/HTTP tests run in `.github/workflows/lmp25-web-bootstrap.yml` on pull requests (keeps the main CI job fast while preserving QA-UI-001 web coverage).

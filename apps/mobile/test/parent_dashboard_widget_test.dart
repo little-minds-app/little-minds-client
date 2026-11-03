@@ -465,6 +465,64 @@ void main() {
     expect(find.textContaining('Ebeveyn bildirimi: Tamamlandı'), findsOneWidget);
   });
 
+  testWidgets('truncated mission pagination shows explicit incomplete label',
+      (tester) async {
+    final auth = ParentAuthController(
+      repository: ParentAuthRepository(
+        config: AppConfig.developmentLocal,
+        tokenStore: InMemoryAuthTokenStore(),
+      ),
+    );
+    auth.seedAuthenticatedSessionForTests(const AuthSession(
+      accessToken: 'token',
+      refreshToken: 'refresh',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      expiresInSeconds: 900,
+    ));
+
+    final fakeProfiles = FakeChildProfiles(auth);
+    fakeProfiles.rows.add(ChildProfileResponse(
+      childId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      nickname: 'Ada',
+      ageMonths: 32,
+      preferredLocale: 'tr-TR',
+    ));
+    final profiles = ChildProfilesController(repository: fakeProfiles, auth: auth);
+    await profiles.load();
+    profiles.select('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+    final repo = FakeSessionKpiRepository(auth)
+      ..response = sampleKpiResponse();
+    final missionRepo = FakeMissionStatusRepository(auth)
+      ..response = sampleMissionStatusResponse(truncated: true);
+
+    final dashboardController = ParentDashboardController(
+      repository: repo,
+      missionRepository: missionRepo,
+      auth: auth,
+      profiles: profiles,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ParentDashboardSurface(
+          auth: auth,
+          profiles: profiles,
+          repository: repo,
+          missionRepository: missionRepo,
+          controller: dashboardController,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(ParentDashboardSurface.missionTruncatedKey), findsOneWidget);
+    expect(find.textContaining('Liste sınırı'), findsOneWidget);
+    expect(find.byKey(ParentDashboardSurface.missionContentKey), findsOneWidget);
+  });
+
   testWidgets('Child Hub does not expose dashboard entry without parent path',
       (tester) async {
     await tester.pumpWidget(LittleMindsApp(
