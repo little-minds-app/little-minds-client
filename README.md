@@ -64,6 +64,8 @@ Options: `--contracts-only`, `--web-only`, `--flutter-only`, `--dashboard-uat` (
 
 LMP-53/54 dashboard UAT alone: `bash scripts/uat-dashboard.sh` ([docs/lmp-53-54-uat-automation.md](docs/lmp-53-54-uat-automation.md)).
 
+Delivered-feature coverage matrix (LMP-132): [docs/lmp-132-coverage-matrix.md](docs/lmp-132-coverage-matrix.md).
+
 ## CI
 
 `.github/workflows/ci.yml` runs:
