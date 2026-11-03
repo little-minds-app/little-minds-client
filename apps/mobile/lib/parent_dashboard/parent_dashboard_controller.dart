@@ -41,6 +41,7 @@ class ParentDashboardController extends ChangeNotifier {
   ParentDashboardViewData? _view;
   SessionKpiFailure? _failure;
   String? _parentId;
+  String? _sessionId;
   String? _childId;
   int _generation = 0;
   bool _needsChildSelection = false;
@@ -89,8 +90,12 @@ class ParentDashboardController extends ChangeNotifier {
 
   Future<void> _fetchForChild(String? childId) async {
     final generation = ++_generation;
-    _parentId = _auth.session?.parentId;
-    _childId = childId;
+    final boundParentId = _auth.session?.parentId;
+    final boundSessionId = _auth.session?.sessionId;
+    final boundChildId = childId;
+    _parentId = boundParentId;
+    _sessionId = boundSessionId;
+    _childId = boundChildId;
     _phase = ParentDashboardPhase.loading;
     _failure = null;
     _view = null;
@@ -102,13 +107,27 @@ class ParentDashboardController extends ChangeNotifier {
         window: window,
         childId: childId,
       );
-      if (!_stillCurrent(generation)) return;
+      if (!_stillCurrent(
+        generation,
+        boundParentId: boundParentId,
+        boundSessionId: boundSessionId,
+        boundChildId: boundChildId,
+      )) {
+        return;
+      }
       final mapped = mapSessionKpiToView(response);
       _view = mapped;
       _phase = mapped.isEmpty ? ParentDashboardPhase.empty : ParentDashboardPhase.loaded;
       notifyListeners();
     } catch (error) {
-      if (!_stillCurrent(generation)) return;
+      if (!_stillCurrent(
+        generation,
+        boundParentId: boundParentId,
+        boundSessionId: boundSessionId,
+        boundChildId: boundChildId,
+      )) {
+        return;
+      }
       final failure = mapSessionKpiException(error);
       _failure = failure;
       _view = null;
@@ -121,27 +140,46 @@ class ParentDashboardController extends ChangeNotifier {
     }
   }
 
-  bool _stillCurrent(int generation) {
+  bool _stillCurrent(
+    int generation, {
+    required String? boundParentId,
+    required String? boundSessionId,
+    required String? boundChildId,
+  }) {
     if (generation != _generation) return false;
-    if (_auth.session?.parentId != _parentId) return false;
-    if (_profiles.selectedId != _childId && _childId != null) {
-      // Child changed mid-flight — drop stale payload.
-      return false;
-    }
+    final session = _auth.session;
+    if (session == null) return false;
+    if (session.parentId != boundParentId) return false;
+    if (session.sessionId != boundSessionId) return false;
+    if (boundChildId != null && _profiles.selectedId != boundChildId) return false;
     return true;
   }
 
   void _invalidate() {
-    final newParent = _auth.session?.parentId;
-    if (newParent == _parentId && _auth.session != null) return;
+    final session = _auth.session;
+    if (session == null) {
+      if (_parentId == null && _sessionId == null) return;
+      _generation++;
+      _parentId = null;
+      _sessionId = null;
+      _childId = null;
+      _view = null;
+      _failure = null;
+      _phase = ParentDashboardPhase.unauthorized;
+      _needsChildSelection = false;
+      notifyListeners();
+      return;
+    }
+    final newParent = session.parentId;
+    final newSession = session.sessionId;
+    if (newParent == _parentId && newSession == _sessionId) return;
     _generation++;
     _parentId = newParent;
+    _sessionId = newSession;
     _childId = null;
     _view = null;
     _failure = null;
-    _phase = _auth.session == null
-        ? ParentDashboardPhase.unauthorized
-        : ParentDashboardPhase.initial;
+    _phase = ParentDashboardPhase.initial;
     _needsChildSelection = false;
     notifyListeners();
   }
@@ -166,6 +204,9 @@ class ParentDashboardController extends ChangeNotifier {
 
   void _resetForAuthLoss(ParentDashboardPhase phase) {
     _generation++;
+    _parentId = null;
+    _sessionId = null;
+    _childId = null;
     _view = null;
     _failure = null;
     _phase = phase;

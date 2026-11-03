@@ -13,11 +13,16 @@ class SessionKpiRepository {
     required AppConfig config,
     required ParentAuthController auth,
     AuthApiClients? clients,
+    InsightsApi? insights,
   })  : _auth = auth,
-        _clients = clients ?? AuthApiClients(basePath: config.apiBaseUrlString);
+        _clients = clients ?? AuthApiClients(basePath: config.apiBaseUrlString),
+        _insightsOverride = insights;
 
   final ParentAuthController _auth;
   final AuthApiClients _clients;
+  final InsightsApi? _insightsOverride;
+
+  InsightsApi get _insights => _insightsOverride ?? _clients.insights;
 
   Future<SessionKpiResponse> fetch({
     required SessionKpiWindow window,
@@ -42,19 +47,21 @@ class SessionKpiRepository {
     if (session == null) throw StateError('Parent authentication required');
     _clients.setAccessToken(session.accessToken);
     try {
-      return await request(_clients.insights);
+      return await request(_insights);
     } on ApiException catch (error) {
       if (error.code != 401) rethrow;
-      if (_auth.session?.parentId != session.parentId) {
+      if (_auth.session?.parentId != session.parentId ||
+          _auth.session?.sessionId != session.sessionId) {
         throw StateError('Parent account changed');
       }
       final refreshed = await _auth.refreshForChildProfiles();
       if (refreshed == null ||
-          _auth.session?.parentId != session.parentId) {
+          _auth.session?.parentId != session.parentId ||
+          _auth.session?.sessionId != session.sessionId) {
         throw StateError('Parent session expired or changed');
       }
       _clients.setAccessToken(refreshed);
-      return request(_clients.insights);
+      return request(_insights);
     }
   }
 }

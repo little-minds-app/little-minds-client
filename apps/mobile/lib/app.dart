@@ -59,6 +59,7 @@ class LittleMindsApp extends StatefulWidget {
     this.parentAuthController,
     this.offlineSync,
     this.childProfilesController,
+    this.parentGateApi,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -109,6 +110,9 @@ class LittleMindsApp extends StatefulWidget {
 
   /// Injectable state for profile widget tests and real app navigation.
   final ChildProfilesController? childProfilesController;
+
+  /// Widget tests may inject a gate API double (LMP-42 / LMP-53 route guards).
+  final ParentGateApi? parentGateApi;
 
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
@@ -475,6 +479,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                   return ParentPinSurface(
                     auth: _parentAuth,
                     config: widget.config,
+                    api: widget.parentGateApi,
                     onBack: () => _go(_ShellRoute.childHub),
                     onUnlocked: (token) {
                       _gateToken = token;
