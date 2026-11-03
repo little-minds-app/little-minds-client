@@ -9,11 +9,11 @@ This client repository **pins** a backend commit and vendors that revision of th
 |---|---|
 | File | `contracts/pin.json` |
 | Backend repo | `little-minds-app/little-minds-backend` |
-| Commit SHA | see `backendCommitSha` in `pin.json` (currently `b0120759b419e271a7cf30f718faf1aef19ce7c5`) |
+| Commit SHA | see `backendCommitSha` in `pin.json` (currently `455bc3f3a3a44bb436d0c723dc407cff07d92e8d`) |
 | Artifact path | `contracts/openapi.yaml` |
 | Artifact blob SHA | `artifactBlobSha` — `git hash-object` of the vendored YAML (offline integrity) |
-| Contract version | `contracts/VERSION` (must match OpenAPI `info.version`; currently `0.14.1`) |
-| Backend PR | see `backendPullRequest` in `pin.json` (LMP-130 → `#33`) |
+| Contract version | `contracts/VERSION` (must match OpenAPI `info.version`; currently `0.14.2`) |
+| Backend PR | see `backendPullRequest` in `pin.json` (LMP-54 → `#34`) |
 
 **Never** point generators at floating `main`. Bump the pin deliberately when adopting a new backend contract revision.
 
@@ -43,6 +43,7 @@ Optional future live check (not required, **do not commit tokens**): a repositor
 **Current surface:** Auth, parent/child, activity ingestion, session KPI endpoints (LMP-52), and mission status / caregiver feedback (LMP-130).
 **LMP-52:** `GET /v1/insights/session-kpis` (parent bearer).
 **LMP-130:** `GET /v1/children/{childId}/missions` (parent bearer); `POST …/missions/{missionId}/feedback` (parent bearer + Parent Gate).
+**LMP-54:** `GET /v1/web/insights/session-kpis` and `GET /v1/web/children/{childId}/missions` (opaque web session + BFF secret).
 
 ## Commands
 

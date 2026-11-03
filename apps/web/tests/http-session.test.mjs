@@ -29,11 +29,13 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
   let backendUnavailable = false;
   let activityCount = 0;
   let childApiCount = 0;
+  let dashboardKpiCount = 0;
+  let dashboardMissionCount = 0;
   let children = [];
   let profileCalls = 0;
   let parentInfo = { first_name: null, occupation_optional: null };
   const backend = createServer(async (req, res) => {
-    const path = req.url;
+    const path = req.url?.split('?')[0];
     if (path === '/v1/auth/phone/start') return json(res, 200, { challenge_id: '00000000-0000-4000-8000-000000000001' });
     if (path === '/v1/auth/phone/verify') return json(res, 200, { access_token: 'backend-only-access', refresh_token: 'backend-only-refresh' });
     if (path === '/v1/auth/web/session') {
@@ -56,6 +58,28 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
     if (path === '/v1/auth/web/logout') {
       revoked = true;
       res.writeHead(204); return res.end();
+    }
+    if (path?.startsWith('/v1/web/insights/session-kpis')) {
+      dashboardKpiCount += 1;
+      assert.equal(req.method, 'GET');
+      assert.equal(req.headers['x-lm-bff-secret'], 'test-only-bff-secret-32-characters-long');
+      if (!issued || revoked || req.headers['x-lm-web-session'] !== handle) return json(res, 401, { error: 'invalid_token' });
+      return json(res, 200, { schema_version: '1.0.0', kpis: {}, freshness: { as_of: new Date().toISOString() } });
+    }
+    if (path?.startsWith('/v1/web/children/') && path.endsWith('/missions')) {
+      dashboardMissionCount += 1;
+      assert.equal(req.method, 'GET');
+      assert.equal(req.headers['x-lm-bff-secret'], 'test-only-bff-secret-32-characters-long');
+      if (!issued || revoked || req.headers['x-lm-web-session'] !== handle) return json(res, 401, { error: 'invalid_token' });
+      return json(res, 200, {
+        schema_version: 'mission-status-v1',
+        definition_version: '1.0.0',
+        generated_at: new Date().toISOString(),
+        child_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        window: { from: '2026-10-01T00:00:00.000Z', to: '2026-11-01T00:00:00.000Z' },
+        items: [],
+        pagination: { limit: 50, has_more: false },
+      });
     }
     if (path === '/v1/web/children' || path?.startsWith('/v1/web/children/')) {
       childApiCount += 1;
@@ -168,6 +192,19 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
     const after = await fetch(origin + '/api/children', { headers: { cookie: browserCookie } });
     assert.equal((await after.json()).children[0].nickname, 'Updated');
     assert.equal(childApiCount, 4, 'invalid requests never reach backend');
+    const dashboardQuery = '?from=2026-10-01T00:00:00.000Z&to=2026-11-01T00:00:00.000Z&timezone=Europe%2FIstanbul';
+    const activityBeforeDashboard = activityCount;
+    const kpis = await fetch(origin + '/api/insights/session-kpis' + dashboardQuery, { headers: { cookie: browserCookie } });
+    assert.equal(kpis.status, 200);
+    assert.equal((await kpis.json()).schema_version, '1.0.0');
+    const missionList = await fetch(origin + '/api/children/' + newId + '/missions' + dashboardQuery, { headers: { cookie: browserCookie } });
+    assert.equal(missionList.status, 200);
+    assert.deepEqual((await missionList.json()).items, []);
+    assert.equal((await fetch(origin + '/api/insights/session-kpis' + dashboardQuery)).status, 401, 'unauthenticated KPI read denied');
+    assert.equal((await fetch(origin + '/api/children/not-a-uuid/missions' + dashboardQuery)).status, 404, 'invalid child id blocked at BFF');
+    assert.equal(activityCount, activityBeforeDashboard, 'passive dashboard reads must not extend web session idle timeout');
+    assert.equal(dashboardKpiCount, 1);
+    assert.equal(dashboardMissionCount, 1);
     assert.equal((await fetch(origin + '/api/parent-profile')).status, 401);
     const submitParent = (requestOrigin, expectedParent = '11111111-1111-4111-8111-111111111111') => fetch(origin + '/api/parent-profile', {
       method: 'PATCH',

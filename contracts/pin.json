@@ -1,9 +1,9 @@
 {
-  "$comment": "LMP-130 immutable backend mission status + session KPI contract for Flutter + web client",
+  "$comment": "LMP-54 web BFF dashboard read routes (session KPIs + child missions)",
   "backendRepository": "little-minds-app/little-minds-backend",
-  "backendCommitSha": "b0120759b419e271a7cf30f718faf1aef19ce7c5",
+  "backendCommitSha": "455bc3f3a3a44bb436d0c723dc407cff07d92e8d",
   "artifactPath": "contracts/openapi.yaml",
-  "artifactBlobSha": "b2125d9d84ae94b2d508ebbff6111217238b914e",
-  "contractVersion": "0.14.1",
-  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/33"
+  "artifactBlobSha": "95a261894d27447f95537bdd9ccb7df4c4696b43",
+  "contractVersion": "0.14.2",
+  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/34"
 }
