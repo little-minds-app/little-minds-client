@@ -8,6 +8,7 @@ import 'package:little_minds_mobile/auth/parent_auth_controller.dart';
 import 'package:little_minds_mobile/auth/parent_auth_repository.dart';
 import 'package:little_minds_mobile/child_profiles/child_profiles_controller.dart';
 import 'package:little_minds_mobile/config/app_config.dart';
+import 'package:little_minds_mobile/parent_dashboard/mission_status_repository.dart';
 import 'package:little_minds_mobile/parent_dashboard/session_kpi_repository.dart';
 import 'package:little_minds_mobile/parent_dashboard/session_kpi_window.dart';
 import 'package:little_minds_mobile/parent_gate/parent_gate_api.dart';
@@ -45,6 +46,20 @@ class _FakeKpiRepo extends SessionKpiRepository {
     String? childId,
   }) async {
     return sampleKpiResponse(eligible: 3);
+  }
+}
+
+class _FakeMissionRepo extends MissionStatusRepository {
+  _FakeMissionRepo(ParentAuthController auth)
+      : super(config: AppConfig.developmentLocal, auth: auth);
+
+  @override
+  Future<MissionStatusListResponse> fetch({
+    required String childId,
+    required SessionKpiWindow window,
+    int? limit,
+  }) async {
+    return sampleMissionStatusResponse(items: []);
   }
 }
 
@@ -109,12 +124,14 @@ LittleMindsApp _app({
   required ParentAuthController auth,
   required ChildProfilesController profiles,
   required SessionKpiRepository kpiRepo,
+  MissionStatusRepository? missionRepo,
 }) {
   return LittleMindsApp(
     parentAuthController: auth,
     childProfilesController: profiles,
     parentGateApi: _FakeGateApi(),
     sessionKpiRepository: kpiRepo,
+    missionStatusRepository: missionRepo ?? _FakeMissionRepo(auth),
   );
 }
 
