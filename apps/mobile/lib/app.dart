@@ -60,6 +60,7 @@ class LittleMindsApp extends StatefulWidget {
     this.offlineSync,
     this.childProfilesController,
     this.parentGateApi,
+    this.sessionKpiRepository,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -113,6 +114,9 @@ class LittleMindsApp extends StatefulWidget {
 
   /// Widget tests may inject a gate API double (LMP-42 / LMP-53 route guards).
   final ParentGateApi? parentGateApi;
+
+  /// Widget tests may inject session KPI repository (LMP-53 dashboard).
+  final SessionKpiRepository? sessionKpiRepository;
 
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
@@ -522,10 +526,11 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                   return ParentDashboardSurface(
                     auth: _parentAuth,
                     profiles: _profiles,
-                    repository: SessionKpiRepository(
-                      config: widget.config,
-                      auth: _parentAuth,
-                    ),
+                    repository: widget.sessionKpiRepository ??
+                        SessionKpiRepository(
+                          config: widget.config,
+                          auth: _parentAuth,
+                        ),
                     onBack: () => _go(_ShellRoute.parentSettings),
                     onManageProfiles: () {
                       _profileManageMode = true;

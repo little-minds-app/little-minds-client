@@ -21,6 +21,7 @@ class FakeSessionKpiRepository extends SessionKpiRepository {
 
   SessionKpiResponse? response;
   Completer<SessionKpiResponse>? pending;
+  final Map<String, Completer<SessionKpiResponse>> pendingByChild = {};
   String? lastChildId;
 
   @override
@@ -29,11 +30,18 @@ class FakeSessionKpiRepository extends SessionKpiRepository {
     String? childId,
   }) async {
     lastChildId = childId;
+    if (childId != null && pendingByChild.containsKey(childId)) {
+      return pendingByChild[childId]!.future;
+    }
     if (pending != null) return pending!.future;
     if (response == null) {
       throw ApiException(503, 'offline');
     }
     return response!;
+  }
+
+  Completer<SessionKpiResponse> pendingFor(String childId) {
+    return pendingByChild.putIfAbsent(childId, Completer.new);
   }
 }
 
@@ -168,12 +176,13 @@ void main() {
     expect(controller.view?.eligibleSessions, 4);
   });
 
-  test('child switch mid-flight refetches and drops prior generation', () async {
+  test('late child A response cannot overwrite visible child B KPIs', () async {
     final auth = signedIn(parentId: _parentA);
     final profiles = await profilesWithChild(auth);
 
     final repo = FakeSessionKpiRepository(auth);
-    repo.pending = Completer<SessionKpiResponse>();
+    final pendingA = repo.pendingFor(_childAda);
+    final pendingB = repo.pendingFor(_childBob);
     final controller = ParentDashboardController(
       repository: repo,
       auth: auth,
@@ -181,15 +190,24 @@ void main() {
     );
 
     final loadFuture = controller.load();
+    await Future<void>.delayed(Duration.zero);
     expect(repo.lastChildId, _childAda);
+
     profiles.select(_childBob);
     await Future<void>.delayed(Duration.zero);
     expect(repo.lastChildId, _childBob);
-    repo.pending!.complete(sampleKpiResponse(eligible: 8));
-    await loadFuture;
 
+    pendingB.complete(sampleKpiResponse(eligible: 5));
+    await Future<void>.delayed(Duration.zero);
     expect(controller.phase, ParentDashboardPhase.loaded);
-    expect(controller.view?.eligibleSessions, 8);
+    expect(controller.view?.eligibleSessions, 5);
+
+    pendingA.complete(sampleKpiResponse(eligible: 99));
+    await loadFuture;
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.view?.eligibleSessions, 5);
+    expect(controller.phase, ParentDashboardPhase.loaded);
   });
 
   test('maps loaded server metrics without client-side recomputation', () async {

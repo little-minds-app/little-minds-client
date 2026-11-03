@@ -122,6 +122,8 @@ void main() {
       throwsA(isA<StateError>()),
     );
     expect(insights.attempts, 1);
+    expect(auth.session, isNull);
+    expect(auth.isAuthenticated, isFalse);
   });
 
   test('persistent 401 after refresh does not loop', () async {
