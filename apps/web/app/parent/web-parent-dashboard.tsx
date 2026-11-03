@@ -161,7 +161,6 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
     let revalidateGeneration = 0;
 
     async function revalidateSession() {
-      if (document.visibilityState !== 'visible') return;
       const pass = ++revalidateGeneration;
       const abort = new AbortController();
       try {
@@ -180,16 +179,20 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
       }
     }
 
-    function onFocusOrVisible() {
+    function onFocus() {
       void revalidateSession();
     }
 
-    window.addEventListener('focus', onFocusOrVisible);
-    document.addEventListener('visibilitychange', onFocusOrVisible);
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') void revalidateSession();
+    }
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       revalidateGeneration += 1;
-      window.removeEventListener('focus', onFocusOrVisible);
-      document.removeEventListener('visibilitychange', onFocusOrVisible);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [snapshot, selectedChildId, invalidateProtectedData]);
 

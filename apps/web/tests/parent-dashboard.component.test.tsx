@@ -165,7 +165,7 @@ test('tab focus revalidates session and clears data after logout', async () => {
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
   authed = false;
-  document.dispatchEvent(new dom.window.Event('visibilitychange'));
+  fireEvent(window, new dom.window.Event('focus'));
   await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
   assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
 });
@@ -181,7 +181,7 @@ test('tab focus clears dashboard when parent identity changes', async () => {
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/Ebeveyn bildirimi yok/)));
   parent = 'parent-b';
-  window.dispatchEvent(new dom.window.Event('focus'));
+  fireEvent(window, new dom.window.Event('focus'));
   await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
   assert.equal(screen.queryByText(/Ebeveyn bildirimi yok/), null);
 });
