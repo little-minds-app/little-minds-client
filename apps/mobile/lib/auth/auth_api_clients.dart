@@ -7,6 +7,7 @@ class AuthApiClients {
     auth = AuthApi(apiClient);
     parent = ParentApi(apiClient);
     insights = InsightsApi(apiClient);
+    missions = MissionsApi(apiClient);
   }
 
   final HttpBearerAuth bearer;
@@ -14,6 +15,7 @@ class AuthApiClients {
   late final AuthApi auth;
   late final ParentApi parent;
   late final InsightsApi insights;
+  late final MissionsApi missions;
 
   void setAccessToken(String? token) {
     bearer.accessToken = token ?? '';

@@ -3,6 +3,8 @@
 import 'package:flutter/foundation.dart';
 import '../child_profiles/child_profiles_controller.dart';
 import '../auth/parent_auth_controller.dart';
+import 'mission_status_repository.dart';
+import 'mission_status_view_data.dart';
 import 'parent_dashboard_view_data.dart';
 import 'session_kpi_repository.dart';
 import 'session_kpi_window.dart';
@@ -17,14 +19,24 @@ enum ParentDashboardPhase {
   childNotFound,
 }
 
+enum MissionStatusPhase {
+  initial,
+  loading,
+  loaded,
+  empty,
+  unavailable,
+}
+
 /// Loads and presents canonical session KPIs for the selected child (LMP-53).
 class ParentDashboardController extends ChangeNotifier {
   ParentDashboardController({
     required SessionKpiRepository repository,
+    required MissionStatusRepository missionRepository,
     required ParentAuthController auth,
     required ChildProfilesController profiles,
     SessionKpiWindow Function()? windowBuilder,
   })  : _repository = repository,
+        _missionRepository = missionRepository,
         _auth = auth,
         _profiles = profiles,
         _windowBuilder = windowBuilder ?? SessionKpiWindow.recentSevenDaysPlusToday {
@@ -33,6 +45,7 @@ class ParentDashboardController extends ChangeNotifier {
   }
 
   final SessionKpiRepository _repository;
+  final MissionStatusRepository _missionRepository;
   final ParentAuthController _auth;
   final ChildProfilesController _profiles;
   final SessionKpiWindow Function() _windowBuilder;
@@ -40,6 +53,9 @@ class ParentDashboardController extends ChangeNotifier {
   ParentDashboardPhase _phase = ParentDashboardPhase.initial;
   ParentDashboardViewData? _view;
   SessionKpiFailure? _failure;
+  MissionStatusPhase _missionPhase = MissionStatusPhase.initial;
+  MissionStatusViewData? _missionView;
+  MissionStatusFailure? _missionFailure;
   String? _parentId;
   String? _sessionId;
   String? _childId;
@@ -49,9 +65,12 @@ class ParentDashboardController extends ChangeNotifier {
   ParentDashboardPhase get phase => _phase;
   ParentDashboardViewData? get view => _view;
   SessionKpiFailure? get failure => _failure;
+  MissionStatusPhase get missionPhase => _missionPhase;
+  MissionStatusViewData? get missionView => _missionView;
+  MissionStatusFailure? get missionFailure => _missionFailure;
   bool get needsChildSelection => _needsChildSelection;
 
-  /// Mission status has no authoritative server API on main — always unavailable.
+  /// Shown when mission status cannot be loaded from the server (fail-closed).
   static const missionStatusUnavailableMessage =
       'Görev durumu henüz sunucudan doğrulanamıyor';
 
@@ -71,6 +90,7 @@ class ParentDashboardController extends ChangeNotifier {
       _phase = ParentDashboardPhase.initial;
       _view = null;
       _failure = null;
+      _resetMissionState();
       notifyListeners();
       return;
     }
@@ -79,6 +99,7 @@ class ParentDashboardController extends ChangeNotifier {
       _phase = ParentDashboardPhase.initial;
       _view = null;
       _failure = null;
+      _resetMissionState();
       notifyListeners();
       return;
     }
@@ -99,9 +120,25 @@ class ParentDashboardController extends ChangeNotifier {
     _phase = ParentDashboardPhase.loading;
     _failure = null;
     _view = null;
+    _missionPhase = MissionStatusPhase.loading;
+    _missionView = null;
+    _missionFailure = null;
     notifyListeners();
 
     final window = _windowBuilder();
+    if (boundChildId != null) {
+      // ignore: discarded_futures
+      _fetchMission(
+        generation: generation,
+        window: window,
+        childId: boundChildId,
+        boundParentId: boundParentId,
+        boundSessionId: boundSessionId,
+      );
+    } else {
+      _resetMissionState();
+    }
+
     try {
       final response = await _repository.fetch(
         window: window,
@@ -140,6 +177,48 @@ class ParentDashboardController extends ChangeNotifier {
     }
   }
 
+  Future<void> _fetchMission({
+    required int generation,
+    required SessionKpiWindow window,
+    required String childId,
+    required String? boundParentId,
+    required String? boundSessionId,
+  }) async {
+    try {
+      final response = await _missionRepository.fetch(
+        childId: childId,
+        window: window,
+      );
+      if (!_stillCurrent(
+        generation,
+        boundParentId: boundParentId,
+        boundSessionId: boundSessionId,
+        boundChildId: childId,
+      )) {
+        return;
+      }
+      final mapped = mapMissionStatusToView(response);
+      _missionView = mapped;
+      _missionFailure = null;
+      _missionPhase =
+          mapped.isEmpty ? MissionStatusPhase.empty : MissionStatusPhase.loaded;
+      notifyListeners();
+    } catch (error) {
+      if (!_stillCurrent(
+        generation,
+        boundParentId: boundParentId,
+        boundSessionId: boundSessionId,
+        boundChildId: childId,
+      )) {
+        return;
+      }
+      _missionView = null;
+      _missionFailure = mapMissionStatusException(error);
+      _missionPhase = MissionStatusPhase.unavailable;
+      notifyListeners();
+    }
+  }
+
   bool _stillCurrent(
     int generation, {
     required String? boundParentId,
@@ -165,6 +244,7 @@ class ParentDashboardController extends ChangeNotifier {
       _childId = null;
       _view = null;
       _failure = null;
+      _resetMissionState();
       _phase = ParentDashboardPhase.unauthorized;
       _needsChildSelection = false;
       notifyListeners();
@@ -179,6 +259,7 @@ class ParentDashboardController extends ChangeNotifier {
     _childId = null;
     _view = null;
     _failure = null;
+    _resetMissionState();
     _phase = ParentDashboardPhase.initial;
     _needsChildSelection = false;
     notifyListeners();
@@ -191,6 +272,7 @@ class ParentDashboardController extends ChangeNotifier {
     _childId = selected;
     _view = null;
     _failure = null;
+    _resetMissionState();
     if (selected == null || _profiles.children.isEmpty) {
       _needsChildSelection = true;
       _phase = ParentDashboardPhase.initial;
@@ -209,9 +291,16 @@ class ParentDashboardController extends ChangeNotifier {
     _childId = null;
     _view = null;
     _failure = null;
+    _resetMissionState();
     _phase = phase;
     _needsChildSelection = false;
     notifyListeners();
+  }
+
+  void _resetMissionState() {
+    _missionPhase = MissionStatusPhase.initial;
+    _missionView = null;
+    _missionFailure = null;
   }
 
   @override

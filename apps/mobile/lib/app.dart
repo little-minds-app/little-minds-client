@@ -27,6 +27,7 @@ import 'surfaces/near_far_demo_surface.dart';
 import 'surfaces/near_far_mentor_surface.dart';
 import 'surfaces/parent_gate_surface.dart';
 import 'surfaces/optional_parent_profile_surface.dart';
+import 'parent_dashboard/mission_status_repository.dart';
 import 'parent_dashboard/session_kpi_repository.dart';
 import 'surfaces/parent_dashboard_surface.dart';
 import 'surfaces/parent_settings_surface.dart';
@@ -61,6 +62,7 @@ class LittleMindsApp extends StatefulWidget {
     this.childProfilesController,
     this.parentGateApi,
     this.sessionKpiRepository,
+    this.missionStatusRepository,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -117,6 +119,9 @@ class LittleMindsApp extends StatefulWidget {
 
   /// Widget tests may inject session KPI repository (LMP-53 dashboard).
   final SessionKpiRepository? sessionKpiRepository;
+
+  /// Widget tests may inject mission status repository (LMP-53 delivery B).
+  final MissionStatusRepository? missionStatusRepository;
 
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
@@ -528,6 +533,11 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                     profiles: _profiles,
                     repository: widget.sessionKpiRepository ??
                         SessionKpiRepository(
+                          config: widget.config,
+                          auth: _parentAuth,
+                        ),
+                    missionRepository: widget.missionStatusRepository ??
+                        MissionStatusRepository(
                           config: widget.config,
                           auth: _parentAuth,
                         ),

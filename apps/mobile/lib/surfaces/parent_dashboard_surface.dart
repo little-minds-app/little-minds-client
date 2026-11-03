@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../child_profiles/child_profiles_controller.dart';
 import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
+import '../parent_dashboard/mission_status_repository.dart';
+import '../parent_dashboard/mission_status_view_data.dart';
 import '../parent_dashboard/parent_dashboard_controller.dart';
 import '../parent_dashboard/session_kpi_repository.dart';
 import '../shell/adaptive_shell.dart';
@@ -15,6 +17,7 @@ class ParentDashboardSurface extends StatefulWidget {
     required this.auth,
     required this.profiles,
     required this.repository,
+    required this.missionRepository,
     this.controller,
     this.onBack,
     this.onManageProfiles,
@@ -23,6 +26,7 @@ class ParentDashboardSurface extends StatefulWidget {
   final ParentAuthController auth;
   final ChildProfilesController profiles;
   final SessionKpiRepository repository;
+  final MissionStatusRepository missionRepository;
   final ParentDashboardController? controller;
   final VoidCallback? onBack;
   final VoidCallback? onManageProfiles;
@@ -33,6 +37,11 @@ class ParentDashboardSurface extends StatefulWidget {
   static const Key emptyKey = Key('parent-dashboard-empty');
   static const Key errorKey = Key('parent-dashboard-error');
   static const Key missionUnavailableKey = Key('parent-dashboard-mission-unavailable');
+  static const Key missionLoadingKey = Key('parent-dashboard-mission-loading');
+  static const Key missionContentKey = Key('parent-dashboard-mission-content');
+  static const Key missionEmptyKey = Key('parent-dashboard-mission-empty');
+  static const Key missionTruncatedKey = Key('parent-dashboard-mission-truncated');
+  static const Key missionRowKey = Key('parent-dashboard-mission-row');
   static const Key refreshKey = Key('parent-dashboard-refresh');
   static const Key childPromptKey = Key('parent-dashboard-child-prompt');
 
@@ -51,6 +60,7 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
     _controller = widget.controller ??
         ParentDashboardController(
           repository: widget.repository,
+          missionRepository: widget.missionRepository,
           auth: widget.auth,
           profiles: widget.profiles,
         );
@@ -251,29 +261,109 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
                 ],
               ],
               const SizedBox(height: 24),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Gerçek dünya görevleri',
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        key: ParentDashboardSurface.missionUnavailableKey,
-                        ParentDashboardController.missionStatusUnavailableMessage,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _missionPanel(context),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _missionPanel(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Gerçek dünya görevleri',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Sunucu kayıtlı etkileşim ve ebeveyn bildirimi (Near/Far yerel durumu değil).',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            switch (_controller.missionPhase) {
+              MissionStatusPhase.initial ||
+              MissionStatusPhase.loading =>
+                const Center(
+                  key: ParentDashboardSurface.missionLoadingKey,
+                  child: Padding(
+                    padding: EdgeInsets.all(8),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              MissionStatusPhase.unavailable => Text(
+                  key: ParentDashboardSurface.missionUnavailableKey,
+                  _controller.missionFailure?.userMessage ??
+                      ParentDashboardController.missionStatusUnavailableMessage,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              MissionStatusPhase.empty => Text(
+                  key: ParentDashboardSurface.missionEmptyKey,
+                  'Bu pencerede görev kaydı yok.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              MissionStatusPhase.loaded => _missionLoaded(context),
+            },
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _missionLoaded(BuildContext context) {
+    final mission = _controller.missionView;
+    if (mission == null) {
+      return Text(
+        key: ParentDashboardSurface.missionUnavailableKey,
+        ParentDashboardController.missionStatusUnavailableMessage,
+      );
+    }
+    return KeyedSubtree(
+      key: ParentDashboardSurface.missionContentKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Pencere: ${mission.windowLabel}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          Text(
+            'Sunucu üretimi: ${mission.freshnessLabel}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          if (mission.truncated)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                key: ParentDashboardSurface.missionTruncatedKey,
+                'Liste sınırı nedeniyle daha fazla kayıt olabilir.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.orange.shade800,
+                    ),
+              ),
+            ),
+          for (final row in mission.rows)
+            ListTile(
+              key: ParentDashboardSurface.missionRowKey,
+              dense: true,
+              title: Text('${row.missionId} · ${row.occurrenceId}'),
+              subtitle: Text(
+                '${row.interactionLabel}\n${row.reportLabel}',
+              ),
+              leading: Icon(
+                switch (row.reportPresentation) {
+                  MissionReportPresentation.reported => Icons.check_circle_outline,
+                  MissionReportPresentation.noReport => Icons.info_outline,
+                  MissionReportPresentation.interactionOnly => Icons.play_circle_outline,
+                },
+              ),
+            ),
+        ],
       ),
     );
   }
