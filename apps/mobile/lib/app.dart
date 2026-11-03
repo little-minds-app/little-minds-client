@@ -153,6 +153,19 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   final List<({String token, AuthSession session, DateTime expiresAt})> _pendingRevokes = [];
   bool _revokeInFlight = false;
 
+  /// A storage/codec failure must not become an unhandled asynchronous error
+  /// from a lifecycle callback or timer. Outbox data remains on disk for
+  /// explicit diagnosis and subsequent retry.
+  void _flushOfflineSafely() {
+    final sync = widget.offlineSync;
+    if (sync == null) return;
+    unawaited(sync.flush().catchError((Object error, StackTrace stackTrace) {
+      if (kDebugMode) {
+        debugPrint('LMP-51 offline flush failed: ${error.runtimeType}');
+      }
+    }));
+  }
+
   Future<void> _flushPendingRevokes() async {
     if (_revokeInFlight) return;
     _revokeInFlight = true;
@@ -214,10 +227,10 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     );
     _parentAuth.addListener(_handleAuthChange);
     if (widget.offlineSync != null) {
-      unawaited(widget.offlineSync!.flush());
+      _flushOfflineSafely();
       _offlineSyncTimer = Timer.periodic(const Duration(seconds: 60), (_) {
         if (mounted && _parentAuth.isAuthenticated) {
-          unawaited(widget.offlineSync!.flush());
+          _flushOfflineSafely();
         }
       });
     }
@@ -319,7 +332,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
       // ignore: discarded_futures
       _flushPendingRevokes();
       if (widget.offlineSync != null) {
-        unawaited(widget.offlineSync!.flush());
+        _flushOfflineSafely();
       }
     }
     if (state == AppLifecycleState.inactive ||
@@ -336,7 +349,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   void _handleAuthChange() {
     if (!mounted) return;
     if (_parentAuth.isAuthenticated && widget.offlineSync != null) {
-      unawaited(widget.offlineSync!.flush());
+      _flushOfflineSafely();
     }
     if (_gateSessionId != null &&
         _parentAuth.session?.sessionId != _gateSessionId) {
