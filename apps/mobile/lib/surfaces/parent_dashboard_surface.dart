@@ -36,6 +36,8 @@ class ParentDashboardSurface extends StatefulWidget {
   static const Key contentKey = Key('parent-dashboard-content');
   static const Key emptyKey = Key('parent-dashboard-empty');
   static const Key errorKey = Key('parent-dashboard-error');
+  static const Key kpiErrorKey = Key('parent-dashboard-kpi-error');
+  static const Key kpiRetryKey = Key('parent-dashboard-kpi-retry');
   static const Key missionUnavailableKey = Key('parent-dashboard-mission-unavailable');
   static const Key missionLoadingKey = Key('parent-dashboard-mission-loading');
   static const Key missionContentKey = Key('parent-dashboard-mission-content');
@@ -86,7 +88,8 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
           IconButton(
             key: ParentDashboardSurface.refreshKey,
             tooltip: 'Yenile',
-            onPressed: _controller.phase == ParentDashboardPhase.loading
+            onPressed: _controller.phase == ParentDashboardPhase.loading ||
+                    _controller.phase == ParentDashboardPhase.initial
                 ? null
                 : () => _controller.refresh(),
             icon: const Icon(Icons.refresh),
@@ -135,13 +138,19 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
       );
     }
 
+    if (_controller.phase == ParentDashboardPhase.loading ||
+        _controller.phase == ParentDashboardPhase.initial) {
+      return const Center(
+        key: ParentDashboardSurface.loadingKey,
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_showOverviewWithKpiFailure) {
+      return _overview(context, empty: false, kpiFailed: true);
+    }
+
     switch (_controller.phase) {
-      case ParentDashboardPhase.loading:
-      case ParentDashboardPhase.initial:
-        return const Center(
-          key: ParentDashboardSurface.loadingKey,
-          child: CircularProgressIndicator(),
-        );
       case ParentDashboardPhase.unauthorized:
       case ParentDashboardPhase.childNotFound:
       case ParentDashboardPhase.error:
@@ -158,6 +167,7 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
+                  key: ParentDashboardSurface.kpiRetryKey,
                   onPressed: () => _controller.refresh(),
                   child: const Text('Yeniden dene'),
                 ),
@@ -169,10 +179,26 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
         return _overview(context, empty: true);
       case ParentDashboardPhase.loaded:
         return _overview(context, empty: false);
+      case ParentDashboardPhase.loading:
+      case ParentDashboardPhase.initial:
+        return const SizedBox.shrink();
     }
   }
 
-  Widget _overview(BuildContext context, {required bool empty}) {
+  bool get _showOverviewWithKpiFailure {
+    final missionReady = _controller.missionPhase == MissionStatusPhase.loaded ||
+        _controller.missionPhase == MissionStatusPhase.empty;
+    final kpiFailed = switch (_controller.phase) {
+      ParentDashboardPhase.error ||
+      ParentDashboardPhase.unauthorized ||
+      ParentDashboardPhase.childNotFound =>
+        true,
+      _ => false,
+    };
+    return missionReady && kpiFailed;
+  }
+
+  Widget _overview(BuildContext context, {required bool empty, bool kpiFailed = false}) {
     final view = _controller.view;
     final selected = widget.profiles.selected;
     return SingleChildScrollView(
@@ -191,7 +217,31 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               const SizedBox(height: 8),
-              if (empty)
+              if (kpiFailed)
+                Card(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          key: ParentDashboardSurface.kpiErrorKey,
+                          _controller.failure?.userMessage ??
+                              'Oturum özeti yüklenemedi.',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          key: ParentDashboardSurface.kpiRetryKey,
+                          onPressed: () => _controller.refresh(),
+                          child: const Text('Oturum özetini yeniden dene'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (empty)
                 const Text(
                   'Bu pencerede uygun oturum bulunamadı.',
                   textAlign: TextAlign.center,

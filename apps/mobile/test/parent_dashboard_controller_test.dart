@@ -24,12 +24,14 @@ class FakeSessionKpiRepository extends SessionKpiRepository {
   Completer<SessionKpiResponse>? pending;
   final Map<String, Completer<SessionKpiResponse>> pendingByChild = {};
   String? lastChildId;
+  Object? throwError;
 
   @override
   Future<SessionKpiResponse> fetch({
     required SessionKpiWindow window,
     String? childId,
   }) async {
+    if (throwError != null) throw throwError!;
     lastChildId = childId;
     if (childId != null && pendingByChild.containsKey(childId)) {
       return pendingByChild[childId]!.future;
@@ -311,6 +313,28 @@ void main() {
     expect(repo.lastChildId, _childAda);
     expect(controller.missionPhase, MissionStatusPhase.loaded);
     expect(mission.lastWindow, isNotNull);
+  });
+
+  test('mission load succeeds when KPI fetch fails', () async {
+    final auth = signedIn(parentId: _parentA);
+    final profiles = await profilesWithChild(auth);
+
+    final repo = FakeSessionKpiRepository(auth)..throwError = ApiException(503, 'down');
+    final mission = FakeMissionStatusRepository(auth)
+      ..response = sampleMissionStatusResponse();
+
+    final controller = dashboardController(
+      kpi: repo,
+      mission: mission,
+      auth: auth,
+      profiles: profiles,
+    );
+    await controller.load();
+
+    expect(controller.phase, ParentDashboardPhase.error);
+    expect(controller.view, isNull);
+    expect(controller.missionPhase, MissionStatusPhase.loaded);
+    expect(controller.missionView?.rows, isNotEmpty);
   });
 
   test('KPI load succeeds when mission fetch fails', () async {
