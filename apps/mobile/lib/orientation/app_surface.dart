@@ -17,4 +17,7 @@ enum AppSurface {
 
   /// Native Parent Settings — portrait + landscape (ADR-018).
   parentSettings,
+
+  /// Mobile parent dashboard overview — portrait + landscape (ADR-018).
+  parentDashboard,
 }

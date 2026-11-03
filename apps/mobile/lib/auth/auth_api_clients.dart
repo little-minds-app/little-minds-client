@@ -6,12 +6,14 @@ class AuthApiClients {
     apiClient = ApiClient(basePath: basePath, authentication: bearer);
     auth = AuthApi(apiClient);
     parent = ParentApi(apiClient);
+    insights = InsightsApi(apiClient);
   }
 
   final HttpBearerAuth bearer;
   late final ApiClient apiClient;
   late final AuthApi auth;
   late final ParentApi parent;
+  late final InsightsApi insights;
 
   void setAccessToken(String? token) {
     bearer.accessToken = token ?? '';
