@@ -14,7 +14,7 @@ function istanbulToday(): string {
   return `${read('year')}-${read('month')}-${read('day')}`;
 }
 
-export function ChildProfiles() {
+export function ChildProfiles({ onSelectionChange }: { onSelectionChange?: (childId: string | null) => void } = {}) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [form, setForm] = useState<Form>(emptyForm);
@@ -33,6 +33,7 @@ export function ChildProfiles() {
     // child data from a previous account during a new request.
     setProfiles([]);
     setSelected(null);
+    onSelectionChange?.(null);
     try {
       const me = await fetch('/api/auth/me', { cache: 'no-store' });
       if (generation !== requestGeneration.current) return;
@@ -64,11 +65,12 @@ export function ChildProfiles() {
       if (generation !== requestGeneration.current) return;
       setProfiles([]);
       setSelected(null);
+      onSelectionChange?.(null);
       setError(e instanceof Error ? e.message : 'Bağlantı hatası');
     } finally {
       if (generation === requestGeneration.current) setLoading(false);
     }
-  }, []);
+  }, [onSelectionChange]);
 
   useEffect(() => {
     void reload();
@@ -99,7 +101,7 @@ export function ChildProfiles() {
     <p>Kesin doğum tarihi gerekmiyor. Çocuğunuzun yaklaşık yaşını ay olarak girin.</p>
     {loading ? <p role="status">Profiller yükleniyor…</p> : profiles.length === 0 ? <p>Henüz çocuk profili yok.</p> : (
       <ul>{profiles.map((profile) => <li key={profile.child_id}>
-        <button type="button" aria-pressed={selected === profile.child_id} onClick={() => setSelected(profile.child_id)}>
+        <button type="button" aria-pressed={selected === profile.child_id} onClick={() => { setSelected(profile.child_id); onSelectionChange?.(profile.child_id); }}>
           {profile.nickname || 'Çocuk profili'} — {profile.age_months} ay
         </button>{' '}
         <button type="button" onClick={() => { setEditing(profile.child_id); setForm({ nickname: profile.nickname ?? '', age_months: String(profile.age_months) }); }}>Düzenle</button>
