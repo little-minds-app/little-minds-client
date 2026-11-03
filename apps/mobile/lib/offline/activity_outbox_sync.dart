@@ -9,14 +9,16 @@ import '../auth/auth_session.dart';
 import 'activity_file_outbox.dart';
 
 typedef EventBatchSender = Future<Map<String, dynamic>> Function(
-  AuthSession session, List<Map<String, dynamic>> events,
-  List<Map<String, dynamic>> sessions);
+  AuthSession session,
+  List<Map<String, dynamic>> events,
+  List<Map<String, dynamic>> sessions,
+);
 
 /// Uses the LMP-51 API wire contract. Auth token stays only in request header.
 class ActivityHttpBatchSender {
   ActivityHttpBatchSender({required Uri apiBaseUrl, HttpClient? client})
-      : _endpoint = apiBaseUrl.resolve('/v1/events/batch'),
-        _client = client ?? HttpClient();
+    : _endpoint = apiBaseUrl.resolve('/v1/events/batch'),
+      _client = client ?? HttpClient();
   final Uri _endpoint;
   final HttpClient _client;
 
@@ -40,16 +42,32 @@ class ActivityHttpBatchSender {
       typedEvents.add(parsed);
     }
     final request = IngestActivityEventBatchRequest(
-        sessions: typedSessions, events: typedEvents);
-    final encoded = utf8.encode(jsonEncode(request.toJson()));
+      sessions: typedSessions,
+      events: typedEvents,
+    );
+    final wire = request.toJson();
+    final wireEvents = (wire['events'] as List).cast<ActivityEventV1>();
+    wire['events'] = wireEvents.map((event) {
+      final json = event.toJson();
+      json.removeWhere(
+        (key, value) =>
+            value == null &&
+            (key == 'play_session_id' || key == 'monotonic_duration_seconds'),
+      );
+      return json;
+    }).toList();
+    final encoded = utf8.encode(jsonEncode(wire));
     if (encoded.length > 256 * 1024) {
       throw const ActivityRequestTooLarge();
     }
-    final req = await _client.postUrl(_endpoint).timeout(
-      const Duration(seconds: 15));
+    final req = await _client
+        .postUrl(_endpoint)
+        .timeout(const Duration(seconds: 15));
     req.headers.contentType = ContentType.json;
-    req.headers.set(HttpHeaders.authorizationHeader,
-        'Bearer ${session.accessToken}');
+    req.headers.set(
+      HttpHeaders.authorizationHeader,
+      'Bearer ${session.accessToken}',
+    );
     req.add(encoded);
     final response = await req.close().timeout(const Duration(seconds: 20));
     final responseBody = await utf8.decoder.bind(response).join();
@@ -68,11 +86,27 @@ class ActivityHttpBatchSender {
     }
     if (response.statusCode == 401) throw const ActivityAuthExpired();
     if (response.statusCode == 429 || response.statusCode >= 500) {
-      throw ActivityRetryableHttp(response.statusCode,
-          retryAfter: parseActivityRetryAfter(
-              response.headers.value('retry-after')));
+      throw ActivityRetryableHttp(
+        response.statusCode,
+        retryAfter: parseActivityRetryAfter(
+          response.headers.value('retry-after'),
+        ),
+      );
     }
-    throw ActivityPermanentHttp(response.statusCode);
+    String? errorCode;
+    try {
+      final decoded = jsonDecode(responseBody);
+      if (decoded is Map<String, dynamic>) {
+        final raw = decoded['message'];
+        if (raw is String &&
+            RegExp(r'^[a-z][a-z0-9_.-]{0,100}$').hasMatch(raw)) {
+          errorCode = raw;
+        }
+      }
+    } catch (_) {
+      // Do not expose raw server response.
+    }
+    throw ActivityPermanentHttp(response.statusCode, errorCode: errorCode);
   }
 }
 
@@ -88,7 +122,8 @@ Duration? parseActivityRetryAfter(String? value, {DateTime? now}) {
     final remaining = until.difference((now ?? DateTime.now()).toUtc());
     if (remaining <= Duration.zero) return const Duration(seconds: 1);
     return remaining > const Duration(hours: 1)
-        ? const Duration(hours: 1) : remaining;
+        ? const Duration(hours: 1)
+        : remaining;
   } on FormatException {
     return null;
   } on HttpException {
@@ -99,17 +134,21 @@ Duration? parseActivityRetryAfter(String? value, {DateTime? now}) {
 class ActivityAuthExpired implements Exception {
   const ActivityAuthExpired();
 }
+
 class ActivityRetryableHttp implements Exception {
   const ActivityRetryableHttp(this.status, {this.retryAfter});
   final int status;
   final Duration? retryAfter;
 }
+
 class ActivityRequestTooLarge implements Exception {
   const ActivityRequestTooLarge();
 }
+
 class ActivityPermanentHttp implements Exception {
-  const ActivityPermanentHttp(this.status);
+  const ActivityPermanentHttp(this.status, {this.errorCode});
   final int status;
+  final String? errorCode;
 }
 
 /// Avoids overlapping flushes; each call acts only on the currently signed-in
@@ -140,8 +179,11 @@ class ActivityOutboxSync {
       // Each persisted record is capped at 16 KiB (including its session).
       // Twelve records plus the batch envelope fit under the 256 KiB cap.
       // A bounded prefix avoids one oversized batch blocking the entire queue.
-      final pending = await outbox.pending(initial.parentId,
-          now: _clock().toUtc(), limit: 12);
+      final pending = await outbox.pending(
+        initial.parentId,
+        now: _clock().toUtc(),
+        limit: 12,
+      );
       if (pending.isEmpty) return;
       if (!_sameAccount(initial)) return;
       Map<String, dynamic> result;
@@ -160,8 +202,11 @@ class ActivityOutboxSync {
             }
           }
         }
-        result = await send(initial, pending.map((e) => e.payload).toList(),
-            uniqueSessions.values.toList());
+        result = await send(
+          initial,
+          pending.map((e) => e.payload).toList(),
+          uniqueSessions.values.toList(),
+        );
       } on ActivityAuthExpired {
         // No token refresh inside worker; caller must reauthenticate first.
         return;
@@ -176,9 +221,12 @@ class ActivityOutboxSync {
       } on ActivityRetryableHttp catch (error) {
         if (!_sameAccount(initial)) return;
         for (final item in pending) {
-          await outbox.postpone(item, error.retryAfter == null
-              ? _nextRetry(item.attempts)
-              : _clock().toUtc().add(error.retryAfter!));
+          await outbox.postpone(
+            item,
+            error.retryAfter == null
+                ? _nextRetry(item.attempts)
+                : _clock().toUtc().add(error.retryAfter!),
+          );
         }
         return;
       } on ActivityPermanentHttp {
@@ -203,7 +251,8 @@ class ActivityOutboxSync {
       }
       final acked = <String, ({String status, String? reason})>{};
       for (final entry in rows) {
-        if (entry is! Map || entry['event_id'] is! String ||
+        if (entry is! Map ||
+            entry['event_id'] is! String ||
             entry['status'] is! String) {
           return;
         }
@@ -211,15 +260,22 @@ class ActivityOutboxSync {
         if (acked.containsKey(id)) {
           return;
         }
-        acked[id] = (status: entry['status'] as String,
-            reason: entry['reason_code'] as String?);
+        acked[id] = (
+          status: entry['status'] as String,
+          reason: entry['reason_code'] as String?,
+        );
       }
       // Validate the full ACK before acknowledging any record.
       if (acked.length != pending.length ||
           pending.any((e) => !acked.containsKey(e.eventId)) ||
-          acked.values.any((v) => !{
-            'accepted', 'duplicate_noop', 'rejected', 'retryable'
-          }.contains(v.status))) {
+          acked.values.any(
+            (v) => !{
+              'accepted',
+              'duplicate_noop',
+              'rejected',
+              'retryable',
+            }.contains(v.status),
+          )) {
         return;
       }
       for (final item in pending) {
@@ -232,8 +288,11 @@ class ActivityOutboxSync {
               item.payload['consent_scope'] == 'optional_product_analytics') {
             await outbox.acknowledge(initial.parentId, item.eventId);
           } else {
-            await outbox.quarantine(initial.parentId, item.eventId,
-                ack.reason ?? 'server.rejected');
+            await outbox.quarantine(
+              initial.parentId,
+              item.eventId,
+              ack.reason ?? 'server.rejected',
+            );
           }
         } else {
           await outbox.postpone(item, _nextRetry(item.attempts));
@@ -246,7 +305,8 @@ class ActivityOutboxSync {
 
   bool _sameAccount(AuthSession original) {
     final active = currentSession();
-    return active != null && active.parentId == original.parentId &&
+    return active != null &&
+        active.parentId == original.parentId &&
         active.sessionId == original.sessionId;
   }
 
@@ -254,6 +314,7 @@ class ActivityOutboxSync {
     final capped = min(attempts, 8);
     final maximum = min(300, 2 * (1 << capped));
     return _clock().toUtc().add(
-      Duration(milliseconds: 1000 + _random.nextInt(maximum * 1000)));
+      Duration(milliseconds: 1000 + _random.nextInt(maximum * 1000)),
+    );
   }
 }
