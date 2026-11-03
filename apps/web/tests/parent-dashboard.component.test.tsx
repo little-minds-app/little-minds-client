@@ -10,7 +10,7 @@ Object.assign(globalThis, {
 });
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
 const { cleanup, render, screen, waitFor, fireEvent } = require('@testing-library/react') as typeof import('@testing-library/react');
-const { WebParentDashboard, dashboardWindow } = require('../app/parent/web-parent-dashboard') as typeof import('../app/parent/web-parent-dashboard');
+const { WebParentDashboard, dashboardWindow, formatSessionKpiRate } = require('../app/parent/web-parent-dashboard') as typeof import('../app/parent/web-parent-dashboard');
 
 const childA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const childB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -22,8 +22,10 @@ const kpi = {
   sample: { eligible_sessions: 2, terminal_sessions: 2, excluded_unsupported_schema: 0, excluded_consent: 0 },
   metrics: { eligible_session_count: 2, completed_session_count: 1, interrupted_session_count: 1,
     abandoned_session_count: 0, in_progress_session_count: 0, total_play_duration_seconds: 240,
-    distinct_play_days: 1, by_activity: [], completed_session_rate: { status: 'available', numerator: 1, denominator: 2 },
-    first_attempt_accuracy: { status: 'unavailable', numerator: 0, denominator: 0 } },
+    distinct_play_days: 1,
+    by_activity: [{ content_version_id: 'activity-alpha', session_starts: 2, completed_sessions: 1, play_duration_seconds: 240 }],
+    completed_session_rate: { availability_status: 'available', value: 0.5, numerator: 1, denominator: 2 },
+    first_attempt_accuracy: { availability_status: 'unavailable', numerator: 0, denominator: 0, reason_code: 'insufficient_data' } },
 };
 const mission = {
   schema_version: 'mission-status-v1', definition_version: 'mission-status-v1',
@@ -65,8 +67,11 @@ test('renders canonical KPI and reports no_report without inferring completion',
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/Ebeveyn bildirimi yok/)));
   assert.ok(screen.getByText('Uygun oturum'));
-  assert.ok(screen.getByText('Oyun süresi'));
-  assert.ok(screen.getByText(/Veri: fresh/));
+  assert.ok(screen.getByText('Toplam oyun süresi'));
+  assert.ok(screen.getByText(/50% \(1\/2\)/));
+  assert.ok(screen.getByText('insufficient_data'));
+  assert.ok(screen.getByText(/Tazelik: fresh/));
+  assert.ok(screen.getByText(/activity-alpha/));
   assert.equal(urls.filter((url) => url === '/api/auth/me').length, 2);
   assert.ok(urls.some((url) => url.includes('child_id=' + childA)));
   assert.ok(urls.some((url) => url.includes('/children/' + childA + '/missions?')));
@@ -120,6 +125,63 @@ test('parent switch between fetch and publish fails closed', async () => {
     return reply(200, mission);
   }) as typeof fetch;
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
+  await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
+  assert.equal(screen.queryByText(/Ebeveyn bildirimi yok/), null);
+});
+
+test('formatSessionKpiRate uses server availability without recomputing', () => {
+  assert.deepEqual(formatSessionKpiRate({
+    availability_status: 'available', value: 0.25, numerator: 1, denominator: 4,
+  }), { label: '25% (1/4)', unavailable: false });
+  assert.deepEqual(formatSessionKpiRate({
+    availability_status: 'unavailable', numerator: 0, denominator: 0, reason_code: 'no_signal',
+  }), { label: 'no_signal', unavailable: true });
+});
+
+test('stale and partial freshness metadata show warnings', async () => {
+  globalThis.fetch = (async (url: string) => {
+    if (url === '/api/auth/me') return reply(200, { parent_id: 'parent-a' });
+    if (url.startsWith('/api/insights/')) {
+      return reply(200, {
+        ...kpi,
+        freshness: { status: 'stale', data_completeness: 'partial', stale_threshold_seconds: 7200 },
+      });
+    }
+    return reply(200, mission);
+  }) as typeof fetch;
+  render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
+  await waitFor(() => assert.ok(screen.getByText(/Veriler güncel olmayabilir/)));
+  assert.ok(screen.getByText(/Veri seti kısmi olabilir/));
+});
+
+test('tab focus revalidates session and clears data after logout', async () => {
+  let authed = true;
+  globalThis.fetch = (async (url: string) => {
+    if (url === '/api/auth/me') return authed ? reply(200, { parent_id: 'parent-a' }) : reply(401, {});
+    if (url.startsWith('/api/insights/')) return reply(200, kpi);
+    return reply(200, mission);
+  }) as typeof fetch;
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
+  await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
+  authed = false;
+  document.dispatchEvent(new dom.window.Event('visibilitychange'));
+  await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
+  assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
+});
+
+test('tab focus clears dashboard when parent identity changes', async () => {
+  let parent = 'parent-a';
+  globalThis.fetch = (async (url: string) => {
+    if (url === '/api/auth/me') return reply(200, { parent_id: parent });
+    if (url.startsWith('/api/insights/')) return reply(200, kpi);
+    return reply(200, mission);
+  }) as typeof fetch;
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
+  await waitFor(() => assert.ok(screen.getByText(/Ebeveyn bildirimi yok/)));
+  parent = 'parent-b';
+  window.dispatchEvent(new dom.window.Event('focus'));
   await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
   assert.equal(screen.queryByText(/Ebeveyn bildirimi yok/), null);
 });

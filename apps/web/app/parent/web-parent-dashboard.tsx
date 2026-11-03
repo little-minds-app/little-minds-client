@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { components } from '../../../../generated/typescript/schema';
 
 type Kpi = components['schemas']['SessionKpiResponse'];
+type Rate = components['schemas']['SessionKpiRateMetric'];
 type Missions = components['schemas']['MissionStatusListResponse'];
 type Phase<T> = { state: 'loading' | 'empty' | 'error' | 'ready'; value?: T; message?: string };
 type Snapshot = { parentId: string; childId: string; kpi: Phase<Kpi>; missions: Phase<Missions>; blocked: boolean };
@@ -23,14 +24,58 @@ export function dashboardWindow(now = new Date()) {
   };
 }
 
+export function formatSessionKpiRate(metric: Rate): { label: string; unavailable: boolean } {
+  if (metric.availability_status === 'unavailable') {
+    const reason = metric.reason_code?.trim();
+    return { label: reason ? reason : '—', unavailable: true };
+  }
+  if (metric.value == null) return { label: '—', unavailable: true };
+  const pct = (metric.value * 100).toFixed(0);
+  return { label: `${pct}% (${metric.numerator}/${metric.denominator})`, unavailable: false };
+}
+
+export function formatPlayDuration(totalSeconds: number) {
+  if (totalSeconds <= 0) return '0 dk';
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds} sn`;
+  if (seconds === 0) return `${minutes} dk`;
+  return `${minutes} dk ${seconds} sn`;
+}
+
+export function mapSessionKpiView(kpi: Kpi) {
+  const completedRate = formatSessionKpiRate(kpi.metrics.completed_session_rate);
+  const accuracy = formatSessionKpiRate(kpi.metrics.first_attempt_accuracy);
+  const isStale = kpi.freshness.status === 'stale';
+  const isPartial = kpi.freshness.data_completeness === 'partial';
+  const isEmpty = kpi.metrics.eligible_session_count === 0 || kpi.freshness.status === 'no_data';
+  return {
+    completedRate,
+    accuracy,
+    isStale,
+    isPartial,
+    isEmpty,
+    sampleLabel: `Uygun: ${kpi.sample.eligible_sessions}, terminal: ${kpi.sample.terminal_sessions}, `
+      + `hariç (şema): ${kpi.sample.excluded_unsupported_schema}, `
+      + `hariç (onay): ${kpi.sample.excluded_consent}`,
+    activityRows: kpi.metrics.by_activity.map((row) => ({
+      key: row.content_version_id,
+      label: `${row.content_version_id} — ${row.session_starts} oturum · ${formatPlayDuration(row.play_duration_seconds)}`,
+    })),
+  };
+}
+
 function statusLabel(status: string | null) {
   return ({ completed: 'Tamamlandı', skipped: 'Atlandı', not_now: 'Şimdi değil', partial: 'Kısmen' } as Record<string, string>)[status ?? ''] ?? 'Bilinmiyor';
 }
-function readable(seconds: number) { return Math.round(seconds / 60) + ' dk'; }
 function dateLabel(value: string | null | undefined) {
   if (!value) return 'Bilinmiyor';
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? 'Bilinmiyor' : date.toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
+}
+
+function blockedSnapshot(childId: string): Snapshot {
+  return { parentId: '', childId, blocked: true, kpi: { state: 'error' }, missions: { state: 'error' } };
 }
 
 export function WebParentDashboard({ selectedChildId }: { selectedChildId: string | null }) {
@@ -39,6 +84,10 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
   const generation = useRef(0);
 
   const refresh = useCallback(() => setRetry((n) => n + 1), []);
+  const invalidateProtectedData = useCallback((childId: string) => {
+    generation.current += 1;
+    setSnapshot(blockedSnapshot(childId));
+  }, []);
 
   useEffect(() => {
     const generationId = ++generation.current;
@@ -74,7 +123,6 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
           }
         }));
         if (abort.signal.aborted || generation.current !== generationId) return;
-        // No protected data may be committed until the session has been re-checked.
         const verify = await fetch('/api/auth/me', { cache: 'no-store', signal: abort.signal });
         if (!verify.ok || (await verify.json() as { parent_id?: string }).parent_id !== owner) {
           throw Error('Oturum değişti. Yeniden giriş yapın.');
@@ -86,8 +134,12 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
           return;
         }
         const [kr, mr] = results;
-        const kpi: Phase<Kpi> = kr.status === 200 && kr.data && typeof kr.data === 'object' && 'metrics' in kr.data
-          ? { state: (kr.data as Kpi).sample.eligible_sessions === 0 ? 'empty' : 'ready', value: kr.data as Kpi }
+        const kpiData = kr.status === 200 && kr.data && typeof kr.data === 'object' && 'metrics' in kr.data
+          ? kr.data as Kpi
+          : null;
+        const kpiView = kpiData ? mapSessionKpiView(kpiData) : null;
+        const kpi: Phase<Kpi> = kpiData && kpiView
+          ? { state: kpiView.isEmpty ? 'empty' : 'ready', value: kpiData }
           : { state: 'error', message: 'Oturum özeti yüklenemedi.' };
         const missions: Phase<Missions> = mr.status === 200 && mr.data && typeof mr.data === 'object' && 'items' in mr.data && Array.isArray((mr.data as Missions).items)
           ? { state: (mr.data as Missions).items.length === 0 ? 'empty' : 'ready', value: mr.data as Missions }
@@ -95,18 +147,58 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
         setSnapshot({ parentId: owner, childId, kpi, missions, blocked: false });
       } catch {
         if (abort.signal.aborted || generation.current !== generationId) return;
-        setSnapshot({ parentId: '', childId, blocked: true, kpi: { state: 'error' }, missions: { state: 'error' } });
+        setSnapshot(blockedSnapshot(childId));
       }
     }
     void load();
     return () => { abort.abort(); generation.current++; };
   }, [selectedChildId, retry]);
 
+  useEffect(() => {
+    if (!snapshot || snapshot.blocked || !selectedChildId || snapshot.childId !== selectedChildId) return;
+    const expectedParent = snapshot.parentId;
+    const childId = snapshot.childId;
+    let revalidateGeneration = 0;
+
+    async function revalidateSession() {
+      if (document.visibilityState !== 'visible') return;
+      const pass = ++revalidateGeneration;
+      const abort = new AbortController();
+      try {
+        const me = await fetch('/api/auth/me', { cache: 'no-store', signal: abort.signal });
+        if (pass !== revalidateGeneration) return;
+        if (!me.ok) {
+          invalidateProtectedData(childId);
+          return;
+        }
+        const parent = await me.json() as { parent_id?: string };
+        if (!parent.parent_id || parent.parent_id !== expectedParent) {
+          invalidateProtectedData(childId);
+        }
+      } catch {
+        if (abort.signal.aborted) return;
+      }
+    }
+
+    function onFocusOrVisible() {
+      void revalidateSession();
+    }
+
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
+    return () => {
+      revalidateGeneration += 1;
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
+    };
+  }, [snapshot, selectedChildId, invalidateProtectedData]);
+
   if (!selectedChildId) return <section aria-label="Ebeveyn özeti"><h2>Oyun ve görev özeti</h2><p>Özeti görmek için bir çocuk profili seçin.</p></section>;
   if (!snapshot || snapshot.childId !== selectedChildId) return <section aria-label="Ebeveyn özeti"><h2>Oyun ve görev özeti</h2><p role="status">Özet yükleniyor…</p></section>;
   if (snapshot.blocked) return <section aria-label="Ebeveyn özeti"><h2>Oyun ve görev özeti</h2><p role="alert">Oturum veya çocuk erişimi doğrulanamadı. Korumalı bilgiler gizlendi.</p><button onClick={refresh}>Yeniden dene</button></section>;
 
   const { kpi, missions } = snapshot;
+  const kpiView = kpi.value ? mapSessionKpiView(kpi.value) : null;
   return <section aria-label="Ebeveyn özeti">
     <h2>Oyun ve görev özeti</h2>
     <p>Son 7 tamamlanmış gün ve bugün · Europe/Istanbul</p>
@@ -115,16 +207,29 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
       <h3>Oturum istatistikleri</h3>
       {kpi.state === 'error' ? <p role="alert">{kpi.message} <button onClick={refresh}>Yeniden dene</button></p> : <>
         {kpi.state === 'empty' && <p>Bu dönemde uygun oturum bulunamadı.</p>}
-        {kpi.value && <>
+        {kpi.value && kpiView && <>
           <dl>
             <dt>Uygun oturum</dt><dd>{kpi.value.metrics.eligible_session_count}</dd>
-            <dt>Tamamlanan oturum</dt><dd>{kpi.value.metrics.completed_session_count}</dd>
-            <dt>Oyun süresi</dt><dd>{readable(kpi.value.metrics.total_play_duration_seconds)}</dd>
-            <dt>Oynanan gün</dt><dd>{kpi.value.metrics.distinct_play_days}</dd>
+            <dt>Tamamlanan</dt><dd>{kpi.value.metrics.completed_session_count}</dd>
+            <dt>Yarıda kalan</dt><dd>{kpi.value.metrics.interrupted_session_count}</dd>
+            <dt>Devam eden</dt><dd>{kpi.value.metrics.in_progress_session_count}</dd>
+            <dt>Toplam oyun süresi</dt><dd>{formatPlayDuration(kpi.value.metrics.total_play_duration_seconds)}</dd>
+            <dt>Tamamlanma oranı</dt>
+            <dd>{kpiView.completedRate.unavailable ? <span aria-label="Oran kullanılamıyor">{kpiView.completedRate.label}</span> : kpiView.completedRate.label}</dd>
+            <dt>Farklı oyun günü</dt><dd>{kpi.value.metrics.distinct_play_days}</dd>
+            <dt>İlk deneme doğruluğu</dt>
+            <dd>{kpiView.accuracy.unavailable ? <span aria-label="Oran kullanılamıyor">{kpiView.accuracy.label}</span> : kpiView.accuracy.label}</dd>
           </dl>
-          <p>Veri: {kpi.value.freshness.status} · Kapsam: {kpi.value.freshness.data_completeness}</p>
+          <p>Tazelik: {kpi.value.freshness.status} · Bütünlük: {kpi.value.freshness.data_completeness}</p>
+          <p>{kpiView.sampleLabel}</p>
+          {kpiView.isStale && <p role="status">Veriler güncel olmayabilir.</p>}
+          {kpiView.isPartial && <p role="status">Veri seti kısmi olabilir.</p>}
           <p>Güncellendi: {dateLabel(kpi.value.generated_at)}</p>
           <p>Aralık: {dateLabel(kpi.value.window.from)} – {dateLabel(kpi.value.window.to)} (üst sınır hariç)</p>
+          {kpiView.activityRows.length > 0 && <>
+            <h4>Etkinlik özeti</h4>
+            <ul>{kpiView.activityRows.map((row) => <li key={row.key}>{row.label}</li>)}</ul>
+          </>}
         </>}
       </>}
     </section>
