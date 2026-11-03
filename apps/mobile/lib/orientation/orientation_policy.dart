@@ -19,6 +19,7 @@ abstract final class OrientationPolicy {
         ];
       case AppSurface.parentGate:
       case AppSurface.parentSettings:
+      case AppSurface.parentDashboard:
         return const [
           DeviceOrientation.portraitUp,
           DeviceOrientation.portraitDown,
@@ -38,6 +39,7 @@ abstract final class OrientationPolicy {
         return true;
       case AppSurface.parentGate:
       case AppSurface.parentSettings:
+      case AppSurface.parentDashboard:
         return false;
     }
   }

@@ -26,6 +26,7 @@ class ParentSettingsSurface extends StatelessWidget {
     this.onOpenNearFarDemo,
     this.onOpenNearFarMentor,
     this.onOpenScreenTimeDebug,
+    this.onOpenParentDashboard,
     this.forceShowScreenTimeDebugEntry = false,
   });
 
@@ -46,6 +47,9 @@ class ParentSettingsSurface extends StatelessWidget {
   /// Opens the debug-only screen-time inspector (LMP-49 Step 3.2).
   final VoidCallback? onOpenScreenTimeDebug;
 
+  /// Opens the session KPI parent dashboard (LMP-53).
+  final VoidCallback? onOpenParentDashboard;
+
   /// Widget-test force for the debug entry without relying solely on [kDebugMode].
   final bool forceShowScreenTimeDebugEntry;
 
@@ -60,6 +64,8 @@ class ParentSettingsSurface extends StatelessWidget {
   static const Key screenTimeDebugHintKey =
       Key('parent-settings-screen-time-debug-hint');
   static const Key scrollKey = Key('parent-settings-scroll');
+  static const Key parentDashboardKey = Key('parent-settings-dashboard');
+  static const Key parentDashboardHintKey = Key('parent-settings-dashboard-hint');
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +117,23 @@ class ParentSettingsSurface extends StatelessWidget {
                         key: const Key('parent-settings-child-profiles'),
                         onPressed: onOpenProfiles,
                         child: const Text('Çocuk profillerini yönet'),
+                      ),
+                    ],
+                    if (onOpenParentDashboard != null) ...[
+                      const SizedBox(height: 24),
+                      FilledButton.tonal(
+                        key: parentDashboardKey,
+                        onPressed: onOpenParentDashboard,
+                        child: const Text('Ebeveyn özeti'),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        key: parentDashboardHintKey,
+                        'Sunucudan doğrulanmış oturum özeti (son 7 gün + bugün).',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.black54,
+                            ),
                       ),
                     ],
                     if (showScreenTimeDebug) ...[

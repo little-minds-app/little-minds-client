@@ -27,6 +27,8 @@ import 'surfaces/near_far_demo_surface.dart';
 import 'surfaces/near_far_mentor_surface.dart';
 import 'surfaces/parent_gate_surface.dart';
 import 'surfaces/optional_parent_profile_surface.dart';
+import 'parent_dashboard/session_kpi_repository.dart';
+import 'surfaces/parent_dashboard_surface.dart';
 import 'surfaces/parent_settings_surface.dart';
 import 'surfaces/profile_selection_surface.dart';
 import 'surfaces/screen_time_debug_inspector_surface.dart';
@@ -57,6 +59,8 @@ class LittleMindsApp extends StatefulWidget {
     this.parentAuthController,
     this.offlineSync,
     this.childProfilesController,
+    this.parentGateApi,
+    this.sessionKpiRepository,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -108,6 +112,12 @@ class LittleMindsApp extends StatefulWidget {
   /// Injectable state for profile widget tests and real app navigation.
   final ChildProfilesController? childProfilesController;
 
+  /// Widget tests may inject a gate API double (LMP-42 / LMP-53 route guards).
+  final ParentGateApi? parentGateApi;
+
+  /// Widget tests may inject session KPI repository (LMP-53 dashboard).
+  final SessionKpiRepository? sessionKpiRepository;
+
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
 }
@@ -118,6 +128,7 @@ enum _ShellRoute {
   parentGate,
   parentPinGate,
   parentSettings,
+  parentDashboard,
   optionalParentProfile,
   nearFarDemo,
   nearFarMentor,
@@ -295,6 +306,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   // button on the previous screen. Child routes remain reachable signed out.
   bool _requiresParentSession(_ShellRoute route) {
     return route == _ShellRoute.parentSettings ||
+        route == _ShellRoute.parentDashboard ||
         route == _ShellRoute.optionalParentProfile ||
         route == _ShellRoute.nearFarMentor ||
         route == _ShellRoute.nearFarDemo ||
@@ -471,6 +483,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                   return ParentPinSurface(
                     auth: _parentAuth,
                     config: widget.config,
+                    api: widget.parentGateApi,
                     onBack: () => _go(_ShellRoute.childHub),
                     onUnlocked: (token) {
                       _gateToken = token;
@@ -498,6 +511,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                   return ParentSettingsSurface(
                     onOpenOptionalParentProfile: () => _go(_ShellRoute.optionalParentProfile),
                     onOpenProfiles: () { _profileManageMode = true; _go(_ShellRoute.profileSelection); },
+                    onOpenParentDashboard: () => _go(_ShellRoute.parentDashboard),
                     onBack: () => _go(_ShellRoute.parentGate),
                     onOpenNearFarDemo: () => _openNearFarDemo(
                       returnTo: _ShellRoute.parentSettings,
@@ -507,6 +521,21 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                         ? () => _go(_ShellRoute.screenTimeDebug)
                         : null,
                     forceShowScreenTimeDebugEntry: kDebugMode,
+                  );
+                case _ShellRoute.parentDashboard:
+                  return ParentDashboardSurface(
+                    auth: _parentAuth,
+                    profiles: _profiles,
+                    repository: widget.sessionKpiRepository ??
+                        SessionKpiRepository(
+                          config: widget.config,
+                          auth: _parentAuth,
+                        ),
+                    onBack: () => _go(_ShellRoute.parentSettings),
+                    onManageProfiles: () {
+                      _profileManageMode = true;
+                      _go(_ShellRoute.profileSelection);
+                    },
                   );
                 case _ShellRoute.nearFarDemo:
                   return NearFarDemoSurface(

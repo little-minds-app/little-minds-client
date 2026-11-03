@@ -24,10 +24,11 @@ void main() {
       }
     });
 
-    test('Parent Gate / Settings allow portrait and landscape', () {
+    test('Parent Gate / Settings / Dashboard allow portrait and landscape', () {
       for (final surface in [
         AppSurface.parentGate,
         AppSurface.parentSettings,
+        AppSurface.parentDashboard,
       ]) {
         expect(OrientationPolicy.isLandscapeOnly(surface), isFalse);
         expect(
