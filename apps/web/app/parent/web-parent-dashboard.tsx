@@ -8,7 +8,6 @@ type Missions = components['schemas']['MissionStatusListResponse'];
 type Phase<T> = { state: 'loading' | 'empty' | 'error' | 'ready'; value?: T; message?: string };
 type Snapshot = { parentId: string; childId: string; kpi: Phase<Kpi>; missions: Phase<Missions>; blocked: boolean };
 
-const initial = (): Phase<never> => ({ state: 'loading' });
 const failure = (status: number) => status === 401 || status === 403 || status === 404;
 
 export function dashboardWindow(now = new Date()) {
@@ -33,7 +32,6 @@ function dateLabel(value: string | null | undefined) {
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? 'Bilinmiyor' : date.toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
 }
-function panel<T>(): Phase<T> { return { state: 'loading' }; }
 
 export function WebParentDashboard({ selectedChildId }: { selectedChildId: string | null }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
