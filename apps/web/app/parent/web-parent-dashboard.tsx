@@ -11,6 +11,27 @@ type Snapshot = { parentId: string; childId: string; kpi: Phase<Kpi>; missions: 
 
 const failure = (status: number) => status === 401 || status === 403 || status === 404;
 
+const rateUnavailableReasons: Record<string, string> = {
+  zero_denominator: 'Hesaplamak için henüz uygun veri yok',
+  insufficient_denominator: 'Güvenilir bir oran için yeterli oturum yok',
+  insufficient_data: 'Henüz yeterli veri yok',
+  no_signal: 'Bu dönemde ölçülebilir sonuç yok',
+};
+
+function friendlyRateReason(reason?: string | null): string {
+  return reason ? rateUnavailableReasons[reason.trim()] ?? 'Bu oran şu anda hesaplanamıyor' : 'Bu oran şu anda hesaplanamıyor';
+}
+
+function freshnessStatusLabel(status: string): string {
+  return ({ fresh: 'Güncel', stale: 'Güncelliğini yitirmiş', no_data: 'Henüz veri yok' } as Record<string, string>)[status]
+    ?? 'Durum bilinmiyor';
+}
+
+function completenessLabel(status: string): string {
+  return ({ complete: 'Tam', partial: 'Kısmi' } as Record<string, string>)[status]
+    ?? 'Bilinmiyor';
+}
+
 export function dashboardWindow(now = new Date()) {
   const date = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -27,9 +48,9 @@ export function dashboardWindow(now = new Date()) {
 export function formatSessionKpiRate(metric: Rate): { label: string; unavailable: boolean } {
   if (metric.availability_status === 'unavailable') {
     const reason = metric.reason_code?.trim();
-    return { label: reason ? reason : '—', unavailable: true };
+    return { label: friendlyRateReason(reason), unavailable: true };
   }
-  if (metric.value == null) return { label: '—', unavailable: true };
+  if (metric.value == null) return { label: friendlyRateReason(metric.reason_code), unavailable: true };
   const pct = (metric.value * 100).toFixed(0);
   return { label: `${pct}% (${metric.numerator}/${metric.denominator})`, unavailable: false };
 }
@@ -224,7 +245,7 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
             <dt>İlk deneme doğruluğu</dt>
             <dd>{kpiView.accuracy.unavailable ? <span aria-label="Oran kullanılamıyor">{kpiView.accuracy.label}</span> : kpiView.accuracy.label}</dd>
           </dl>
-          <p>Tazelik: {kpi.value.freshness.status} · Bütünlük: {kpi.value.freshness.data_completeness}</p>
+          <p>Tazelik: {freshnessStatusLabel(kpi.value.freshness.status)} · Bütünlük: {completenessLabel(kpi.value.freshness.data_completeness)}</p>
           <p>{kpiView.sampleLabel}</p>
           {kpiView.isStale && <p role="status">Veriler güncel olmayabilir.</p>}
           {kpiView.isPartial && <p role="status">Veri seti kısmi olabilir.</p>}
