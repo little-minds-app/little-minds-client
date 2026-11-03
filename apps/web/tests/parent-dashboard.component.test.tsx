@@ -69,8 +69,8 @@ test('renders canonical KPI and reports no_report without inferring completion',
   assert.ok(screen.getByText('Uygun oturum'));
   assert.ok(screen.getByText('Toplam oyun süresi'));
   assert.ok(screen.getByText(/50% \(1\/2\)/));
-  assert.ok(screen.getByText('insufficient_data'));
-  assert.ok(screen.getByText(/Tazelik: fresh/));
+  assert.ok(screen.getByText('Henüz yeterli veri yok'));
+  assert.ok(screen.getByText(/Tazelik: Güncel · Bütünlük: Tam/));
   assert.ok(screen.getByText(/activity-alpha/));
   assert.equal(urls.filter((url) => url === '/api/auth/me').length, 2);
   assert.ok(urls.some((url) => url.includes('child_id=' + childA)));
@@ -135,7 +135,7 @@ test('formatSessionKpiRate uses server availability without recomputing', () => 
   }), { label: '25% (1/4)', unavailable: false });
   assert.deepEqual(formatSessionKpiRate({
     availability_status: 'unavailable', numerator: 0, denominator: 0, reason_code: 'no_signal',
-  }), { label: 'no_signal', unavailable: true });
+  }), { label: 'Bu dönemde ölçülebilir sonuç yok', unavailable: true });
 });
 
 test('stale and partial freshness metadata show warnings', async () => {
@@ -216,4 +216,16 @@ test('retry refetches both independent data panels', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Özeti yenile' }));
   await waitFor(() => assert.ok(screen.getByText('Uygun oturum')));
   assert.equal(kpis, 2);
+});
+
+test('unavailable reasons are localized, unknown codes never leak, and zero remains distinct', () => {
+  const unavailable = (reason_code: string) => formatSessionKpiRate({
+    availability_status: 'unavailable', value: null, numerator: 0, denominator: 0, reason_code,
+  });
+  assert.deepEqual(unavailable('zero_denominator'), { label: 'Hesaplamak için henüz uygun veri yok', unavailable: true });
+  assert.deepEqual(unavailable('insufficient_denominator'), { label: 'Güvenilir bir oran için yeterli oturum yok', unavailable: true });
+  assert.deepEqual(unavailable('internal_unrecognized_code'), { label: 'Bu oran şu anda hesaplanamıyor', unavailable: true });
+  assert.deepEqual(formatSessionKpiRate({
+    availability_status: 'available', value: 0, numerator: 0, denominator: 5,
+  }), { label: '0% (0/5)', unavailable: false });
 });
