@@ -5,6 +5,7 @@ import '../game/scoring_neutral_outcome.dart';
 import 'near_far_constants.dart';
 import 'near_far_events.dart';
 import 'near_far_mentor_metadata.dart';
+import 'near_far_production_event_buffer.dart';
 import 'near_far_mission_handoff.dart';
 import 'near_far_relation.dart';
 import 'near_far_spoken_labels.dart';
@@ -141,6 +142,9 @@ class NearFarActivity extends LearningActivity {
   @override
   Future<void> onPause() async {
     setInteractionsEnabled(false);
+    if (eventBuffer is NearFarProductionEventBuffer) {
+      await (eventBuffer as NearFarProductionEventBuffer).drain();
+    }
   }
 
   @override
@@ -154,6 +158,9 @@ class NearFarActivity extends LearningActivity {
   @override
   Future<void> onBackground() async {
     setInteractionsEnabled(false);
+    if (eventBuffer is NearFarProductionEventBuffer) {
+      await (eventBuffer as NearFarProductionEventBuffer).drain();
+    }
   }
 
   @override
@@ -208,17 +215,21 @@ class NearFarActivity extends LearningActivity {
 
   @override
   Future<void> onExit() async {
-    if (_lastOutcome is ActivityCompletedOutcome ||
-        _lastOutcome is ActivityAbandonedOutcome ||
-        _abandonedEmitted) {
-      return;
+    if (_lastOutcome is! ActivityCompletedOutcome &&
+        _lastOutcome is! ActivityAbandonedOutcome &&
+        !_abandonedEmitted) {
+      _abandonedEmitted = true;
+      eventBuffer.emit(
+        playSessionId: playSessionId,
+        type: NearFarEventType.activityAbandoned,
+        payload: const {'completion_status': 'abandoned'},
+      );
     }
-    _abandonedEmitted = true;
-    eventBuffer.emit(
-      playSessionId: playSessionId,
-      type: NearFarEventType.activityAbandoned,
-      payload: const {'completion_status': 'abandoned'},
-    );
+    // Before returning from the lifecycle boundary, make sure the optional
+    // production buffer has handed the final event to durable storage.
+    if (eventBuffer is NearFarProductionEventBuffer) {
+      await (eventBuffer as NearFarProductionEventBuffer).drain();
+    }
   }
 
   @override

@@ -18,6 +18,7 @@ import 'l10n/app_localizations.dart';
 import 'mentor/mentor_card.dart';
 import 'mentor/mentor_card_fixtures.dart';
 import 'near_far/near_far_activity.dart';
+import 'offline/activity_outbox_sync.dart';
 import 'parent_gate/parent_gate_api.dart';
 import 'parent_gate/parent_pin_surface.dart';
 import 'screen_time/screen_time.dart';
@@ -54,6 +55,7 @@ class LittleMindsApp extends StatefulWidget {
     this.mentorInjectedCard,
     this.screenTime,
     this.parentAuthController,
+    this.offlineSync,
     this.childProfilesController,
   }) : config = config ?? AppConfig.developmentLocal;
 
@@ -100,6 +102,9 @@ class LittleMindsApp extends StatefulWidget {
   /// Parent authentication (LMP-37). Production injects from [main]; tests may omit.
   final ParentAuthController? parentAuthController;
 
+  /// LMP-51: flush only the current authenticated parent's durable outbox.
+  final ActivityOutboxSync? offlineSync;
+
   /// Injectable state for profile widget tests and real app navigation.
   final ChildProfilesController? childProfilesController;
 
@@ -144,8 +149,22 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   bool _profileManageMode = false;
   Timer? _gateTimer;
   Timer? _revokeRetryTimer;
+  Timer? _offlineSyncTimer;
   final List<({String token, AuthSession session, DateTime expiresAt})> _pendingRevokes = [];
   bool _revokeInFlight = false;
+
+  /// A storage/codec failure must not become an unhandled asynchronous error
+  /// from a lifecycle callback or timer. Outbox data remains on disk for
+  /// explicit diagnosis and subsequent retry.
+  void _flushOfflineSafely() {
+    final sync = widget.offlineSync;
+    if (sync == null) return;
+    unawaited(sync.flush().catchError((Object error, StackTrace stackTrace) {
+      if (kDebugMode) {
+        debugPrint('LMP-51 offline flush failed: ${error.runtimeType}');
+      }
+    }));
+  }
 
   Future<void> _flushPendingRevokes() async {
     if (_revokeInFlight) return;
@@ -207,6 +226,14 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
       auth: _parentAuth,
     );
     _parentAuth.addListener(_handleAuthChange);
+    if (widget.offlineSync != null) {
+      _flushOfflineSafely();
+      _offlineSyncTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+        if (mounted && _parentAuth.isAuthenticated) {
+          _flushOfflineSafely();
+        }
+      });
+    }
     // ignore: discarded_futures
     _bootstrapScreenTime();
     if (_ownsParentAuth) {
@@ -304,6 +331,9 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     if (state == AppLifecycleState.resumed) {
       // ignore: discarded_futures
       _flushPendingRevokes();
+      if (widget.offlineSync != null) {
+        _flushOfflineSafely();
+      }
     }
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
@@ -318,6 +348,9 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
 
   void _handleAuthChange() {
     if (!mounted) return;
+    if (_parentAuth.isAuthenticated && widget.offlineSync != null) {
+      _flushOfflineSafely();
+    }
     if (_gateSessionId != null &&
         _parentAuth.session?.sessionId != _gateSessionId) {
       _clearAdultGrant();
@@ -374,6 +407,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     WidgetsBinding.instance.removeObserver(this);
     _gateTimer?.cancel();
     _revokeRetryTimer?.cancel();
+    _offlineSyncTimer?.cancel();
     _parentAuth.removeListener(_handleAuthChange);
     if (_ownsScreenTime) {
       _screenTime.dispose();

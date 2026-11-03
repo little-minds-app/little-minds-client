@@ -6,6 +6,8 @@ import 'auth/installation_id_store.dart';
 import 'auth/parent_auth_controller.dart';
 import 'auth/parent_auth_repository.dart';
 import 'config/app_config.dart';
+import 'offline/activity_file_outbox.dart';
+import 'offline/activity_outbox_sync.dart';
 import 'screen_time/screen_time.dart';
 
 Future<void> main() async {
@@ -34,11 +36,19 @@ Future<void> main() async {
   );
   await parentAuth.bootstrap();
 
+  final offlineOutbox = await ActivityFileOutbox.open();
+  final offlineSync = ActivityOutboxSync(
+    outbox: offlineOutbox,
+    currentSession: () => parentAuth.session,
+    send: ActivityHttpBatchSender(apiBaseUrl: config.apiBaseUrl).send,
+  );
+
   runApp(
     LittleMindsApp(
       config: config,
       screenTime: screenTime,
       parentAuthController: parentAuth,
+      offlineSync: offlineSync,
     ),
   );
 }

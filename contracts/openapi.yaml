@@ -9,10 +9,10 @@ info:
     per ADR-021), and LMP-36 explicit identity linking (`POST /v1/auth/identities/step-up|link`).
     LMP-32 adds structured logging / correlation (not path surface) plus
     readiness. LMP-50 adds ActivitySessionV1 / ActivityEventV1 **components** for versioned
-    event contracts. Live `POST /v1/events/batch` is intentionally **not** published
-    here — ingest lands in a later Jira task. Authoritative Ajv JSON Schemas live under
+    event contracts. LMP-51 adds authenticated, server-consent-gated
+    POST /v1/events/batch with per-event durable acknowledgements. Authoritative Ajv JSON Schemas live under
     `contracts/schemas/activity/` (`schema_version` 1.0.0, independent of this info.version).
-  version: 0.10.0
+  version: 0.12.0
 
   contact:
     name: Little Minds
@@ -29,6 +29,73 @@ tags:
   - name: Parent
     description: Authenticated parent identity probe
 paths:
+  /v1/events/batch:
+    post:
+      operationId: ingestActivityEventBatch
+      tags: [Activity]
+      summary: Ingest a bounded batch of authenticated parent-owned activity sessions and events
+      description: |
+        LMP-51 contract only until backend implementation is enabled. Validate all
+        items against canonical ActivitySessionV1 / ActivityEventV1 schemas, derive
+        parent ownership from bearer, check authoritative server consent, and use
+        transactionally global event_id idempotency across actor scopes.
+        Parent-only events MUST omit play_session_id; no fabricated session.
+      security:
+        - parentAccessToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sessions, events]
+              properties:
+                sessions:
+                  type: array
+                  maxItems: 50
+                  items:
+                    $ref: '#/components/schemas/ActivitySessionV1'
+                events:
+                  type: array
+                  maxItems: 50
+                  items:
+                    $ref: '#/components/schemas/ActivityEventV1'
+      responses:
+        '200':
+          description: Per-event status after durable commits; retry unchanged event_id if no ACK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    maxItems: 50
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [event_id, status]
+                      properties:
+                        event_id:
+                          type: string
+                          format: uuid
+                        status:
+                          type: string
+                          enum: [accepted, duplicate_noop, rejected, retryable]
+                        reason_code:
+                          type: string
+                          description: Stable machine-readable code without echoed payload
+        '400':
+          description: Malformed batch envelope
+        '401':
+          description: Authentication required
+        '413':
+          description: Request body exceeds configured byte limit
+        '429':
+          description: Rate limited; honor Retry-After
   /v1/auth/web/session:
     post:
       operationId: createParentWebSession
@@ -632,6 +699,125 @@ paths:
                 $ref: '#/components/schemas/OptionalParentProfile'
         '401':
           description: Invalid web session
+  /v1/parent/gate/status:
+    get:
+      tags: [Parent]
+      operationId: getParentGateStatus
+      summary: Check whether this verified parent has configured a gate PIN
+      security: [{ parentAccessToken: [] }]
+      responses:
+        '200':
+          description: Parent gate status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParentGateStatus' }
+        '401': { description: Invalid parent session }
+  /v1/parent/gate/proof:
+    post:
+      tags: [Parent]
+      operationId: issueParentGateProof
+      summary: Verify a freshly authenticated linked identity for PIN setup or reset
+      security: [{ parentAccessToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ParentGateProofRequest' }
+      responses:
+        '201':
+          description: Single-use OTP step-up scoped to parent_gate_pin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParentGateProofResponse' }
+        '400': { description: Invalid provider proof }
+        '401': { description: Missing or invalid linked parent identity }
+        '429': { description: Identity proof rate limit }
+  /v1/parent/gate/setup:
+    post:
+      tags: [Parent]
+      operationId: createParentGatePin
+      summary: One-time PIN setup after fresh verified identity proof
+      security: [{ parentAccessToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ParentGateSetPinRequest' }
+      responses:
+        '201':
+          description: PIN configured
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParentGateStatus' }
+        '400': { description: Invalid PIN or confirmation }
+        '401': { description: Invalid parent session or step-up }
+        '403': { description: PIN already configured }
+  /v1/parent/gate/reset:
+    post:
+      tags: [Parent]
+      operationId: resetParentGatePin
+      summary: Replace PIN with fresh verified identity proof and revoke all grants
+      security: [{ parentAccessToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ParentGateSetPinRequest' }
+      responses:
+        '201':
+          description: PIN replaced
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParentGateStatus' }
+        '400': { description: Invalid PIN or confirmation }
+        '401': { description: Invalid parent session or step-up }
+        '403': { description: PIN not configured }
+  /v1/parent/gate/verify:
+    post:
+      tags: [Parent]
+      operationId: verifyParentGatePin
+      summary: Issue five-minute session-bound adult authorization after PIN check
+      security: [{ parentAccessToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ParentGateVerifyRequest' }
+      responses:
+        '201':
+          description: Short-lived opaque gate token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParentGateVerifyResponse' }
+        '400': { description: Invalid PIN format }
+        '403': { description: Incorrect PIN or gate not configured }
+        '429': { description: Rate limited or temporarily locked }
+  /v1/parent/gate/grant:
+    get:
+      tags: [Parent]
+      operationId: checkParentGateGrant
+      summary: Check a session-bound adult grant
+      security: [{ parentAccessToken: [] }]
+      parameters:
+        - { in: header, name: X-Parent-Gate-Token, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Grant is valid
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParentGateAuthorized' }
+        '403': { description: Parent gate locked or expired }
+    delete:
+      tags: [Parent]
+      operationId: lockParentGate
+      summary: Revoke all outstanding adult grants for the current parent session
+      security: [{ parentAccessToken: [] }]
+      responses:
+        '200':
+          description: Parent gate locked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParentGateLocked' }
   /v1/parent/profile:
     get:
       operationId: getParentProfile
@@ -1180,6 +1366,59 @@ components:
         Parent access JWT (Ed25519 / EdDSA, token_use=access, aud=little-minds-parent, TTL 900s).
         Server always loads parent_sessions by sid so revoke is immediate.
   schemas:
+    ParentGateStatus:
+      type: object
+      required: [configured]
+      properties:
+        configured: { type: boolean }
+    ParentGateProofRequest:
+      type: object
+      required: [provider]
+      properties:
+        provider: { type: string, enum: [phone, email, apple, google] }
+        challenge_id: { type: string }
+        code: { type: string, minLength: 6, maxLength: 6 }
+        id_token: { type: string }
+        nonce: { type: string }
+        authorization_code: { type: string }
+        code_verifier: { type: string }
+        redirect_uri: { type: string }
+        oauth_state: { type: string }
+    ParentGateProofResponse:
+      type: object
+      required: [step_up_token, purpose, expires_in]
+      properties:
+        step_up_token: { type: string }
+        purpose: { type: string, enum: [parent_gate_pin] }
+        expires_in: { type: integer }
+    ParentGateSetPinRequest:
+      type: object
+      required: [pin, confirmation, step_up_token]
+      properties:
+        pin: { type: string, minLength: 6, maxLength: 6 }
+        confirmation: { type: string, minLength: 6, maxLength: 6 }
+        step_up_token: { type: string }
+    ParentGateVerifyRequest:
+      type: object
+      required: [pin]
+      properties:
+        pin: { type: string, minLength: 6, maxLength: 6 }
+    ParentGateVerifyResponse:
+      type: object
+      required: [gate_token, expires_in]
+      properties:
+        gate_token: { type: string }
+        expires_in: { type: integer }
+    ParentGateAuthorized:
+      type: object
+      required: [authorized]
+      properties:
+        authorized: { type: boolean }
+    ParentGateLocked:
+      type: object
+      required: [locked]
+      properties:
+        locked: { type: boolean }
     OptionalParentProfile:
       type: object
       additionalProperties: false

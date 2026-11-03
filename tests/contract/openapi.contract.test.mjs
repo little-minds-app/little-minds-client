@@ -43,7 +43,7 @@ describe('LMP-23/27 OpenAPI pin and schema', () => {
     assert.equal(gitBlobShaFromFile(OPENAPI_PATH), pin.artifactBlobSha);
   });
 
-  it('validates OpenAPI 3 document with auth surface (no event ingest)', async () => {
+  it('validates OpenAPI 3 document with authenticated LMP-51 batch ingest', async () => {
     const api = await SwaggerParser.validate(OPENAPI_PATH);
     assert.ok(String(api.openapi).startsWith('3.'));
     const pathKeys = Object.keys(api.paths ?? {}).sort();
@@ -51,11 +51,8 @@ describe('LMP-23/27 OpenAPI pin and schema', () => {
     assert.ok(pathKeys.some((p) => p.startsWith('/v1/auth/')));
     assert.ok(api.paths['/health'].get);
     assert.equal(api.paths['/health'].get.operationId, 'getHealth');
-    assert.equal(api.paths['/v1/events/batch'], undefined);
-    assert.ok(
-      !pathKeys.some((p) => /events/i.test(p)),
-      `unexpected event path(s): ${pathKeys.join(', ')}`,
-    );
+    assert.equal(api.paths['/v1/events/batch']?.post?.operationId,
+      'ingestActivityEventBatch');
     const schema = api.components.schemas.HealthStatus;
     assert.deepEqual(schema.required.sort(), ['service', 'status', 'timestamp'].sort());
     assert.ok(api.components.schemas.ActivitySessionV1);
