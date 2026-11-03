@@ -39,6 +39,17 @@ test('backend outage preserves protected page rather than forcing logout', () =>
   assert.match(handler, /revocation_confirmed: confirmed/);
 });
 
+test('LMP-54 dashboard BFF routes are read-only forwards to web backend paths', () => {
+  const kpiRoute = readFileSync(new URL('../app/api/insights/session-kpis/route.ts', import.meta.url), 'utf8');
+  const missionRoute = readFileSync(new URL('../app/api/children/[childId]/missions/route.ts', import.meta.url), 'utf8');
+  assert.match(kpiRoute, /forwardChildRequest/);
+  assert.match(kpiRoute, /\/v1\/web\/insights\/session-kpis/);
+  assert.match(missionRoute, /forwardChildRequest/);
+  assert.match(missionRoute, /\/v1\/web\/children\//);
+  assert.doesNotMatch(kpiRoute, /export async function POST/);
+  assert.doesNotMatch(missionRoute, /export async function POST/);
+});
+
 test('passive profile and protected-page checks never request an activity touch', () => {
   assert.match(handler, /if \(action === 'activity'\)/);
   assert.match(handler, /\/v1\/auth\/web\/activity/);
