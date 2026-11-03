@@ -185,17 +185,13 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
     }
   }
 
+  /// Keep mission visible only for recoverable KPI outages (network/5xx), not auth/ownership failures.
   bool get _showOverviewWithKpiFailure {
     final missionReady = _controller.missionPhase == MissionStatusPhase.loaded ||
         _controller.missionPhase == MissionStatusPhase.empty;
-    final kpiFailed = switch (_controller.phase) {
-      ParentDashboardPhase.error ||
-      ParentDashboardPhase.unauthorized ||
-      ParentDashboardPhase.childNotFound =>
-        true,
-      _ => false,
-    };
-    return missionReady && kpiFailed;
+    return missionReady &&
+        _controller.phase == ParentDashboardPhase.error &&
+        _controller.failure is SessionKpiNetwork;
   }
 
   Widget _overview(BuildContext context, {required bool empty, bool kpiFailed = false}) {

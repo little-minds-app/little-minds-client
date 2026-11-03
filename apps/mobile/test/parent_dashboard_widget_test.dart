@@ -234,7 +234,7 @@ void main() {
     expect(find.textContaining('Ebeveyn bildirimi yok'), findsOneWidget);
   });
 
-  testWidgets('KPI error keeps mission panel when mission loaded',
+  testWidgets('KPI 5xx keeps mission panel when mission loaded',
       (tester) async {
     final auth = ParentAuthController(
       repository: ParentAuthRepository(
@@ -291,6 +291,120 @@ void main() {
     expect(find.byKey(ParentDashboardSurface.kpiRetryKey), findsOneWidget);
     expect(find.byKey(ParentDashboardSurface.missionContentKey), findsOneWidget);
     expect(find.byKey(ParentDashboardSurface.errorKey), findsNothing);
+  });
+
+  testWidgets('KPI 401 hides mission panel fail-closed', (tester) async {
+    final auth = ParentAuthController(
+      repository: ParentAuthRepository(
+        config: AppConfig.developmentLocal,
+        tokenStore: InMemoryAuthTokenStore(),
+      ),
+    );
+    auth.seedAuthenticatedSessionForTests(const AuthSession(
+      accessToken: 'token',
+      refreshToken: 'refresh',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      expiresInSeconds: 900,
+    ));
+
+    final fakeProfiles = FakeChildProfiles(auth);
+    fakeProfiles.rows.add(ChildProfileResponse(
+      childId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      nickname: 'Ada',
+      ageMonths: 32,
+      preferredLocale: 'tr-TR',
+    ));
+    final profiles = ChildProfilesController(repository: fakeProfiles, auth: auth);
+    await profiles.load();
+    profiles.select('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+    final repo = FakeSessionKpiRepository(auth)
+      ..throwError = ApiException(401, 'expired');
+    final missionRepo = FakeMissionStatusRepository(auth)
+      ..response = sampleMissionStatusResponse();
+
+    final dashboardController = ParentDashboardController(
+      repository: repo,
+      missionRepository: missionRepo,
+      auth: auth,
+      profiles: profiles,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ParentDashboardSurface(
+          auth: auth,
+          profiles: profiles,
+          repository: repo,
+          missionRepository: missionRepo,
+          controller: dashboardController,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(ParentDashboardSurface.errorKey), findsOneWidget);
+    expect(find.byKey(ParentDashboardSurface.missionContentKey), findsNothing);
+    expect(find.byKey(ParentDashboardSurface.kpiErrorKey), findsNothing);
+  });
+
+  testWidgets('KPI 404 hides mission panel fail-closed', (tester) async {
+    final auth = ParentAuthController(
+      repository: ParentAuthRepository(
+        config: AppConfig.developmentLocal,
+        tokenStore: InMemoryAuthTokenStore(),
+      ),
+    );
+    auth.seedAuthenticatedSessionForTests(const AuthSession(
+      accessToken: 'token',
+      refreshToken: 'refresh',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      expiresInSeconds: 900,
+    ));
+
+    final fakeProfiles = FakeChildProfiles(auth);
+    fakeProfiles.rows.add(ChildProfileResponse(
+      childId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      nickname: 'Ada',
+      ageMonths: 32,
+      preferredLocale: 'tr-TR',
+    ));
+    final profiles = ChildProfilesController(repository: fakeProfiles, auth: auth);
+    await profiles.load();
+    profiles.select('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+    final repo = FakeSessionKpiRepository(auth)
+      ..throwError = ApiException(404, 'missing');
+    final missionRepo = FakeMissionStatusRepository(auth)
+      ..response = sampleMissionStatusResponse();
+
+    final dashboardController = ParentDashboardController(
+      repository: repo,
+      missionRepository: missionRepo,
+      auth: auth,
+      profiles: profiles,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ParentDashboardSurface(
+          auth: auth,
+          profiles: profiles,
+          repository: repo,
+          missionRepository: missionRepo,
+          controller: dashboardController,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(ParentDashboardSurface.errorKey), findsOneWidget);
+    expect(find.byKey(ParentDashboardSurface.missionContentKey), findsNothing);
+    expect(find.byKey(ParentDashboardSurface.kpiErrorKey), findsNothing);
   });
 
   testWidgets('KPI empty still shows mission data when mission loaded',

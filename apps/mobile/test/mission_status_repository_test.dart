@@ -20,7 +20,13 @@ const _childAda = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 class _CountingMissionsApi extends MissionsApi {
   _CountingMissionsApi(this._handler) : super(ApiClient(basePath: 'http://test.invalid'));
 
-  final Future<MissionStatusListResponse?> Function(int attempt) _handler;
+  final Future<MissionStatusListResponse?> Function(
+    int attempt,
+    String childId,
+    DateTime from,
+    DateTime to, {
+    int? limit,
+  }) _handler;
   int attempts = 0;
 
   @override
@@ -32,7 +38,31 @@ class _CountingMissionsApi extends MissionsApi {
     Future<void>? abortTrigger,
   }) async {
     attempts++;
-    return _handler(attempts);
+    return _handler(attempts, childId, from, to, limit: limit);
+  }
+}
+
+class _CapturingMissionsApi extends MissionsApi {
+  _CapturingMissionsApi() : super(ApiClient(basePath: 'http://test.invalid'));
+
+  String? lastChildId;
+  DateTime? lastFrom;
+  DateTime? lastTo;
+  int? lastLimit;
+
+  @override
+  Future<MissionStatusListResponse?> listChildMissionStatus(
+    String childId,
+    DateTime from,
+    DateTime to, {
+    int? limit,
+    Future<void>? abortTrigger,
+  }) async {
+    lastChildId = childId;
+    lastFrom = from;
+    lastTo = to;
+    lastLimit = limit;
+    return sampleMissionStatusResponse(childId: childId);
   }
 }
 
@@ -93,7 +123,7 @@ MissionStatusRepository missionRepo(ParentAuthController auth, MissionsApi api) 
 }
 
 void main() {
-  test('fetch passes child id and shared KPI window instants', () async {
+  test('fetch passes childId, from, to, and limit to MissionsApi', () async {
     final auth = authWithRepo(
       ParentAuthRepository(
         config: AppConfig.developmentLocal,
@@ -101,27 +131,21 @@ void main() {
       ),
     );
     const childId = _childAda;
-
-    DateTime? capturedFrom;
-    DateTime? capturedTo;
-    final api = _CountingMissionsApi((attempt) async {
-      expect(attempt, 1);
-      capturedFrom = _window.fromUtc;
-      capturedTo = _window.toUtcExclusive;
-      return sampleMissionStatusResponse(childId: childId);
-    });
+    final api = _CapturingMissionsApi();
 
     await missionRepo(auth, api).fetch(childId: childId, window: _window);
-    expect(capturedFrom, _window.fromUtc);
-    expect(capturedTo, _window.toUtcExclusive);
-    expect(api.attempts, 1);
+
+    expect(api.lastChildId, childId);
+    expect(api.lastFrom, _window.fromUtc);
+    expect(api.lastTo, _window.toUtcExclusive);
+    expect(api.lastLimit, missionStatusDefaultLimit);
   });
 
   test('401 triggers one refresh and single retry', () async {
     final store = InMemoryAuthTokenStore();
     final repo = _RefreshOnceRepo(store: store);
     final auth = authWithRepo(repo);
-    final api = _CountingMissionsApi((attempt) async {
+    final api = _CountingMissionsApi((attempt, childId, from, to, {limit}) async {
       if (attempt == 1) throw ApiException(401, 'expired');
       return sampleMissionStatusResponse();
     });
@@ -137,7 +161,7 @@ void main() {
     final store = InMemoryAuthTokenStore();
     final repo = _FailingRefreshRepo(store: store);
     final auth = authWithRepo(repo);
-    final api = _CountingMissionsApi((attempt) async {
+    final api = _CountingMissionsApi((attempt, childId, from, to, {limit}) async {
       throw ApiException(401, 'expired');
     });
 
@@ -154,7 +178,7 @@ void main() {
     final store = InMemoryAuthTokenStore();
     final repo = _RefreshOnceRepo(store: store);
     final auth = authWithRepo(repo);
-    final api = _CountingMissionsApi((attempt) async {
+    final api = _CountingMissionsApi((attempt, childId, from, to, {limit}) async {
       throw ApiException(401, 'expired');
     });
 
@@ -170,7 +194,7 @@ void main() {
     final store = InMemoryAuthTokenStore();
     final repo = _RefreshOnceRepo(store: store);
     final auth = authWithRepo(repo);
-    final api = _CountingMissionsApi((attempt) async {
+    final api = _CountingMissionsApi((attempt, childId, from, to, {limit}) async {
       if (attempt == 1) {
         auth.seedAuthenticatedSessionForTests(const AuthSession(
           accessToken: 'other',
@@ -196,7 +220,7 @@ void main() {
     final store = InMemoryAuthTokenStore();
     final repo = _RefreshOnceRepo(store: store);
     final auth = authWithRepo(repo);
-    final api = _CountingMissionsApi((attempt) async {
+    final api = _CountingMissionsApi((attempt, childId, from, to, {limit}) async {
       if (attempt == 1) {
         auth.seedAuthenticatedSessionForTests(const AuthSession(
           accessToken: 'rotated',
@@ -225,7 +249,7 @@ void main() {
         tokenStore: InMemoryAuthTokenStore(),
       ),
     );
-    final api = _CountingMissionsApi((_) async => null);
+    final api = _CountingMissionsApi((attempt, childId, from, to, {limit}) async => null);
 
     await expectLater(
       missionRepo(auth, api).fetch(childId: _childAda, window: _window),
