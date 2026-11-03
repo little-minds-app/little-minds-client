@@ -6,9 +6,11 @@ import '../orientation/orientation_binder.dart';
 import '../parent_dashboard/mission_status_repository.dart';
 import '../parent_dashboard/mission_status_view_data.dart';
 import '../parent_dashboard/parent_dashboard_controller.dart';
+import '../parent_dashboard/parent_dashboard_view_data.dart';
 import '../parent_dashboard/session_kpi_repository.dart';
 import '../shell/adaptive_shell.dart';
 import '../auth/parent_auth_controller.dart';
+import '../feedback/parent_feedback_banner.dart';
 
 /// Authenticated parent overview — real session KPIs from LMP-52 (LMP-53).
 class ParentDashboardSurface extends StatefulWidget {
@@ -46,6 +48,8 @@ class ParentDashboardSurface extends StatefulWidget {
   static const Key missionRowKey = Key('parent-dashboard-mission-row');
   static const Key refreshKey = Key('parent-dashboard-refresh');
   static const Key childPromptKey = Key('parent-dashboard-child-prompt');
+  static const Key emptyBannerKey = Key('parent-dashboard-empty-banner');
+  static const Key activityChartKey = Key('parent-dashboard-activity-chart');
 
   @override
   State<ParentDashboardSurface> createState() => _ParentDashboardSurfaceState();
@@ -158,20 +162,14 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
           key: ParentDashboardSurface.errorKey,
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _controller.failure?.userMessage ?? 'Veriler yüklenemedi.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  key: ParentDashboardSurface.kpiRetryKey,
-                  onPressed: () => _controller.refresh(),
-                  child: const Text('Yeniden dene'),
-                ),
-              ],
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: ParentFeedbackBanner(
+                kind: ParentFeedbackKind.error,
+                title: 'Özet yüklenemedi',
+                message: _controller.failure?.userMessage ?? 'Veriler yüklenemedi.',
+                onRetry: () => _controller.refresh(),
+              ),
             ),
           ),
         );
@@ -214,97 +212,27 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
                 ),
               const SizedBox(height: 8),
               if (kpiFailed)
-                Card(
-                  color: Theme.of(context).colorScheme.errorContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          key: ParentDashboardSurface.kpiErrorKey,
-                          _controller.failure?.userMessage ??
-                              'Oturum özeti yüklenemedi.',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        FilledButton(
-                          key: ParentDashboardSurface.kpiRetryKey,
-                          onPressed: () => _controller.refresh(),
-                          child: const Text('Oturum özetini yeniden dene'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else if (empty)
-                const Text(
-                  'Bu pencerede uygun oturum bulunamadı.',
-                  textAlign: TextAlign.center,
+                ParentFeedbackBanner(
+                  key: ParentDashboardSurface.kpiErrorKey,
+                  kind: ParentFeedbackKind.error,
+                  title: 'Oturum özeti kullanılamıyor',
+                  message: _controller.failure?.userMessage ??
+                      'Oturum özeti yüklenemedi.',
+                  onRetry: () => _controller.refresh(),
+                  retryLabel: 'Oturum özetini yeniden dene',
                 )
               else if (view != null) ...[
-                _metricRow('Uygun oturum', '${view.eligibleSessions}'),
-                _metricRow('Tamamlanan', '${view.completedSessions}'),
-                _metricRow('Yarıda kalan', '${view.interruptedSessions}'),
-                _metricRow('Devam eden', '${view.inProgressSessions}'),
-                _metricRow('Toplam oyun süresi', view.totalPlayDurationLabel),
-                _metricRow(
-                  'Tamamlanma oranı',
-                  view.completedRateLabel,
-                  unavailable: view.completedRateUnavailable,
-                ),
-                _metricRow('Farklı oyun günü', '${view.distinctPlayDays}'),
-                _metricRow(
-                  'İlk deneme doğruluğu',
-                  view.firstAttemptAccuracyLabel,
-                  unavailable: view.firstAttemptAccuracyUnavailable,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Pencere: ${view.windowLabel}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                Text(
-                  'Tazelik: ${view.freshnessLabel} · Bütünlük: ${view.completenessLabel}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                Text(
-                  view.sampleLabel,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                if (view.isStale)
+                if (empty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'Veriler güncel olmayabilir.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.orange.shade800,
-                          ),
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: ParentFeedbackBanner(
+                      key: ParentDashboardSurface.emptyBannerKey,
+                      kind: ParentFeedbackKind.info,
+                      title: 'Henüz oturum yok',
+                      message: 'Bu pencerede uygun oturum bulunamadı. Zaman aralığı ve örnek bilgileri sunucudan gelmektedir.',
                     ),
                   ),
-                if (view.isPartial)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Veri seti kısmi olabilir.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                if (view.activityRows.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'Etkinlik özeti',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  for (final row in view.activityRows)
-                    ListTile(
-                      dense: true,
-                      title: Text(row.activityId),
-                      subtitle: Text(
-                        '${row.sessionCount} oturum · ${row.playDurationLabel}',
-                      ),
-                    ),
-                ],
+                _kpiCard(context, view),
               ],
               const SizedBox(height: 24),
               _missionPanel(context),
@@ -407,6 +335,113 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
                   MissionReportPresentation.noReport => Icons.info_outline,
                   MissionReportPresentation.interactionOnly => Icons.play_circle_outline,
                 },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kpiCard(BuildContext context, ParentDashboardViewData view) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Oturum istatistikleri', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            _metricRow('Uygun oturum', '${view.eligibleSessions}'),
+            _metricRow('Tamamlanan', '${view.completedSessions}'),
+            _metricRow('Yarıda kalan', '${view.interruptedSessions}'),
+            _metricRow('Devam eden', '${view.inProgressSessions}'),
+            _metricRow('Toplam oyun süresi', view.totalPlayDurationLabel),
+            _metricRow(
+              'Tamamlanma oranı',
+              view.completedRateLabel,
+              unavailable: view.completedRateUnavailable,
+            ),
+            _metricRow('Farklı oyun günü', '${view.distinctPlayDays}'),
+            _metricRow(
+              'İlk deneme doğruluğu',
+              view.firstAttemptAccuracyLabel,
+              unavailable: view.firstAttemptAccuracyUnavailable,
+            ),
+            if (view.activityRows.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Oyun süresi dağılımı', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              _activityChart(context, view),
+            ],
+            const SizedBox(height: 12),
+            Text('Pencere: ${view.windowLabel}', style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              'Tazelik: ${view.freshnessLabel} · Bütünlük: ${view.completenessLabel}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Text(view.sampleLabel, style: Theme.of(context).textTheme.bodySmall),
+            if (view.isStale)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: ParentFeedbackBanner(
+                  kind: ParentFeedbackKind.warning,
+                  title: 'Güncellik uyarısı',
+                  message: 'Veriler güncel olmayabilir.',
+                ),
+              ),
+            if (view.isPartial)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: ParentFeedbackBanner(
+                  kind: ParentFeedbackKind.warning,
+                  title: 'Kısmi veri',
+                  message: 'Veri seti kısmi olabilir.',
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _activityChart(BuildContext context, ParentDashboardViewData view) {
+    final maxSeconds = view.maxActivityPlaySeconds;
+    return KeyedSubtree(
+      key: ParentDashboardSurface.activityChartKey,
+      child: Column(
+        children: [
+          for (final row in view.activityRows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(row.activityId, style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: maxSeconds > 0 ? row.playDurationSeconds : 0,
+                        child: Container(
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                      if (maxSeconds > row.playDurationSeconds)
+                        Expanded(
+                          flex: maxSeconds - row.playDurationSeconds,
+                          child: const SizedBox(height: 10),
+                        ),
+                    ],
+                  ),
+                  Text(
+                    '${row.sessionCount} oturum · ${row.playDurationLabel}',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ],
               ),
             ),
         ],

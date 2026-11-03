@@ -461,6 +461,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.byKey(ParentDashboardSurface.emptyKey), findsOneWidget);
+    expect(find.byKey(ParentDashboardSurface.emptyBannerKey), findsOneWidget);
+    expect(find.textContaining('Tazelik: Güncel'), findsOneWidget);
+    expect(find.textContaining('Uygun: 0'), findsOneWidget);
     expect(find.byKey(ParentDashboardSurface.missionContentKey), findsOneWidget);
     expect(find.textContaining('Ebeveyn bildirimi: Tamamlandı'), findsOneWidget);
   });

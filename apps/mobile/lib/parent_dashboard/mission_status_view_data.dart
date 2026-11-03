@@ -82,7 +82,7 @@ MissionStatusRowView _mapRow(MissionStatusOccurrenceRow row) {
       'Ebeveyn bildirimi: $statusLabel',
       if (report.recordedAt != null)
         'Kayıt: ${report.recordedAt!.toUtc().toIso8601String()}',
-      'Kaynak: ${report.source_.toJson()} · Aktör: ${report.actor.toJson()}',
+      'Kaynak: ${_formatReportSource(report.source_)} · Aktör: ${_formatReportActor(report.actor)}',
       if (report.authoritative) 'Yetkili kayıt',
     ].join(' · '),
     MissionReportPresentation.interactionOnly => interactionLabel,
@@ -95,6 +95,20 @@ MissionStatusRowView _mapRow(MissionStatusOccurrenceRow row) {
     reportLabel: reportLabel,
     reportPresentation: presentation,
   );
+}
+
+String _formatReportSource(MissionParentReportFactsSource_Enum source) {
+  return switch (source) {
+    MissionParentReportFactsSource_Enum.caregiverReport => 'Ebeveyn bildirimi',
+    MissionParentReportFactsSource_Enum() => 'Sunucu kaydı',
+  };
+}
+
+String _formatReportActor(MissionParentReportFactsActorEnum actor) {
+  return switch (actor) {
+    MissionParentReportFactsActorEnum.parent => 'Ebeveyn',
+    MissionParentReportFactsActorEnum() => 'Bilinmiyor',
+  };
 }
 
 String _formatParentStatus(MissionParentReportFactsStatusEnum? status) {

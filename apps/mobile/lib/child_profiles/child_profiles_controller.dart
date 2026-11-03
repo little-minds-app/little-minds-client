@@ -2,6 +2,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:little_minds_api/api.dart';
+import 'package:little_minds_api/api.dart';
 
 import '../auth/parent_auth_controller.dart';
 import 'child_profile_repository.dart';
@@ -136,6 +137,17 @@ class ChildProfilesController extends ChangeNotifier {
       if (!_children.any((child) => child.childId == _selectedId)) _selectedId = null;
       _loaded = true;
       return true;
+    } on ApiException catch (error) {
+      if (generation == _generation) {
+        _error = switch (error.code) {
+          400 => 'Girilen profil bilgisi sunucu tarafından kabul edilmedi. Yaş ve takma adı kontrol edin.',
+          401 => 'Oturum sona erdi. Yeniden giriş yapın.',
+          403 => 'Bu işlem için ebeveyn doğrulaması gerekli.',
+          404 => 'Profil bulunamadı veya size ait değil.',
+          _ => 'Profil kaydedilemedi. Yeniden deneyin.',
+        };
+      }
+      return false;
     } catch (_) {
       if (generation == _generation) {
         _error = 'Profil kaydedilemedi. Yeniden deneyin.';

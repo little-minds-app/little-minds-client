@@ -220,7 +220,7 @@ test('retry refetches both independent data panels', async () => {
 
 test('unavailable reasons are localized, unknown codes never leak, and zero remains distinct', () => {
   const unavailable = (reason_code: string) => formatSessionKpiRate({
-    availability_status: 'unavailable', value: null, numerator: 0, denominator: 0, reason_code,
+    availability_status: 'unavailable', numerator: 0, denominator: 0, reason_code,
   });
   assert.deepEqual(unavailable('zero_denominator'), { label: 'Hesaplamak için henüz uygun veri yok', unavailable: true });
   assert.deepEqual(unavailable('insufficient_denominator'), { label: 'Güvenilir bir oran için yeterli oturum yok', unavailable: true });

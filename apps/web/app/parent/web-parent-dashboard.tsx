@@ -2,35 +2,21 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { components } from '../../../../generated/typescript/schema';
+import { ActivityDurationChart } from './dashboard-charts';
+import { ParentFeedback } from './parent-feedback';
+import {
+  completenessLabel,
+  formatPlayDuration,
+  freshnessStatusLabel,
+  mapSessionKpiView,
+} from './session-kpi-presentation';
 
 type Kpi = components['schemas']['SessionKpiResponse'];
-type Rate = components['schemas']['SessionKpiRateMetric'];
 type Missions = components['schemas']['MissionStatusListResponse'];
 type Phase<T> = { state: 'loading' | 'empty' | 'error' | 'ready'; value?: T; message?: string };
 type Snapshot = { parentId: string; childId: string; kpi: Phase<Kpi>; missions: Phase<Missions>; blocked: boolean };
 
 const failure = (status: number) => status === 401 || status === 403 || status === 404;
-
-const rateUnavailableReasons: Record<string, string> = {
-  zero_denominator: 'Hesaplamak için henüz uygun veri yok',
-  insufficient_denominator: 'Güvenilir bir oran için yeterli oturum yok',
-  insufficient_data: 'Henüz yeterli veri yok',
-  no_signal: 'Bu dönemde ölçülebilir sonuç yok',
-};
-
-function friendlyRateReason(reason?: string | null): string {
-  return reason ? rateUnavailableReasons[reason.trim()] ?? 'Bu oran şu anda hesaplanamıyor' : 'Bu oran şu anda hesaplanamıyor';
-}
-
-function freshnessStatusLabel(status: string): string {
-  return ({ fresh: 'Güncel', stale: 'Güncelliğini yitirmiş', no_data: 'Henüz veri yok' } as Record<string, string>)[status]
-    ?? 'Durum bilinmiyor';
-}
-
-function completenessLabel(status: string): string {
-  return ({ complete: 'Tam', partial: 'Kısmi' } as Record<string, string>)[status]
-    ?? 'Bilinmiyor';
-}
 
 export function dashboardWindow(now = new Date()) {
   const date = new Intl.DateTimeFormat('en-CA', {
@@ -45,46 +31,8 @@ export function dashboardWindow(now = new Date()) {
   };
 }
 
-export function formatSessionKpiRate(metric: Rate): { label: string; unavailable: boolean } {
-  if (metric.availability_status === 'unavailable') {
-    const reason = metric.reason_code?.trim();
-    return { label: friendlyRateReason(reason), unavailable: true };
-  }
-  if (metric.value == null) return { label: friendlyRateReason(metric.reason_code), unavailable: true };
-  const pct = (metric.value * 100).toFixed(0);
-  return { label: `${pct}% (${metric.numerator}/${metric.denominator})`, unavailable: false };
-}
-
-export function formatPlayDuration(totalSeconds: number) {
-  if (totalSeconds <= 0) return '0 dk';
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes === 0) return `${seconds} sn`;
-  if (seconds === 0) return `${minutes} dk`;
-  return `${minutes} dk ${seconds} sn`;
-}
-
-export function mapSessionKpiView(kpi: Kpi) {
-  const completedRate = formatSessionKpiRate(kpi.metrics.completed_session_rate);
-  const accuracy = formatSessionKpiRate(kpi.metrics.first_attempt_accuracy);
-  const isStale = kpi.freshness.status === 'stale';
-  const isPartial = kpi.freshness.data_completeness === 'partial';
-  const isEmpty = kpi.metrics.eligible_session_count === 0 || kpi.freshness.status === 'no_data';
-  return {
-    completedRate,
-    accuracy,
-    isStale,
-    isPartial,
-    isEmpty,
-    sampleLabel: `Uygun: ${kpi.sample.eligible_sessions}, terminal: ${kpi.sample.terminal_sessions}, `
-      + `hariç (şema): ${kpi.sample.excluded_unsupported_schema}, `
-      + `hariç (onay): ${kpi.sample.excluded_consent}`,
-    activityRows: kpi.metrics.by_activity.map((row) => ({
-      key: row.content_version_id,
-      label: `${row.content_version_id} — ${row.session_starts} oturum · ${formatPlayDuration(row.play_duration_seconds)}`,
-    })),
-  };
-}
+export { formatPlayDuration, mapSessionKpiView } from './session-kpi-presentation';
+export { formatSessionKpiRate } from './session-kpi-presentation';
 
 function statusLabel(status: string | null) {
   return ({ completed: 'Tamamlandı', skipped: 'Atlandı', not_now: 'Şimdi değil', partial: 'Kısmen' } as Record<string, string>)[status ?? ''] ?? 'Bilinmiyor';
@@ -218,62 +166,121 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
     };
   }, [snapshot, selectedChildId, invalidateProtectedData]);
 
-  if (!selectedChildId) return <section aria-label="Ebeveyn özeti"><h2>Oyun ve görev özeti</h2><p>Özeti görmek için bir çocuk profili seçin.</p></section>;
-  if (!snapshot || snapshot.childId !== selectedChildId) return <section aria-label="Ebeveyn özeti"><h2>Oyun ve görev özeti</h2><p role="status">Özet yükleniyor…</p></section>;
-  if (snapshot.blocked) return <section aria-label="Ebeveyn özeti"><h2>Oyun ve görev özeti</h2><p role="alert">Oturum veya çocuk erişimi doğrulanamadı. Korumalı bilgiler gizlendi.</p><button onClick={refresh}>Yeniden dene</button></section>;
+  if (!selectedChildId) {
+    return (
+      <section aria-label="Ebeveyn özeti" className="parent-dashboard">
+        <h2>Oyun ve görev özeti</h2>
+        <ParentFeedback kind="info" title="Profil seçin" message="Özeti görmek için bir çocuk profili seçin." />
+      </section>
+    );
+  }
+  if (!snapshot || snapshot.childId !== selectedChildId) {
+    return (
+      <section aria-label="Ebeveyn özeti" className="parent-dashboard">
+        <h2>Oyun ve görev özeti</h2>
+        <p role="status">Özet yükleniyor…</p>
+      </section>
+    );
+  }
+  if (snapshot.blocked) {
+    return (
+      <section aria-label="Ebeveyn özeti" className="parent-dashboard">
+        <h2>Oyun ve görev özeti</h2>
+        <ParentFeedback
+          kind="error"
+          title="Erişim doğrulanamadı"
+          message="Oturum veya çocuk erişimi doğrulanamadı. Korumalı bilgiler gizlendi."
+          onRetry={refresh}
+        />
+      </section>
+    );
+  }
 
   const { kpi, missions } = snapshot;
   const kpiView = kpi.value ? mapSessionKpiView(kpi.value) : null;
-  return <section aria-label="Ebeveyn özeti">
-    <h2>Oyun ve görev özeti</h2>
-    <p>Son 7 tamamlanmış gün ve bugün · Europe/Istanbul</p>
-    <button onClick={refresh}>Özeti yenile</button>
-    <section aria-label="Oturum KPI">
-      <h3>Oturum istatistikleri</h3>
-      {kpi.state === 'error' ? <p role="alert">{kpi.message} <button onClick={refresh}>Yeniden dene</button></p> : <>
-        {kpi.state === 'empty' && <p>Bu dönemde uygun oturum bulunamadı.</p>}
-        {kpi.value && kpiView && <>
-          <dl>
-            <dt>Uygun oturum</dt><dd>{kpi.value.metrics.eligible_session_count}</dd>
-            <dt>Tamamlanan</dt><dd>{kpi.value.metrics.completed_session_count}</dd>
-            <dt>Yarıda kalan</dt><dd>{kpi.value.metrics.interrupted_session_count}</dd>
-            <dt>Devam eden</dt><dd>{kpi.value.metrics.in_progress_session_count}</dd>
-            <dt>Toplam oyun süresi</dt><dd>{formatPlayDuration(kpi.value.metrics.total_play_duration_seconds)}</dd>
-            <dt>Tamamlanma oranı</dt>
-            <dd>{kpiView.completedRate.unavailable ? <span aria-label="Oran kullanılamıyor">{kpiView.completedRate.label}</span> : kpiView.completedRate.label}</dd>
-            <dt>Farklı oyun günü</dt><dd>{kpi.value.metrics.distinct_play_days}</dd>
-            <dt>İlk deneme doğruluğu</dt>
-            <dd>{kpiView.accuracy.unavailable ? <span aria-label="Oran kullanılamıyor">{kpiView.accuracy.label}</span> : kpiView.accuracy.label}</dd>
-          </dl>
-          <p>Tazelik: {freshnessStatusLabel(kpi.value.freshness.status)} · Bütünlük: {completenessLabel(kpi.value.freshness.data_completeness)}</p>
-          <p>{kpiView.sampleLabel}</p>
-          {kpiView.isStale && <p role="status">Veriler güncel olmayabilir.</p>}
-          {kpiView.isPartial && <p role="status">Veri seti kısmi olabilir.</p>}
-          <p>Güncellendi: {dateLabel(kpi.value.generated_at)}</p>
-          <p>Aralık: {dateLabel(kpi.value.window.from)} – {dateLabel(kpi.value.window.to)} (üst sınır hariç)</p>
-          {kpiView.activityRows.length > 0 && <>
-            <h4>Etkinlik özeti</h4>
-            <ul>{kpiView.activityRows.map((row) => <li key={row.key}>{row.label}</li>)}</ul>
-          </>}
-        </>}
-      </>}
+  const windowMeta = dashboardWindow();
+
+  return (
+    <section aria-label="Ebeveyn özeti" className="parent-dashboard">
+      <h2>Oyun ve görev özeti</h2>
+      <p className="parent-dashboard__hero">Son 7 tamamlanmış gün ve bugün · {windowMeta.timezone}</p>
+      <button type="button" onClick={refresh}>Özeti yenile</button>
+
+      <section aria-label="Oturum KPI" className="parent-dashboard__panel">
+        <h3>Oturum istatistikleri</h3>
+        {kpi.state === 'error' ? (
+          <ParentFeedback kind="error" title="Oturum özeti" message={kpi.message ?? 'Yüklenemedi.'} onRetry={refresh} />
+        ) : (
+          <>
+            {kpi.state === 'empty' && (
+              <ParentFeedback
+                kind="info"
+                title="Henüz oturum yok"
+                message="Bu dönemde uygun oturum bulunamadı. Aşağıdaki sayılar ve örnek bilgileri sunucudan gelmektedir."
+              />
+            )}
+            {kpi.value && kpiView && (
+              <>
+                <dl className="parent-dashboard__metrics">
+                  <div><dt>Uygun oturum</dt><dd>{kpi.value.metrics.eligible_session_count}</dd></div>
+                  <div><dt>Tamamlanan</dt><dd>{kpi.value.metrics.completed_session_count}</dd></div>
+                  <div><dt>Yarıda kalan</dt><dd>{kpi.value.metrics.interrupted_session_count}</dd></div>
+                  <div><dt>Devam eden</dt><dd>{kpi.value.metrics.in_progress_session_count}</dd></div>
+                  <div><dt>Toplam oyun süresi</dt><dd>{formatPlayDuration(kpi.value.metrics.total_play_duration_seconds)}</dd></div>
+                  <div>
+                    <dt>Tamamlanma oranı</dt>
+                    <dd>{kpiView.completedRate.unavailable
+                      ? <span aria-label="Oran kullanılamıyor">{kpiView.completedRate.label}</span>
+                      : kpiView.completedRate.label}</dd>
+                  </div>
+                  <div><dt>Farklı oyun günü</dt><dd>{kpi.value.metrics.distinct_play_days}</dd></div>
+                  <div>
+                    <dt>İlk deneme doğruluğu</dt>
+                    <dd>{kpiView.accuracy.unavailable
+                      ? <span aria-label="Oran kullanılamıyor">{kpiView.accuracy.label}</span>
+                      : kpiView.accuracy.label}</dd>
+                  </div>
+                </dl>
+                <p>Tazelik: {freshnessStatusLabel(kpi.value.freshness.status)} · Bütünlük: {completenessLabel(kpi.value.freshness.data_completeness)}</p>
+                <p>{kpiView.sampleLabel}</p>
+                {kpiView.isStale && <ParentFeedback kind="warning" title="Güncellik" message="Veriler güncel olmayabilir." />}
+                {kpiView.isPartial && <ParentFeedback kind="warning" title="Kısmi veri" message="Veri seti kısmi olabilir." />}
+                <p>Güncellendi: {dateLabel(kpi.value.generated_at)}</p>
+                <p>Aralık: {dateLabel(kpi.value.window.from)} – {dateLabel(kpi.value.window.to)} (üst sınır hariç)</p>
+                <ActivityDurationChart rows={kpiView.activityRows} maxSeconds={kpiView.maxPlaySeconds} />
+              </>
+            )}
+          </>
+        )}
+      </section>
+
+      <section aria-label="Gerçek dünya görevleri" className="parent-dashboard__panel">
+        <h3>Gerçek dünya görevleri</h3>
+        {missions.state === 'error' ? (
+          <ParentFeedback kind="error" title="Görev durumları" message={missions.message ?? 'Yüklenemedi.'} onRetry={refresh} />
+        ) : (
+          <>
+            {missions.state === 'empty' && <p>Bu dönemde görev kaydı bulunamadı.</p>}
+            {missions.value && (
+              <>
+                {missions.value.pagination.truncated && (
+                  <ParentFeedback kind="warning" title="Sınırlı liste" message="En fazla 50 kayıt gösteriliyor; sonuçlar sınırlı." />
+                )}
+                <p>Güncellendi: {dateLabel(missions.value.generated_at)} · Kaynak: sunucu</p>
+                <p>Aralık: {dateLabel(missions.value.window.from)} – {dateLabel(missions.value.window.to)} (üst sınır hariç)</p>
+                <ul>{missions.value.items.map((item) => (
+                  <li key={item.occurrence_id}>
+                    <strong>Görev {item.mission_id}</strong>{' — '}
+                    {item.parent_report.availability === 'reported'
+                      ? <>Ebeveyn bildirimi: {statusLabel(item.parent_report.status)} · Kaynak: {item.parent_report.source} · Aktör: {item.parent_report.actor} · {item.parent_report.authoritative ? 'Yetkili kayıt' : 'Bilgilendirici'} · {dateLabel(item.parent_report.recorded_at)}</>
+                      : <>Ebeveyn bildirimi yok (uygulama etkileşimi tamamlanma kanıtı değildir)</>}
+                  </li>
+                ))}</ul>
+              </>
+            )}
+          </>
+        )}
+      </section>
     </section>
-    <section aria-label="Gerçek dünya görevleri">
-      <h3>Gerçek dünya görevleri</h3>
-      {missions.state === 'error' ? <p role="alert">{missions.message} <button onClick={refresh}>Yeniden dene</button></p> : <>
-        {missions.state === 'empty' && <p>Bu dönemde görev kaydı bulunamadı.</p>}
-        {missions.value && <>
-          {missions.value.pagination.truncated && <p role="status">En fazla 50 kayıt gösteriliyor; sonuçlar sınırlı.</p>}
-          <p>Güncellendi: {dateLabel(missions.value.generated_at)} · Kaynak: sunucu</p>
-          <p>Aralık: {dateLabel(missions.value.window.from)} – {dateLabel(missions.value.window.to)} (üst sınır hariç)</p>
-          <ul>{missions.value.items.map((item) => <li key={item.occurrence_id}>
-            <strong>Görev {item.mission_id}</strong>{' — '}
-            {item.parent_report.availability === 'reported'
-              ? <>Ebeveyn bildirimi: {statusLabel(item.parent_report.status)} · Kaynak: {item.parent_report.source} · Aktör: {item.parent_report.actor} · {item.parent_report.authoritative ? 'Yetkili kayıt' : 'Bilgilendirici'} · {dateLabel(item.parent_report.recorded_at)}</>
-              : <>Ebeveyn bildirimi yok (uygulama etkileşimi tamamlanma kanıtı değildir)</>}
-          </li>)}</ul>
-        </>}
-      </>}
-    </section>
-  </section>;
+  );
 }
