@@ -175,7 +175,8 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
           invalidateProtectedData(childId);
         }
       } catch {
-        if (abort.signal.aborted) return;
+        if (abort.signal.aborted || pass !== revalidateGeneration) return;
+        invalidateProtectedData(childId);
       }
     }
 
