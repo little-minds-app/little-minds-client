@@ -117,7 +117,8 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
   }
 
   Future<void> _onPlay(HubActivityTile tile) async {
-    final activity = tile.activity;
+    // Re-resolve after async hub telemetry reconcile may have swapped buffers.
+    final activity = widget.game.registry.findById(tile.catalogId.id);
     if (activity == null || !activity.isPlayable) {
       await _onPassiveTap(tile);
       return;

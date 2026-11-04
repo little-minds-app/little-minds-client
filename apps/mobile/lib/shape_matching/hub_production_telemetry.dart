@@ -5,6 +5,7 @@ import '../auth/auth_session.dart';
 import '../game/activity_registry.dart';
 import '../offline/activity_event_emitter.dart';
 import '../offline/activity_file_outbox.dart';
+import '../offline/activity_telemetry_diagnostics.dart';
 import 'hub_authorized_device_child.dart';
 import 'published_content_registry.dart';
 import 'shape_matching_activity.dart';
@@ -279,6 +280,14 @@ class HubProductionTelemetryCoordinator {
     );
     if (bound != _reconcileGeneration) return;
     registry.register(activity);
+    if (snapshot.allowed) {
+      ActivityTelemetryDiagnostics.bufferMode(production: true);
+    } else if (snapshot.reason != null) {
+      ActivityTelemetryDiagnostics.gateBlocked(snapshot.reason!.name);
+      ActivityTelemetryDiagnostics.bufferMode(production: false);
+    } else {
+      ActivityTelemetryDiagnostics.bufferMode(production: false);
+    }
   }
 
   ShapeMatchingLocalEventBuffer _eventBufferFor(

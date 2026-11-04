@@ -7,6 +7,7 @@ import 'package:little_minds_api/api.dart';
 
 import '../auth/auth_session.dart';
 import 'activity_file_outbox.dart';
+import 'activity_telemetry_diagnostics.dart';
 
 typedef EventBatchSender = Future<Map<String, dynamic>> Function(
   AuthSession session,
@@ -169,13 +170,41 @@ class ActivityOutboxSync {
   final DateTime Function() _clock;
   final Random _random;
   bool _running = false;
+  bool _followUpFlush = false;
+
+  /// Schedules a bounded, non-overlapping flush (coalesces concurrent requests).
+  void scheduleFlush() {
+    if (_running) {
+      _followUpFlush = true;
+      ActivityTelemetryDiagnostics.syncScheduled(coalesced: true);
+      return;
+    }
+    ActivityTelemetryDiagnostics.syncScheduled(coalesced: false);
+    unawaited(flush());
+  }
 
   Future<void> flush() async {
-    if (_running) return;
-    final initial = currentSession();
-    if (initial == null) return;
+    if (_running) {
+      _followUpFlush = true;
+      return;
+    }
     _running = true;
     try {
+      do {
+        _followUpFlush = false;
+        final active = currentSession();
+        if (active == null) {
+          ActivityTelemetryDiagnostics.syncSkipped('no_session');
+          break;
+        }
+        await _flushOnce(active);
+      } while (_followUpFlush);
+    } finally {
+      _running = false;
+    }
+  }
+
+  Future<void> _flushOnce(AuthSession initial) async {
       // Each persisted record is capped at 16 KiB (including its session).
       // Twelve records plus the batch envelope fit under the 256 KiB cap.
       // A bounded prefix avoids one oversized batch blocking the entire queue.
@@ -184,8 +213,15 @@ class ActivityOutboxSync {
         now: _clock().toUtc(),
         limit: 12,
       );
-      if (pending.isEmpty) return;
-      if (!_sameAccount(initial)) return;
+      if (pending.isEmpty) {
+        ActivityTelemetryDiagnostics.syncSkipped('outbox_empty');
+        return;
+      }
+      if (!_sameAccount(initial)) {
+        ActivityTelemetryDiagnostics.syncSkipped('session_changed');
+        return;
+      }
+      ActivityTelemetryDiagnostics.syncStarted(batchSize: pending.length);
       Map<String, dynamic> result;
       try {
         final uniqueSessions = <String, Map<String, dynamic>>{};
@@ -298,9 +334,28 @@ class ActivityOutboxSync {
           await outbox.postpone(item, _nextRetry(item.attempts));
         }
       }
-    } finally {
-      _running = false;
-    }
+      var accepted = 0;
+      var duplicate = 0;
+      var rejected = 0;
+      var retryable = 0;
+      for (final ack in acked.values) {
+        switch (ack.status) {
+          case 'accepted':
+            accepted++;
+          case 'duplicate_noop':
+            duplicate++;
+          case 'rejected':
+            rejected++;
+          case 'retryable':
+            retryable++;
+        }
+      }
+      ActivityTelemetryDiagnostics.syncAckSummary(
+        accepted: accepted,
+        duplicate: duplicate,
+        rejected: rejected,
+        retryable: retryable,
+      );
   }
 
   bool _sameAccount(AuthSession original) {

@@ -71,12 +71,17 @@ class PendingActivityEvent {
 /// Scope: mobile platforms with atomic same-volume rename. This is a durable
 /// initial outbox implementation, NOT a SQLite multi-record transaction.
 /// Production uses AES-GCM ciphertext with a Keychain/Keystore managed key.
+typedef ActivityOutboxPersistedHook = void Function(int partitionPendingHint);
+
 class ActivityFileOutbox {
   ActivityFileOutbox._(this._root, this._codec);
 
-  factory ActivityFileOutbox.forTesting(Directory root,
-      {ActivityPayloadCodec codec = const TestPlainActivityPayloadCodec()}) =>
-      ActivityFileOutbox._(root, codec);
+  factory ActivityFileOutbox.forTesting(
+    Directory root, {
+    ActivityPayloadCodec codec = const TestPlainActivityPayloadCodec(),
+    ActivityOutboxPersistedHook? onEventPersisted,
+  }) =>
+      ActivityFileOutbox._(root, codec)..onEventPersisted = onEventPersisted;
 
   static Future<ActivityFileOutbox> open() async {
     final directory = await getApplicationSupportDirectory();
@@ -88,6 +93,10 @@ class ActivityFileOutbox {
 
   final Directory _root;
   final ActivityPayloadCodec _codec;
+
+  /// Invoked after a new event record is atomically persisted (not on dedupe hits).
+  ActivityOutboxPersistedHook? onEventPersisted;
+
   /// Safety caps: exceed -> visible storage error; never silently drop a child event.
   static const maxRecordsPerParent = 2000;
   static const maxEventBytes = 16384;
@@ -162,6 +171,14 @@ class ActivityFileOutbox {
       throw StateError('outbox.capacity_exceeded');
     }
     await _atomicWrite(file, event.toJson());
+    final hook = onEventPersisted;
+    if (hook != null) {
+      final files = await file.parent
+          .list(followLinks: false)
+          .where((e) => e is File && e.path.endsWith('.json'))
+          .length;
+      hook(files);
+    }
   });
 
   Future<List<PendingActivityEvent>> pending(

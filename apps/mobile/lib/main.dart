@@ -8,6 +8,7 @@ import 'auth/parent_auth_repository.dart';
 import 'config/app_config.dart';
 import 'offline/activity_file_outbox.dart';
 import 'offline/activity_outbox_sync.dart';
+import 'offline/activity_telemetry_diagnostics.dart';
 import 'screen_time/screen_time.dart';
 import 'shape_matching/hub_authorized_device_child.dart';
 import 'shape_matching/hub_bootstrap.dart';
@@ -46,6 +47,10 @@ Future<void> main() async {
     currentSession: () => parentAuth.session,
     send: ActivityHttpBatchSender(apiBaseUrl: config.apiBaseUrl).send,
   );
+  offlineOutbox.onEventPersisted = (pendingHint) {
+    ActivityTelemetryDiagnostics.outboxEnqueued(pendingHint: pendingHint);
+    offlineSync.scheduleFlush();
+  };
   final publishedContent = publishedContentRegistryFor(config);
   final deviceChildCatalog = MemoryHubAuthorizedDeviceChildCatalog();
   final hubDeviceChildBinding = HubDeviceChildBindingService(
