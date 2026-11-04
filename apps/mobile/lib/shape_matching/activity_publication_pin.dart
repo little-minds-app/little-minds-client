@@ -3,7 +3,7 @@ abstract final class ActivityPublicationPin {
   /// Verified commit on backend `feature/lmp-134-production-telemetry` (PR #37).
   /// Update only when the backend publication fixture changes.
   static const String backendCommitSha =
-      'fe4fd8dd36d43aa695a489080ea8e7a02ff04b14';
+      '4ce1dc1355c55c2b488ef405fda909c47b8258cd';
 
   static const String backendPullRequestUrl =
       'https://github.com/little-minds-app/little-minds-backend/pull/37';
