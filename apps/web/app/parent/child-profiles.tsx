@@ -11,7 +11,10 @@ type FeedbackState = { kind: ParentFeedbackKind; title: string; message: string;
 
 const emptyForm = { nickname: '', age_months: '32' };
 
-function istanbulToday(): string {
+/** Matches Flutter child profile repository and OpenAPI IANA default. */
+export const PROFILE_REFERENCE_TIMEZONE = 'Europe/Istanbul';
+
+export function istanbulToday(): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
   }).formatToParts(new Date());
@@ -74,7 +77,7 @@ export function ChildProfiles({
   const requestGeneration = useRef(0);
   const parentIdentity = useRef<string | null>(null);
 
-  const refreshChildrenList = useCallback(async (generation: number): Promise<boolean> => {
+  const refreshChildrenList = useCallback(async (generation: number): Promise<Profile[] | false> => {
     const me = await fetch('/api/auth/me', { cache: 'no-store' });
     if (generation !== requestGeneration.current) return false;
     if (me.status === 401) throw new Error(profileListErrorMessage(401));
@@ -93,8 +96,9 @@ export function ChildProfiles({
       throw new Error('Oturum değişti. Yeniden deneyin.');
     }
     if (generation !== requestGeneration.current) return false;
-    setProfiles(Array.isArray(data.children) ? data.children : []);
-    return true;
+    const children = Array.isArray(data.children) ? data.children : [];
+    setProfiles(children);
+    return children;
   }, []);
 
   const reload = useCallback(async (): Promise<boolean> => {
@@ -117,8 +121,7 @@ export function ChildProfiles({
         setEditing(null);
         setForm(emptyForm);
       }
-      const ok = await refreshChildrenList(generation);
-      return ok;
+      return (await refreshChildrenList(generation)) !== false;
     } catch (e) {
       if (generation !== requestGeneration.current) return false;
       setProfiles([]);
@@ -162,9 +165,20 @@ export function ChildProfiles({
       });
       return;
     }
+    const referenceDate = istanbulToday();
     const body = editing
-      ? { nickname: form.nickname.trim() || null, age_months: months, reference_date: istanbulToday() }
-      : { nickname: form.nickname.trim() || undefined, age_months: months, reference_date: istanbulToday() };
+      ? {
+          nickname: form.nickname.trim() || null,
+          age_months: months,
+          reference_date: referenceDate,
+          timezone: PROFILE_REFERENCE_TIMEZONE,
+        }
+      : {
+          nickname: form.nickname.trim() || undefined,
+          age_months: months,
+          reference_date: referenceDate,
+          timezone: PROFILE_REFERENCE_TIMEZONE,
+        };
     setBusy(true);
     setFeedback(null);
     const generation = ++requestGeneration.current;
@@ -190,7 +204,7 @@ export function ChildProfiles({
       try {
         const refreshed = await refreshChildrenList(generation);
         if (generation !== requestGeneration.current) return;
-        if (!refreshed) {
+        if (refreshed === false) {
           setFeedback({
             kind: 'warning',
             title: 'Kayıt alındı',
@@ -198,6 +212,12 @@ export function ChildProfiles({
             retry: 'reload',
           });
           return;
+        }
+        if (selected) {
+          const profile = refreshed.find((row) => row.child_id === selected);
+          if (profile) {
+            onSelectionChange?.(selected, `${profileLabel(profile)} · ${profile.age_months} ay`);
+          }
         }
         setFeedback({
           kind: 'success',
@@ -226,7 +246,7 @@ export function ChildProfiles({
     } finally {
       if (generation === requestGeneration.current) setBusy(false);
     }
-  }, [editing, form, refreshChildrenList]);
+  }, [editing, form, onSelectionChange, refreshChildrenList, selected]);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();

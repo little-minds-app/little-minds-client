@@ -5,6 +5,32 @@ import 'package:little_minds_mobile/child_profiles/child_profiles_controller.dar
 import 'child_profiles_widget_test.dart' show FakeChildProfiles, signedIn;
 
 void main() {
+  test('save applies child age correction 32 to 17 months and refreshes list', () async {
+    final auth = signedIn('11111111-1111-4111-8111-111111111111');
+    final fake = FakeChildProfiles(auth);
+    fake.rows.add(ChildProfileResponse(
+      childId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      nickname: 'Demo',
+      ageMonths: 32,
+      preferredLocale: 'tr-TR',
+    ));
+    final controller = ChildProfilesController(repository: fake, auth: auth);
+    await controller.load();
+    controller.select('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    final ok = await controller.save(
+      childId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      nickname: 'Demo',
+      ageMonths: 17,
+    );
+    expect(ok, isTrue);
+    expect(controller.error, isNull);
+    expect(fake.edits, 1);
+    expect(controller.children.single.ageMonths, 17);
+    expect(controller.children.single.childId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    controller.dispose();
+    auth.dispose();
+  });
+
   test('save maps ApiException 400 to actionable profile message', () async {
     final auth = signedIn('11111111-1111-4111-8111-111111111111');
     final fake = _FailingEdit(auth);
