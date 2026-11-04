@@ -263,13 +263,14 @@ class ShapeMatchingActivity extends LearningActivity {
 
   void offerHint() {
     if (_hintLevel >= 2) return;
-    _hintLevel++;
+    final nextLevel = _hintLevel + 1;
+    _hintLevel = nextLevel;
     eventBuffer.emit(
       playSessionId: playSessionId,
       type: ShapeMatchingEventType.activityHintUsed,
-      payload: {'hint_level': _hintLevel},
+      payload: {'hint_level': nextLevel},
     );
-    _lastOutcome = HintOfferedOutcome(level: _hintLevel);
+    _lastOutcome = HintOfferedOutcome(level: nextLevel);
     _notify();
   }
 
@@ -315,11 +316,7 @@ class ShapeMatchingActivity extends LearningActivity {
         payload: const {'completion_status': 'abandoned'},
       );
     } else if (outcome is HintOfferedOutcome) {
-      eventBuffer.emit(
-        playSessionId: playSessionId,
-        type: ShapeMatchingEventType.activityHintUsed,
-        payload: {'hint_level': outcome.level},
-      );
+      // Telemetry for hints is owned by [offerHint] only (idempotent per level).
     }
     _notify();
   }

@@ -5,6 +5,10 @@ import 'package:flame/game.dart';
 
 import 'shape_matching_activity.dart';
 
+/// ADR-015 / LMP-44 hybrid: Flutter owns input and layout ([ShapeMatchingPlayField]);
+/// Flame owns ambient scoring-neutral feedback tied to [ActivitySessionController]
+/// engine tick pause/resume. Same pattern as Near/Far demo (Flutter field + Flame shell).
+///
 /// Gentle Flame feedback layer — scoring-neutral pulse on correct matches.
 class ShapeMatchingFlameLayer extends Component {
   ShapeMatchingFlameLayer({required this.activity});
@@ -47,7 +51,9 @@ extension ShapeMatchingFlameMount on ShapeMatchingActivity {
   }
 
   Future<void> unmountFlameLayer(FlameGame game) async {
-    for (final layer in game.children.query<ShapeMatchingFlameLayer>()) {
+    for (final layer in List<ShapeMatchingFlameLayer>.from(
+      game.children.query<ShapeMatchingFlameLayer>(),
+    )) {
       layer.removeFromParent();
     }
   }

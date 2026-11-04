@@ -1,5 +1,7 @@
+import 'package:flame/game.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/game/scoring_neutral_outcome.dart';
+import 'package:little_minds_mobile/shape_matching/shape_matching_flame_layer.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_activity.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_constants.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_events.dart';
@@ -40,6 +42,33 @@ void main() {
       );
       expect(a.target, b.target);
       expect(a.choices, b.choices);
+    });
+  });
+
+  group('ShapeMatching eligibility matrix', () {
+    test('17 months fail-safe (not playable, prepare throws)', () async {
+      final activity = ShapeMatchingActivity(ageMonthsProvider: () => 17);
+      expect(activity.isPlayable, isFalse);
+      expect(activity.prepare(), throwsStateError);
+    });
+
+    test('24 months band uses two choices', () async {
+      final activity = ShapeMatchingActivity(ageMonthsProvider: () => 24);
+      expect(activity.isPlayable, isTrue);
+      await activity.prepare();
+      expect(activity.round?.choices.length, 2);
+    });
+
+    test('36 months band uses three choices', () async {
+      final activity = ShapeMatchingActivity(ageMonthsProvider: () => 36);
+      await activity.prepare();
+      expect(activity.round?.choices.length, 3);
+    });
+
+    test('60 months band uses five choices', () async {
+      final activity = ShapeMatchingActivity(ageMonthsProvider: () => 60);
+      await activity.prepare();
+      expect(activity.round?.choices.length, 5);
     });
   });
 
@@ -107,6 +136,58 @@ void main() {
           .toList();
       expect(started, hasLength(2));
       expect(started.last.payload['restart'], isTrue);
+    });
+  });
+
+  group('hint telemetry ownership', () {
+    test('exactly one activity_hint_used per level; idempotent via onOutcome', () async {
+      final buffer = ShapeMatchingLocalEventBuffer();
+      final activity = ShapeMatchingActivity(
+        ageMonthsProvider: () => 30,
+        eventBuffer: buffer,
+        playSessionId: '00000000-0000-4000-8000-000000000055',
+      );
+      await activity.prepare();
+      final round = activity.round!;
+      final wrong = round.choices.firstWhere((c) => c != round.target);
+
+      activity.pickShape(wrong);
+      activity.pickShape(wrong);
+      var hints = buffer.events
+          .where((e) => e.eventType == 'activity_hint_used')
+          .toList();
+      expect(hints, hasLength(1));
+      expect(hints.single.payload['hint_level'], 1);
+
+      activity.onOutcome(const HintOfferedOutcome(level: 1));
+      hints = buffer.events
+          .where((e) => e.eventType == 'activity_hint_used')
+          .toList();
+      expect(hints, hasLength(1));
+
+      activity.pickShape(wrong);
+      activity.pickShape(wrong);
+      hints = buffer.events
+          .where((e) => e.eventType == 'activity_hint_used')
+          .toList();
+      expect(hints, hasLength(2));
+      expect(hints.last.payload['hint_level'], 2);
+    });
+  });
+
+  group('Flame hybrid architecture', () {
+    test('mounts ShapeMatchingFlameLayer on enter and removes on exit', () async {
+      final game = FlameGame();
+      final activity = ShapeMatchingActivity(
+        ageMonthsProvider: () => 28,
+        playSessionId: '00000000-0000-4000-8000-000000000044',
+      );
+      await activity.prepare();
+      activity.bindFlameGame(game);
+      await activity.onEnter();
+      expect(game.children.query<ShapeMatchingFlameLayer>(), isNotEmpty);
+      await activity.onExit();
+      expect(game.children.query<ShapeMatchingFlameLayer>(), isEmpty);
     });
   });
 
