@@ -1,14 +1,25 @@
 import assert from 'node:assert/strict';
-import { afterEach, test } from 'node:test';
+import { afterEach, beforeEach, test } from 'node:test';
 import React from 'react';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
-Object.assign(globalThis, {
-  window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement,
-  MutationObserver: dom.window.MutationObserver,
-});
-Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
+function bindDomGlobals() {
+  // Component tests in this package each create a JSDOM and assign globalThis.
+  // Re-bind before every test so window listeners + fireEvent share one document
+  // even when the Node test runner loads files concurrently.
+  Object.assign(globalThis, {
+    window: dom.window,
+    document: dom.window.document,
+    HTMLElement: dom.window.HTMLElement,
+    MutationObserver: dom.window.MutationObserver,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: dom.window.navigator,
+  });
+}
+bindDomGlobals();
 const { act, cleanup, render, screen, waitFor, fireEvent } = require('@testing-library/react') as typeof import('@testing-library/react');
 const { WebParentDashboard, dashboardWindow, formatSessionKpiRate } = require('../app/parent/web-parent-dashboard') as typeof import('../app/parent/web-parent-dashboard');
 
@@ -40,6 +51,7 @@ const mission = {
 function reply(status: number, data: unknown): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => data } as Response;
 }
+beforeEach(() => { bindDomGlobals(); });
 afterEach(() => { cleanup(); delete (globalThis as { fetch?: unknown }).fetch; });
 
 test('window matches previous seven Istanbul dates and today, half-open UTC', () => {
@@ -163,27 +175,40 @@ test('tab focus revalidates session and clears data after logout', async () => {
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
-  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  Object.defineProperty(dom.window.document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  });
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
   authed = false;
-  fireEvent(window, new dom.window.Event('focus'));
+  fireEvent(dom.window, new dom.window.Event('focus'));
   await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
   assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
 });
 
 test('tab focus clears dashboard when parent identity changes', async () => {
   let parent = 'parent-a';
+  let meCalls = 0;
   globalThis.fetch = (async (url: string) => {
-    if (url === '/api/auth/me') return reply(200, { parent_id: parent });
+    if (url === '/api/auth/me') {
+      meCalls += 1;
+      return reply(200, { parent_id: parent });
+    }
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
-  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  // Bind listeners + events to this file's JSDOM (avoid cross-file globalThis.window clobber).
+  Object.defineProperty(dom.window.document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  });
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/Ebeveyn bildirimi yok/)));
+  const meBeforeFocus = meCalls;
   parent = 'parent-b';
-  fireEvent(window, new dom.window.Event('focus'));
+  fireEvent(dom.window, new dom.window.Event('focus'));
+  await waitFor(() => assert.ok(meCalls > meBeforeFocus));
   await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
   assert.equal(screen.queryByText(/Ebeveyn bildirimi yok/), null);
 });
@@ -198,12 +223,15 @@ test('tab focus network error on session revalidation fails closed', async () =>
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
-  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  Object.defineProperty(dom.window.document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  });
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
   assert.ok(screen.getByText(/Ebeveyn bildirimi yok \(uygulama etkileşimi tamamlanma kanıtı değildir\)/));
   failMeOnFocus = true;
-  fireEvent(window, new dom.window.Event('focus'));
+  fireEvent(dom.window, new dom.window.Event('focus'));
   await waitFor(() => {
     assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/));
     assert.equal(screen.queryByText(/50% \(1\/2\)/), null);

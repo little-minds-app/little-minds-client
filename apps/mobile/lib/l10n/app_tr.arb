@@ -95,6 +95,8 @@
   "mentorCardOpenMissionHint": "Mevcut Yakın/Uzak oyunu ve gerçek dünya görevini açar. İstediğiniz zaman atlayabilirsiniz. Fotoğraf veya kanıt yok.",
   "screenTimeCalmTitle": "Mola zamanı",
   "screenTimeCalmBody": "Bugünlük ekran süresi doldu. Hazır olduğunda bir büyüğe sor.",
+  "screenTimeCalmTrustTitle": "Bir büyüğe sor",
+  "screenTimeCalmTrustBody": "Oyun, bir büyük ekran süresini kontrol edene kadar duraklatıldı. Bugünkü süren bitmiş değil.",
   "screenTimeCalmGrownUps": "Büyükler",
   "screenTimeDebugSettingsEntry": "Ekran süresi hata ayıklama (DEBUG)",
   "screenTimeDebugSettingsEntryHint": "Yerel günlük limit için canlı denetleyici ve QA kontrolleri. Yalnızca hata ayıklama derlemeleri — bakımveren ürün kontrolü değildir.",

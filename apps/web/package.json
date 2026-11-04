@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint app --max-warnings=0",
     "typecheck": "tsc --noEmit --pretty false",
-    "test": "node --import tsx --test tests/*.test.mjs tests/*.test.tsx"
+    "test": "node --import tsx --test --test-concurrency=1 tests/*.test.mjs tests/*.test.tsx"
   },
   "dependencies": {
     "next": "15.5.28",

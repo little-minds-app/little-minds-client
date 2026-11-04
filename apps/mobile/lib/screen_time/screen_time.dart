@@ -6,6 +6,7 @@
 /// **Not tamper-proof offline** — see [ScreenTimeAccountant] dartdoc.
 library;
 
+export 'child_play_block_reason.dart';
 export 'daily_policy.dart';
 export 'kids_mode_calm_boundary.dart';
 export 'monotonic_clock.dart';

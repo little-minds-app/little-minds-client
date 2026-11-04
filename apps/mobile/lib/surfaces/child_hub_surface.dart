@@ -205,6 +205,8 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
               ),
               if (showCalm)
                 KidsModeCalmBoundary(
+                  blockReason: screenTime?.childPlayBlockReason ??
+                      ChildPlayBlockReason.dailyCap,
                   onOpenParentGate: widget.onOpenParentGate,
                 ),
             ],
