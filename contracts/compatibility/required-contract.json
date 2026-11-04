@@ -43,7 +43,8 @@
     "/v1/events/batch",
     "/v1/insights/session-kpis",
     "/v1/children/{childId}/missions",
-    "/v1/children/{childId}/missions/{missionId}/feedback"
+    "/v1/children/{childId}/missions/{missionId}/feedback",
+    "/v1/devices/{installationId}/active-child"
   ],
   "requiredOperations": [
     {

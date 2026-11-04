@@ -18,5 +18,5 @@ PublishedContentRegistry publishedContentRegistryFor(AppConfig config) {
 }
 
 HubDeviceChildBindingClient hubDeviceChildBindingClientFor(AppConfig config) {
-  return HttpHubDeviceChildBindingClient(apiBaseUrl: config.apiBaseUrl);
+  return OpenApiHubDeviceChildBindingClient(config: config);
 }

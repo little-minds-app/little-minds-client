@@ -1,9 +1,9 @@
 {
-  "$comment": "LMP-54 web BFF dashboard read routes (session KPIs + child missions)",
+  "$comment": "LMP-134 device active-child bind/read + prior LMP-54 dashboard routes",
   "backendRepository": "little-minds-app/little-minds-backend",
-  "backendCommitSha": "455bc3f3a3a44bb436d0c723dc407cff07d92e8d",
+  "backendCommitSha": "d787ea606def7c2d195a04dec63ba64f7b3da0f3",
   "artifactPath": "contracts/openapi.yaml",
-  "artifactBlobSha": "95a261894d27447f95537bdd9ccb7df4c4696b43",
-  "contractVersion": "0.14.2",
-  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/34"
+  "artifactBlobSha": "d4736975f4bf09601378593b988ba8e5143551f9",
+  "contractVersion": "0.14.3",
+  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/37"
 }

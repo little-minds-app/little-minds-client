@@ -205,16 +205,20 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     if (coordinator == null || widget.game != null) return;
     final generation = ++_hubTelemetryReconcileGeneration;
     try {
+      String? installationId;
       String? scopedDeviceId;
       if (_parentAuth.isAuthenticated) {
         try {
+          installationId = await _parentAuth.resolveInstallationId();
           scopedDeviceId = await _parentAuth.resolveScopedDeviceId();
         } catch (_) {
+          installationId = null;
           scopedDeviceId = null;
         }
       }
       await widget.hubDeviceChildBinding?.synchronizeSelectedChild(
         session: _parentAuth.session,
+        installationId: installationId,
         scopedDeviceId: scopedDeviceId,
         selectedChildId: _profiles.selectedId,
       );

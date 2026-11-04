@@ -19,7 +19,7 @@ final class HubDeviceChildBindingFailed extends HubDeviceChildBindingResult {
 abstract class HubDeviceChildBindingClient {
   Future<HubDeviceChildBindingResult> bindSelectedChild({
     required AuthSession session,
-    required String scopedDeviceId,
+    required String installationId,
     required String selectedChildId,
   });
 }
@@ -30,7 +30,7 @@ final class FailClosedHubDeviceChildBindingClient
   @override
   Future<HubDeviceChildBindingResult> bindSelectedChild({
     required AuthSession session,
-    required String scopedDeviceId,
+    required String installationId,
     required String selectedChildId,
   }) async =>
       const HubDeviceChildBindingFailed();
@@ -41,7 +41,7 @@ final class FakeHubDeviceChildBindingClient implements HubDeviceChildBindingClie
   @override
   Future<HubDeviceChildBindingResult> bindSelectedChild({
     required AuthSession session,
-    required String scopedDeviceId,
+    required String installationId,
     required String selectedChildId,
   }) async =>
       HubDeviceChildBound(selectedChildId);
@@ -59,10 +59,15 @@ final class HubDeviceChildBindingService {
 
   Future<void> synchronizeSelectedChild({
     required AuthSession? session,
+    required String? installationId,
     required String? scopedDeviceId,
     required String? selectedChildId,
   }) async {
-    if (session == null || scopedDeviceId == null || scopedDeviceId.isEmpty) {
+    if (session == null ||
+        installationId == null ||
+        installationId.isEmpty ||
+        scopedDeviceId == null ||
+        scopedDeviceId.isEmpty) {
       return;
     }
     if (selectedChildId == null || selectedChildId.isEmpty) {
@@ -75,7 +80,7 @@ final class HubDeviceChildBindingService {
     }
     final result = await client.bindSelectedChild(
       session: session,
-      scopedDeviceId: scopedDeviceId,
+      installationId: installationId,
       selectedChildId: selectedChildId,
     );
     switch (result) {

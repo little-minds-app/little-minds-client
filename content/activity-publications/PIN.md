@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Backend PR | https://github.com/little-minds-app/little-minds-backend/pull/37 |
-| Pinned commit SHA | `4ce1dc1355c55c2b488ef405fda909c47b8258cd` |
+| Pinned commit SHA | `d787ea606def7c2d195a04dec63ba64f7b3da0f3` |
 | Fixture (backend) | `content/fixtures/activity-publications/shape-matching.v1.json` |
 | Flutter assets | `apps/mobile/assets/content/activity_publications/` (mirrors fixture) |
 

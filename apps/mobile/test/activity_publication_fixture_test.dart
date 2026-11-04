@@ -30,7 +30,7 @@ void main() {
     });
 
     test('pin metadata references backend PR #37 commit', () {
-      expect(ActivityPublicationPin.backendCommitSha, startsWith('4ce1dc1'));
+      expect(ActivityPublicationPin.backendCommitSha, startsWith('d787ea6'));
       expect(
         ActivityPublicationPin.backendPullRequestUrl,
         contains('little-minds-backend/pull/37'),
