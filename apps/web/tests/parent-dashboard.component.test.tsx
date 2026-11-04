@@ -151,7 +151,8 @@ test('stale and partial freshness metadata show warnings', async () => {
     return reply(200, mission);
   }) as typeof fetch;
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
-  await waitFor(() => assert.ok(screen.getByText(/Veriler güncel olmayabilir/)));
+  await waitFor(() => assert.ok(screen.getByText(/Ebeveyn bildirimi yok/)));
+  assert.ok(await screen.findByText(/Veriler güncel olmayabilir/));
   assert.ok(screen.getByText(/Veri seti kısmi olabilir/));
 });
 
@@ -200,9 +201,11 @@ test('tab focus network error on session revalidation fails closed', async () =>
   }) as typeof fetch;
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
+  assert.ok(screen.getByText(/Ebeveyn bildirimi yok \(uygulama etkileşimi tamamlanma kanıtı değildir\)/));
   fireEvent(window, new dom.window.Event('focus'));
-  await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
+  assert.ok(await screen.findByText(/Korumalı bilgiler gizlendi/));
   assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
+  assert.equal(screen.queryByText(/Ebeveyn bildirimi yok/), null);
 });
 
 test('retry refetches both independent data panels', async () => {

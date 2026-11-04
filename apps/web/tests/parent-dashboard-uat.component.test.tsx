@@ -64,8 +64,8 @@ test('UAT-04: renders only authoritative caregiver completion and server KPI val
   render(React.createElement(WebParentDashboard, { selectedChildId: child }));
   await waitFor(() => assert.ok(screen.getByText(/Ebeveyn bildirimi: Tamamlandı/)));
   assert.ok(screen.getByText(/60% \(3\/5\)/));
-  assert.ok(screen.getByText(/Kaynak: caregiver_report/));
-  assert.ok(screen.getByText(/Aktör: parent/));
+  assert.ok(screen.getByText(/Kaynak: Ebeveyn bildirimi/));
+  assert.ok(screen.getByText(/Aktör: Ebeveyn/));
   assert.ok(screen.getByText(/Yetkili kayıt/));
 });
 

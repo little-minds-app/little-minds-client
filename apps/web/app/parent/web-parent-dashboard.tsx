@@ -9,6 +9,8 @@ import {
   formatPlayDuration,
   freshnessStatusLabel,
   mapSessionKpiView,
+  missionReportActorLabel,
+  missionReportSourceLabel,
 } from './session-kpi-presentation';
 
 type Kpi = components['schemas']['SessionKpiResponse'];
@@ -272,7 +274,7 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
                   <li key={item.occurrence_id}>
                     <strong>Görev {item.mission_id}</strong>{' — '}
                     {item.parent_report.availability === 'reported'
-                      ? <>Ebeveyn bildirimi: {statusLabel(item.parent_report.status)} · Kaynak: {item.parent_report.source} · Aktör: {item.parent_report.actor} · {item.parent_report.authoritative ? 'Yetkili kayıt' : 'Bilgilendirici'} · {dateLabel(item.parent_report.recorded_at)}</>
+                      ? <>Ebeveyn bildirimi: {statusLabel(item.parent_report.status)} · Kaynak: {missionReportSourceLabel(item.parent_report.source)} · Aktör: {missionReportActorLabel(item.parent_report.actor)} · {item.parent_report.authoritative ? 'Yetkili kayıt' : 'Bilgilendirici'} · {dateLabel(item.parent_report.recorded_at)}</>
                       : <>Ebeveyn bildirimi yok (uygulama etkileşimi tamamlanma kanıtı değildir)</>}
                   </li>
                 ))}</ul>

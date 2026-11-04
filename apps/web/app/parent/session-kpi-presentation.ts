@@ -35,6 +35,15 @@ export function formatSessionKpiRate(metric: Rate): { label: string; unavailable
   return { label: `${pct}% (${metric.numerator}/${metric.denominator})`, unavailable: false };
 }
 
+export function missionReportSourceLabel(source: string): string {
+  return ({ caregiver_report: 'Ebeveyn bildirimi' } as Record<string, string>)[source]
+    ?? 'Sunucu kaydı';
+}
+
+export function missionReportActorLabel(actor: string): string {
+  return ({ parent: 'Ebeveyn' } as Record<string, string>)[actor] ?? 'Bilinmiyor';
+}
+
 export function formatPlayDuration(totalSeconds: number) {
   if (totalSeconds <= 0) return '0 dk';
   const minutes = Math.floor(totalSeconds / 60);
