@@ -908,34 +908,20 @@ abstract class AppLocalizations {
   /// **'Persisted current checkpoint.'**
   String get screenTimeDebugStatusPersist;
 
-  /// No description provided for @shapeMatchingPromptMatch.
-  ///
-  /// In en, this message translates to:
-  /// **'Match the shape at the top.'**
   String get shapeMatchingPromptMatch;
 
-  /// No description provided for @shapeMatchingPromptDone.
-  ///
-  /// In en, this message translates to:
-  /// **'Nice matching!'**
   String get shapeMatchingPromptDone;
 
-  /// No description provided for @shapeMatchingVisualOnlyAudio.
-  ///
-  /// In en, this message translates to:
-  /// **'Visual cues only — sound packs not installed.'**
-  String get shapeMatchingVisualOnlyAudio;
-
-  /// No description provided for @shapeMatchingTapOrDragHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap or drag to match.'**
   String get shapeMatchingTapOrDragHint;
 
-  /// No description provided for @shapeMatchingHintLevel.
-  ///
-  /// In en, this message translates to:
-  /// **'Hint {level}'**
+  String get shapeMatchingTargetLabel;
+
+  String get shapeMatchingChoicesLabel;
+
+  String get shapeMatchingTryAgain;
+
+  String get shapeMatchingPlayAgain;
+
   String shapeMatchingHintLevel(int level);
 
   /// No description provided for @shapeMatchingShapeCircle.

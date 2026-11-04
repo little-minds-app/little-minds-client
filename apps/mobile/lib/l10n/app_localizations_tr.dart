@@ -450,22 +450,29 @@ class AppLocalizationsTr extends AppLocalizations {
       'Geçerli kontrol noktası kaydedildi.';
 
   @override
-  String get shapeMatchingPromptMatch => 'Üstteki şekille eşleştir.';
+  String get shapeMatchingPromptMatch => 'Aynı şekli bul!';
 
   @override
-  String get shapeMatchingPromptDone => 'Güzel eşleştirme!';
+  String get shapeMatchingPromptDone => 'Harika yaptın!';
 
   @override
-  String get shapeMatchingVisualOnlyAudio =>
-      'Yalnızca görsel ipuçları — ses paketi yüklü değil.';
+  String get shapeMatchingTapOrDragHint => 'Dokun veya sürükle.';
 
   @override
-  String get shapeMatchingTapOrDragHint =>
-      'Eşleştirmek için dokun veya sürükle.';
+  String get shapeMatchingTargetLabel => 'Bunu eşleştir';
+
+  @override
+  String get shapeMatchingChoicesLabel => 'Birini seç';
+
+  @override
+  String get shapeMatchingTryAgain => 'Bir daha dene!';
+
+  @override
+  String get shapeMatchingPlayAgain => 'Tekrar oyna';
 
   @override
   String shapeMatchingHintLevel(int level) {
-    return 'İpucu $level';
+    return 'Küçük bir ipucu: aynı şekle bak ($level)';
   }
 
   @override

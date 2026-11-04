@@ -75,7 +75,7 @@ void main() {
     await _pumpFrames(tester);
     expect(find.byKey(ShapeMatchingPlayField.fieldKey), findsOneWidget);
     expect(find.byKey(ShapeMatchingPlayField.promptKey), findsOneWidget);
-    expect(find.text('Match the shape at the top.'), findsOneWidget);
+    expect(find.text('Find the same shape!'), findsOneWidget);
   });
 
   testWidgets('TC-SM-W02 Turkish guidance strings', (tester) async {
@@ -89,8 +89,37 @@ void main() {
       _host(activity: activity, locale: const Locale('tr', 'TR')),
     );
     await _pumpFrames(tester);
-    expect(find.text('Üstteki şekille eşleştir.'), findsOneWidget);
-    expect(find.byKey(ShapeMatchingPlayField.audioNoticeKey), findsOneWidget);
+    expect(find.text('Aynı şekli bul!'), findsOneWidget);
+    expect(find.text('Bunu eşleştir'), findsOneWidget);
+  });
+
+  testWidgets('TC-SM-W10 instruction and target zones do not overlap on short landscape',
+      (tester) async {
+    final activity = _activityForAge(30);
+    await _setLandscape(tester, width: 640, height: 320);
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+    final promptBox = tester.getRect(find.byKey(ShapeMatchingPlayField.promptKey));
+    final targetBox = tester.getRect(find.byKey(ShapeMatchingPlayField.targetKey));
+    expect(promptBox.bottom, lessThanOrEqualTo(targetBox.top));
+  });
+
+  testWidgets('TC-SM-W11 wrong pick shows localized try-again feedback', (tester) async {
+    final activity = _activityForAge(30);
+    await activity.prepare();
+    final wrong = activity.round!.choices
+        .firstWhere((c) => c != activity.round!.target);
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+    await tester.tap(find.byKey(ShapeMatchingPlayField.choiceKey(wrong)));
+    await _pumpFrames(tester);
+    expect(find.byKey(ShapeMatchingPlayField.tryAgainKey), findsOneWidget);
+    expect(find.text('Try again!'), findsOneWidget);
   });
 
   testWidgets('TC-SM-W03 tap correct shape advances', (tester) async {
@@ -216,6 +245,28 @@ void main() {
       await _pumpFrames(tester);
     }
     expect(find.byKey(ShapeMatchingPlayField.completionKey), findsOneWidget);
-    expect(find.text('Nice matching!'), findsOneWidget);
+    expect(find.text('You did it!'), findsOneWidget);
+    expect(find.byKey(ShapeMatchingPlayField.replayKey), findsOneWidget);
+  });
+
+  testWidgets('TC-SM-W12 replay restarts session from completion', (tester) async {
+    final activity = _activityForAge(30);
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(
+        find.byKey(ShapeMatchingPlayField.choiceKey(activity.round!.target)),
+      );
+      await _pumpFrames(tester);
+    }
+    await tester.tap(find.byKey(ShapeMatchingPlayField.replayKey));
+    await _pumpFrames(tester);
+    expect(activity.roundIndex, 0);
+    expect(find.byKey(ShapeMatchingPlayField.targetKey), findsOneWidget);
   });
 }

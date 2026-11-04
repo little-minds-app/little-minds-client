@@ -245,11 +245,14 @@
   "screenTimeDebugStatusReset": "Budget reset to 0:00.",
   "screenTimeDebugStatusReload": "Reloaded from store.",
   "screenTimeDebugStatusPersist": "Persisted current checkpoint.",
-  "shapeMatchingPromptMatch": "Match the shape at the top.",
-  "shapeMatchingPromptDone": "Nice matching!",
-  "shapeMatchingVisualOnlyAudio": "Visual cues only — sound packs not installed.",
-  "shapeMatchingTapOrDragHint": "Tap or drag to match.",
-  "shapeMatchingHintLevel": "Hint {level}",
+  "shapeMatchingPromptMatch": "Find the same shape!",
+  "shapeMatchingPromptDone": "You did it!",
+  "shapeMatchingTapOrDragHint": "Tap or drag your shape.",
+  "shapeMatchingTargetLabel": "Match this one",
+  "shapeMatchingChoicesLabel": "Pick one",
+  "shapeMatchingTryAgain": "Try again!",
+  "shapeMatchingPlayAgain": "Play again",
+  "shapeMatchingHintLevel": "A little help: look for the same shape ({level})",
   "@shapeMatchingHintLevel": {
     "placeholders": {
       "level": {"type": "int"}
