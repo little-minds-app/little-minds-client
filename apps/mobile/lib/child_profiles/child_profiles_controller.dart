@@ -2,7 +2,6 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:little_minds_api/api.dart';
-import 'package:little_minds_api/api.dart';
 
 import '../auth/parent_auth_controller.dart';
 import 'child_profile_repository.dart';
@@ -139,18 +138,12 @@ class ChildProfilesController extends ChangeNotifier {
       return true;
     } on ApiException catch (error) {
       if (generation == _generation) {
-        _error = switch (error.code) {
-          400 => 'Girilen profil bilgisi sunucu tarafından kabul edilmedi. Yaş ve takma adı kontrol edin.',
-          401 => 'Oturum sona erdi. Yeniden giriş yapın.',
-          403 => 'Bu işlem için ebeveyn doğrulaması gerekli.',
-          404 => 'Profil bulunamadı veya size ait değil.',
-          _ => 'Profil kaydedilemedi. Yeniden deneyin.',
-        };
+        _error = _profileSaveErrorForStatus(error.code);
       }
       return false;
     } catch (_) {
       if (generation == _generation) {
-        _error = 'Profil kaydedilemedi. Yeniden deneyin.';
+        _error = 'Bağlantı hatası. Kaydı tekrar deneyin.';
       }
       return false;
     } finally {
@@ -165,5 +158,26 @@ class ChildProfilesController extends ChangeNotifier {
   void dispose() {
     _auth.removeListener(_onAuthChanged);
     super.dispose();
+  }
+}
+
+String _profileSaveErrorForStatus(int code) {
+  switch (code) {
+    case 400:
+      return 'Girilen profil bilgisi sunucu tarafından kabul edilmedi. Yaş ve takma adı kontrol edin.';
+    case 401:
+      return 'Oturum sona erdi. Yeniden giriş yapın.';
+    case 403:
+      return 'Bu işlem için ebeveyn doğrulaması gerekli.';
+    case 404:
+      return 'Profil bulunamadı veya size ait değil.';
+    case 409:
+      return 'Profil çakışması. Listeyi yenileyip tekrar deneyin.';
+    case 502:
+    case 503:
+      return 'Sunucu geçici olarak kullanılamıyor. Kaydı tekrar deneyin.';
+    default:
+      if (code >= 500) return 'Sunucu hatası. Kaydı tekrar deneyin.';
+      return 'Profil kaydedilemedi. Yeniden deneyin.';
   }
 }

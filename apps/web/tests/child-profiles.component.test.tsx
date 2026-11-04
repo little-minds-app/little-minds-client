@@ -12,7 +12,7 @@ Object.assign(globalThis, {
 });
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
 const { cleanup, fireEvent, render, screen, waitFor } = require('@testing-library/react') as typeof import('@testing-library/react');
-const { ChildProfiles } = require('../app/parent/child-profiles') as typeof import('../app/parent/child-profiles');
+const { ChildProfiles, profileSaveErrorMessage } = require('../app/parent/child-profiles') as typeof import('../app/parent/child-profiles');
 
 afterEach(() => {
   cleanup();
@@ -87,7 +87,7 @@ test('backend outage shows recovery action and retry clears error', async () => 
   render(React.createElement(ChildProfiles));
   await waitFor(() => assert.ok(screen.getByRole('alert')));
   fail = false;
-  fireEvent.click(screen.getByRole('button', { name: 'Tekrar dene' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Listeyi tekrar yükle' }));
   await waitFor(() => assert.ok(screen.getByText('Henüz çocuk profili yok.')));
   assert.equal(screen.queryByRole('alert'), null);
 });
@@ -108,6 +108,83 @@ test('stale child request cannot repopulate a changed parent', async () => {
   release(reply(200, { children: [a] }));
   await waitFor(() => assert.ok(screen.getByRole('alert')));
   assert.equal(screen.queryByText(/Demo — 32 ay/), null);
-  fireEvent.click(screen.getByRole('button', { name: 'Tekrar dene' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Listeyi tekrar yükle' }));
   await waitFor(() => assert.ok(screen.getByText('Henüz çocuk profili yok.')));
+});
+
+test('profile save error mapping covers 409 and 5xx distinctly', () => {
+  assert.match(profileSaveErrorMessage(409), /çakışması/);
+  assert.match(profileSaveErrorMessage(503), /Kaydı tekrar/);
+  assert.match(profileSaveErrorMessage(500), /Sunucu hatası/);
+});
+
+test('PATCH ok then session identity change on verify fails closed without success', async () => {
+  const rows = [a];
+  let patchHappened = false;
+  let authMeSincePatch = 0;
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    if (url === '/api/auth/me') {
+      if (patchHappened) {
+        authMeSincePatch += 1;
+        if (authMeSincePatch >= 2) return reply(200, { parent_id: 'parent-b' });
+      }
+      return reply(200, { parent_id: 'parent-a' });
+    }
+    if (url === '/api/children' && !init?.method) return reply(200, { children: rows });
+    if (init?.method === 'PATCH') {
+      patchHappened = true;
+      authMeSincePatch = 0;
+      rows[0] = { ...a, nickname: 'Updated' };
+      return reply(200, rows[0]);
+    }
+    throw new Error('Unexpected');
+  }) as typeof fetch;
+  render(React.createElement(ChildProfiles));
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo — 32 ay/ })));
+  fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
+  fireEvent.change(screen.getByLabelText('Takma ad (isteğe bağlı)'), { target: { value: 'Updated' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
+  assert.ok(await screen.findByText(/liste güncellenemedi/i, {}, { timeout: 3000 }));
+  assert.equal(screen.queryByText(/^Profil sunucuda kaydedildi\.$/), null);
+});
+
+test('save network error retries PATCH not only reload', async () => {
+  const rows = [a];
+  let patchAttempts = 0;
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    if (url === '/api/auth/me') return reply(200, { parent_id: 'parent-a' });
+    if (url === '/api/children' && !init?.method) return reply(200, { children: rows });
+    if (init?.method === 'PATCH') {
+      patchAttempts++;
+      if (patchAttempts === 1) throw new TypeError('network down');
+      rows[0] = { ...a, age_months: 33 };
+      return reply(200, rows[0]);
+    }
+    throw new Error('Unexpected');
+  }) as typeof fetch;
+  render(React.createElement(ChildProfiles));
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo — 32 ay/ })));
+  fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
+  fireEvent.change(screen.getByLabelText('Yaş (ay)'), { target: { value: '33' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
+  await waitFor(() => assert.ok(screen.getByRole('alert')));
+  fireEvent.click(screen.getByRole('button', { name: 'Kaydı tekrar dene' }));
+  await waitFor(() => assert.ok(screen.getByText(/Profil sunucuda kaydedildi/)));
+  assert.equal(patchAttempts, 2);
+});
+
+test('409 conflict on save offers save retry', async () => {
+  const rows = [a];
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    if (url === '/api/auth/me') return reply(200, { parent_id: 'parent-a' });
+    if (url === '/api/children' && !init?.method) return reply(200, { children: rows });
+    if (init?.method === 'PATCH') return reply(409, { error: 'conflict' });
+    throw new Error('Unexpected');
+  }) as typeof fetch;
+  render(React.createElement(ChildProfiles));
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo — 32 ay/ })));
+  fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
+  await waitFor(() => assert.match(screen.getByRole('alert').textContent ?? '', /çakışması/));
+  assert.ok(screen.getByRole('button', { name: 'Kaydı tekrar dene' }));
 });

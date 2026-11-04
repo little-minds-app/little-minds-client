@@ -526,6 +526,86 @@ void main() {
     expect(find.byKey(ParentDashboardSurface.missionContentKey), findsOneWidget);
   });
 
+  testWidgets('activity chart shows labels and zero-duration track at compact width',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final auth = ParentAuthController(
+      repository: ParentAuthRepository(
+        config: AppConfig.developmentLocal,
+        tokenStore: InMemoryAuthTokenStore(),
+      ),
+    );
+    auth.seedAuthenticatedSessionForTests(const AuthSession(
+      accessToken: 'token',
+      refreshToken: 'refresh',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      expiresInSeconds: 900,
+    ));
+
+    final fakeProfiles = FakeChildProfiles(auth);
+    fakeProfiles.rows.add(ChildProfileResponse(
+      childId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      nickname: 'Ada',
+      ageMonths: 32,
+      preferredLocale: 'tr-TR',
+    ));
+    final profiles = ChildProfilesController(repository: fakeProfiles, auth: auth);
+    await profiles.load();
+    profiles.select('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+    final repo = FakeSessionKpiRepository(auth)
+      ..response = sampleKpiResponse(
+        byActivity: [
+          SessionKpiActivityBreakdown(
+            contentVersionId: 'activity-zero',
+            sessionStarts: 2,
+            completedSessions: 1,
+            playDurationSeconds: 0,
+          ),
+          SessionKpiActivityBreakdown(
+            contentVersionId: 'activity-play',
+            sessionStarts: 1,
+            completedSessions: 1,
+            playDurationSeconds: 120,
+          ),
+        ],
+      );
+    final missionRepo = FakeMissionStatusRepository(auth)
+      ..response = sampleMissionStatusResponse();
+
+    final dashboardController = ParentDashboardController(
+      repository: repo,
+      missionRepository: missionRepo,
+      auth: auth,
+      profiles: profiles,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ParentDashboardSurface(
+          auth: auth,
+          profiles: profiles,
+          repository: repo,
+          missionRepository: missionRepo,
+          controller: dashboardController,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(ParentDashboardSurface.activityChartKey), findsOneWidget);
+    expect(find.text('activity-zero'), findsOneWidget);
+    expect(find.text('activity-play'), findsOneWidget);
+    expect(find.textContaining('0 dk'), findsWidgets);
+    expect(find.byKey(const Key('activity-chart-meta-activity-play')), findsOneWidget);
+  });
+
   testWidgets('Child Hub does not expose dashboard entry without parent path',
       (tester) async {
     await tester.pumpWidget(LittleMindsApp(

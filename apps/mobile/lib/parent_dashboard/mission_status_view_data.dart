@@ -100,14 +100,12 @@ MissionStatusRowView _mapRow(MissionStatusOccurrenceRow row) {
 String _formatReportSource(MissionParentReportFactsSource_Enum source) {
   return switch (source) {
     MissionParentReportFactsSource_Enum.caregiverReport => 'Ebeveyn bildirimi',
-    MissionParentReportFactsSource_Enum() => 'Sunucu kaydı',
   };
 }
 
 String _formatReportActor(MissionParentReportFactsActorEnum actor) {
   return switch (actor) {
     MissionParentReportFactsActorEnum.parent => 'Ebeveyn',
-    MissionParentReportFactsActorEnum() => 'Bilinmiyor',
   };
 }
 

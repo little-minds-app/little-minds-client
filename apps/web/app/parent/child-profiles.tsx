@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ParentFeedback } from './parent-feedback';
+import { ParentFeedback, type ParentFeedbackKind } from './parent-feedback';
 
 type Profile = { child_id: string; nickname: string | null; age_months: number; preferred_locale: string };
 type Form = { nickname: string; age_months: string };
+type RetryAction = 'reload' | 'save';
+type FeedbackState = { kind: ParentFeedbackKind; title: string; message: string; retry: RetryAction } | null;
+
 const emptyForm = { nickname: '', age_months: '32' };
 
 function istanbulToday(): string {
@@ -15,7 +18,7 @@ function istanbulToday(): string {
   return `${read('year')}-${read('month')}-${read('day')}`;
 }
 
-function profileSaveErrorMessage(status: number): string {
+export function profileSaveErrorMessage(status: number): string {
   switch (status) {
     case 400:
       return 'Girilen profil bilgisi sunucu tarafından kabul edilmedi. Yaş ve takma adı kontrol edin.';
@@ -25,8 +28,29 @@ function profileSaveErrorMessage(status: number): string {
       return 'Bu işlem için yetkiniz yok.';
     case 404:
       return 'Profil bulunamadı veya size ait değil.';
+    case 409:
+      return 'Profil çakışması. Listeyi yenileyip tekrar deneyin.';
+    case 502:
+    case 503:
+      return 'Sunucu geçici olarak kullanılamıyor. Kaydı tekrar deneyin.';
     default:
+      if (status >= 500) return 'Sunucu hatası. Kaydı tekrar deneyin.';
       return 'Profil kaydedilemedi.';
+  }
+}
+
+function profileListErrorMessage(status: number): string {
+  switch (status) {
+    case 401:
+      return 'Oturum sona erdi. Yeniden giriş yapın.';
+    case 403:
+      return 'Profil listesine erişim reddedildi.';
+    case 502:
+    case 503:
+      return 'Sunucu geçici olarak kullanılamıyor. Listeyi tekrar yükleyin.';
+    default:
+      if (status >= 500) return 'Sunucu hatası. Listeyi tekrar yükleyin.';
+      return 'Profiller yüklenemedi.';
   }
 }
 
@@ -36,74 +60,96 @@ export function ChildProfiles({ onSelectionChange }: { onSelectionChange?: (chil
   const [form, setForm] = useState<Form>(emptyForm);
   const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [feedback, setFeedback] = useState<FeedbackState>(null);
   const [loading, setLoading] = useState(true);
   const requestGeneration = useRef(0);
   const parentIdentity = useRef<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const refreshChildrenList = useCallback(async (generation: number): Promise<boolean> => {
+    const me = await fetch('/api/auth/me', { cache: 'no-store' });
+    if (generation !== requestGeneration.current) return false;
+    if (me.status === 401) throw new Error(profileListErrorMessage(401));
+    if (!me.ok) throw new Error('Oturum doğrulanamadı.');
+    const identity = await me.json() as { parent_id?: string };
+    if (generation !== requestGeneration.current) return false;
+    if (!identity.parent_id) throw new Error('Geçersiz ebeveyn oturumu.');
+    const response = await fetch('/api/children', { cache: 'no-store' });
+    if (generation !== requestGeneration.current) return false;
+    if (response.status === 401) throw new Error(profileListErrorMessage(401));
+    if (!response.ok) throw new Error(profileListErrorMessage(response.status));
+    const data = await response.json() as { children: Profile[] };
+    const verify = await fetch('/api/auth/me', { cache: 'no-store' });
+    if (generation !== requestGeneration.current) return false;
+    if (!verify.ok || (await verify.json() as { parent_id?: string }).parent_id !== identity.parent_id) {
+      throw new Error('Oturum değişti. Yeniden deneyin.');
+    }
+    if (generation !== requestGeneration.current) return false;
+    setProfiles(Array.isArray(data.children) ? data.children : []);
+    return true;
+  }, []);
+
+  const reload = useCallback(async (): Promise<boolean> => {
     const generation = ++requestGeneration.current;
     setLoading(true);
-    setError('');
+    setFeedback(null);
     setProfiles([]);
     setSelected(null);
     onSelectionChange?.(null);
     try {
       const me = await fetch('/api/auth/me', { cache: 'no-store' });
-      if (generation !== requestGeneration.current) return;
-      if (me.status === 401) throw new Error('Oturum sona erdi. Yeniden giriş yapın.');
+      if (generation !== requestGeneration.current) return false;
+      if (me.status === 401) throw new Error(profileListErrorMessage(401));
       if (!me.ok) throw new Error('Oturum doğrulanamadı.');
       const identity = await me.json() as { parent_id?: string };
-      if (generation !== requestGeneration.current) return;
+      if (generation !== requestGeneration.current) return false;
       if (!identity.parent_id) throw new Error('Geçersiz ebeveyn oturumu.');
       if (parentIdentity.current !== identity.parent_id) {
         parentIdentity.current = identity.parent_id;
         setEditing(null);
         setForm(emptyForm);
       }
-      const response = await fetch('/api/children', { cache: 'no-store' });
-      if (generation !== requestGeneration.current) return;
-      if (response.status === 401) throw new Error('Oturum sona erdi. Yeniden giriş yapın.');
-      if (!response.ok) throw new Error('Profiller yüklenemedi.');
-      const data = await response.json() as { children: Profile[] };
-      const verify = await fetch('/api/auth/me', { cache: 'no-store' });
-      if (generation !== requestGeneration.current) return;
-      if (!verify.ok || (await verify.json() as { parent_id?: string }).parent_id !== identity.parent_id) {
-        throw new Error('Oturum değişti. Yeniden deneyin.');
-      }
-      if (generation !== requestGeneration.current) return;
-      setProfiles(Array.isArray(data.children) ? data.children : []);
+      const ok = await refreshChildrenList(generation);
+      return ok;
     } catch (e) {
-      if (generation !== requestGeneration.current) return;
+      if (generation !== requestGeneration.current) return false;
       setProfiles([]);
       setSelected(null);
       onSelectionChange?.(null);
-      setError(e instanceof Error ? e.message : 'Bağlantı hatası');
+      const message = e instanceof Error ? e.message : 'Bağlantı hatası. Listeyi tekrar yükleyin.';
+      setFeedback({
+        kind: 'error',
+        title: 'Profil listesi yüklenemedi',
+        message,
+        retry: 'reload',
+      });
+      return false;
     } finally {
       if (generation === requestGeneration.current) setLoading(false);
     }
-  }, [onSelectionChange]);
+  }, [onSelectionChange, refreshChildrenList]);
 
   useEffect(() => {
     void reload();
-    return () => { requestGeneration.current++; };
+    return () => { requestGeneration.current += 1; };
   }, [reload]);
 
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
+  const performSave = useCallback(async () => {
     const months = Number(form.age_months);
     if (!Number.isInteger(months) || months < 0 || months > 2147483647) {
-      setError('Yaş geçerli bir ay sayısı olmalı.');
-      setSuccess('');
+      setFeedback({
+        kind: 'error',
+        title: 'Geçersiz yaş',
+        message: 'Yaş geçerli bir ay sayısı olmalı.',
+        retry: 'save',
+      });
       return;
     }
     const body = editing
       ? { nickname: form.nickname.trim() || null, age_months: months, reference_date: istanbulToday() }
       : { nickname: form.nickname.trim() || undefined, age_months: months, reference_date: istanbulToday() };
     setBusy(true);
-    setError('');
-    setSuccess('');
+    setFeedback(null);
+    const generation = ++requestGeneration.current;
     try {
       const url = editing ? '/api/children/' + editing : '/api/children';
       const res = await fetch(url, {
@@ -111,30 +157,80 @@ export function ChildProfiles({ onSelectionChange }: { onSelectionChange?: (chil
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(profileSaveErrorMessage(res.status));
+      if (generation !== requestGeneration.current) return;
+      if (!res.ok) {
+        setFeedback({
+          kind: 'error',
+          title: 'Profil kaydedilemedi',
+          message: profileSaveErrorMessage(res.status),
+          retry: 'save',
+        });
+        return;
+      }
       setEditing(null);
       setForm(emptyForm);
-      await reload();
-      setSuccess('Profil sunucuda kaydedildi.');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Bağlantı hatası');
+      try {
+        const refreshed = await refreshChildrenList(generation);
+        if (generation !== requestGeneration.current) return;
+        if (!refreshed) {
+          setFeedback({
+            kind: 'warning',
+            title: 'Kayıt alındı',
+            message: 'Profil sunucuda kaydedildi ancak liste güncellenemedi. Listeyi yeniden yükleyin.',
+            retry: 'reload',
+          });
+          return;
+        }
+        setFeedback({
+          kind: 'success',
+          title: 'Kaydedildi',
+          message: 'Profil sunucuda kaydedildi.',
+          retry: 'reload',
+        });
+      } catch (e) {
+        if (generation !== requestGeneration.current) return;
+        const message = e instanceof Error ? e.message : 'Liste güncellenemedi.';
+        setFeedback({
+          kind: 'warning',
+          title: 'Kayıt alındı',
+          message: `Profil sunucuda kaydedildi ancak liste güncellenemedi. ${message}`,
+          retry: 'reload',
+        });
+      }
+    } catch {
+      if (generation !== requestGeneration.current) return;
+      setFeedback({
+        kind: 'error',
+        title: 'Bağlantı hatası',
+        message: 'Ağ hatası nedeniyle profil kaydedilemedi. Kaydı tekrar deneyin.',
+        retry: 'save',
+      });
     } finally {
-      setBusy(false);
+      if (generation === requestGeneration.current) setBusy(false);
     }
+  }, [editing, form, refreshChildrenList]);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    await performSave();
+  }
+
+  function handleRetry() {
+    if (feedback?.retry === 'save') void performSave();
+    else void reload();
   }
 
   return (
     <section aria-label="Çocuk profilleri">
       <h2>Çocuk profilleri</h2>
       <p>Kesin doğum tarihi gerekmiyor. Çocuğunuzun yaklaşık yaşını ay olarak girin.</p>
-      {success && <ParentFeedback kind="success" title="Kaydedildi" message={success} />}
-      {error && (
+      {feedback && (
         <ParentFeedback
-          kind="error"
-          title="Profil işlemi başarısız"
-          message={error}
-          onRetry={() => void reload()}
-          retryLabel="Tekrar dene"
+          kind={feedback.kind}
+          title={feedback.title}
+          message={feedback.message}
+          onRetry={feedback.kind === 'success' ? undefined : handleRetry}
+          retryLabel={feedback.retry === 'save' ? 'Kaydı tekrar dene' : 'Listeyi tekrar yükle'}
         />
       )}
       {loading ? <p role="status">Profiller yükleniyor…</p> : profiles.length === 0 ? <p>Henüz çocuk profili yok.</p> : (

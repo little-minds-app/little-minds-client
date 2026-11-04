@@ -72,6 +72,7 @@ test('renders canonical KPI and reports no_report without inferring completion',
   assert.ok(screen.getByText('Henüz yeterli veri yok'));
   assert.ok(screen.getByText(/Tazelik: Güncel · Bütünlük: Tam/));
   assert.ok(screen.getByText(/activity-alpha/));
+  assert.ok(screen.getByLabelText('Etkinlik oyun süresi dağılımı'));
   assert.equal(urls.filter((url) => url === '/api/auth/me').length, 2);
   assert.ok(urls.some((url) => url.includes('child_id=' + childA)));
   assert.ok(urls.some((url) => url.includes('/children/' + childA + '/missions?')));

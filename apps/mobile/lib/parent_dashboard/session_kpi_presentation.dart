@@ -23,7 +23,7 @@ String freshnessStatusLabel(SessionKpiResponseFreshnessStatusEnum status) {
     SessionKpiResponseFreshnessStatusEnum.fresh => 'Güncel',
     SessionKpiResponseFreshnessStatusEnum.stale => 'Güncelliğini yitirmiş',
     SessionKpiResponseFreshnessStatusEnum.noData => 'Henüz veri yok',
-    SessionKpiResponseFreshnessStatusEnum() => 'Durum bilinmiyor',
+    SessionKpiResponseFreshnessStatusEnum.unknown => 'Durum bilinmiyor',
   };
 }
 
@@ -31,7 +31,7 @@ String completenessLabel(SessionKpiResponseFreshnessDataCompletenessEnum status)
   return switch (status) {
     SessionKpiResponseFreshnessDataCompletenessEnum.complete => 'Tam',
     SessionKpiResponseFreshnessDataCompletenessEnum.partial => 'Kısmi',
-    SessionKpiResponseFreshnessDataCompletenessEnum() => 'Bilinmiyor',
+    SessionKpiResponseFreshnessDataCompletenessEnum.unknown => 'Bilinmiyor',
   };
 }
 

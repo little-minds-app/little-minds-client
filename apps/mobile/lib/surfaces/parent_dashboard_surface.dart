@@ -220,6 +220,7 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
                       'Oturum özeti yüklenemedi.',
                   onRetry: () => _controller.refresh(),
                   retryLabel: 'Oturum özetini yeniden dene',
+                  retryKey: ParentDashboardSurface.kpiRetryKey,
                 )
               else if (view != null) ...[
                 if (empty)
@@ -406,46 +407,85 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
 
   Widget _activityChart(BuildContext context, ParentDashboardViewData view) {
     final maxSeconds = view.maxActivityPlaySeconds;
+    final trackColor = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final fillColor = Theme.of(context).colorScheme.primary;
     return KeyedSubtree(
       key: ParentDashboardSurface.activityChartKey,
-      child: Column(
-        children: [
-          for (final row in view.activityRows)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(row.activityId, style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: maxSeconds > 0 ? row.playDurationSeconds : 0,
-                        child: Container(
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                      if (maxSeconds > row.playDurationSeconds)
-                        Expanded(
-                          flex: maxSeconds - row.playDurationSeconds,
-                          child: const SizedBox(height: 10),
-                        ),
-                    ],
-                  ),
-                  Text(
-                    '${row.sessionCount} oturum · ${row.playDurationLabel}',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ],
+      child: Semantics(
+        label: 'Etkinlik oyun süresi dağılımı',
+        child: Column(
+          children: [
+            for (final row in view.activityRows)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(row.activityId, style: Theme.of(context).textTheme.bodySmall),
+                    const SizedBox(height: 4),
+                    _activityDurationBar(
+                      seconds: row.playDurationSeconds,
+                      maxSeconds: maxSeconds,
+                      trackColor: trackColor,
+                      fillColor: fillColor,
+                    ),
+                    Text(
+                      '${row.sessionCount} oturum · ${row.playDurationLabel}',
+                      key: Key('activity-chart-meta-${row.activityId}'),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _activityDurationBar({
+    required int seconds,
+    required int maxSeconds,
+    required Color trackColor,
+    required Color fillColor,
+  }) {
+    if (maxSeconds <= 0) {
+      return Container(
+        key: const Key('activity-chart-zero-track'),
+        height: 10,
+        decoration: BoxDecoration(
+          color: trackColor,
+          borderRadius: BorderRadius.circular(4),
+        ),
+      );
+    }
+    if (seconds <= 0) {
+      return Container(
+        height: 10,
+        decoration: BoxDecoration(
+          color: trackColor,
+          borderRadius: BorderRadius.circular(4),
+        ),
+      );
+    }
+    return Row(
+      children: [
+        Expanded(
+          flex: seconds,
+          child: Container(
+            height: 10,
+            decoration: BoxDecoration(
+              color: fillColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
+        if (maxSeconds > seconds)
+          Expanded(
+            flex: maxSeconds - seconds,
+            child: const SizedBox(height: 10),
+          ),
+      ],
     );
   }
 
