@@ -57,6 +57,7 @@ class FakeMissionStatusRepository extends MissionStatusRepository {
       : super(config: AppConfig.developmentLocal, auth: auth);
 
   MissionStatusListResponse? response;
+  final Map<String, MissionStatusListResponse> responseByChild = {};
   Completer<MissionStatusListResponse>? pending;
   final Map<String, Completer<MissionStatusListResponse>> pendingByChild = {};
   Object? throwError;
@@ -76,6 +77,7 @@ class FakeMissionStatusRepository extends MissionStatusRepository {
       return pendingByChild[childId]!.future;
     }
     if (pending != null) return pending!.future;
+    if (responseByChild.containsKey(childId)) return responseByChild[childId]!;
     if (response == null) {
       throw ApiException(503, 'offline');
     }
@@ -349,7 +351,14 @@ void main() {
     repo.responseByChild[_childAda] = sampleKpiResponse(eligible: 2);
     repo.responseByChild[_childBob] = sampleKpiResponse(eligible: 8);
     final mission = FakeMissionStatusRepository(auth)
-      ..response = sampleMissionStatusResponse(items: []);
+      ..responseByChild[_childAda] = sampleMissionStatusResponse(
+        childId: _childAda,
+        items: [sampleMissionRow(missionId: 'mission-ada')],
+      )
+      ..responseByChild[_childBob] = sampleMissionStatusResponse(
+        childId: _childBob,
+        items: [sampleMissionRow(missionId: 'mission-bora')],
+      );
 
     final controller = dashboardController(
       kpi: repo,
@@ -359,14 +368,19 @@ void main() {
     );
     await controller.load();
     expect(controller.view?.eligibleSessions, 2);
+    expect(controller.missionView?.rows.single.missionId, 'mission-ada');
 
     profiles.select(_childBob);
     await Future<void>.delayed(Duration.zero);
     expect(controller.view?.eligibleSessions, 8);
+    expect(mission.lastChildId, _childBob);
+    expect(controller.missionView?.rows.single.missionId, 'mission-bora');
 
     profiles.select(_childAda);
     await Future<void>.delayed(Duration.zero);
     expect(controller.view?.eligibleSessions, 2);
+    expect(mission.lastChildId, _childAda);
+    expect(controller.missionView?.rows.single.missionId, 'mission-ada');
     expect(profiles.selectedId, _childAda);
   });
 
