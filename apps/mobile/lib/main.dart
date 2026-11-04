@@ -44,7 +44,7 @@ Future<void> main() async {
     currentSession: () => parentAuth.session,
     send: ActivityHttpBatchSender(apiBaseUrl: config.apiBaseUrl).send,
   );
-  final publishedContent = FailClosedPublishedContentRegistry();
+  final publishedContent = PinnedActivityPublicationRegistry();
   final hubTelemetry = HubProductionTelemetryCoordinator(
     outbox: offlineOutbox,
     contentRegistry: publishedContent,

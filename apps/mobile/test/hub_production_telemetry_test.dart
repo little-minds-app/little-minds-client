@@ -104,11 +104,41 @@ void main() {
       try {
         final outbox = ActivityFileOutbox.forTesting(root);
         final content = MapPublishedContentRegistry({
-          ShapeMatchingConstants.activityId: contentId,
+          ShapeMatchingConstants.activityId: PublishedActivityPublication(
+            contentVersionId: contentId,
+            consentPolicyVersion: 'synthetic-policy-v1',
+          ),
         });
         final coordinator = HubProductionTelemetryCoordinator(
           outbox: outbox,
           contentRegistry: content,
+          clock: () => DateTime.utc(2026, 11, 4, 12),
+        );
+        final registry = ActivityRegistry();
+        await coordinator.reconcileHubRegistry(
+          registry: registry,
+          ageMonthsProvider: () => 30,
+          session: session,
+          selectedChildId: childId,
+          deviceId: deviceId,
+        );
+        final activity = registry.findById(ShapeMatchingConstants.activityId)!
+            as ShapeMatchingActivity;
+        expect(activity.eventBuffer, isA<ShapeMatchingProductionEventBuffer>());
+      } finally {
+        if (await root.exists()) await root.delete(recursive: true);
+      }
+    });
+
+    test('reconcile wires production buffer from pinned publication fixture',
+        () async {
+      final root = await Directory.systemTemp.createTemp('lmp134-hub-pin-');
+      try {
+        TestWidgetsFlutterBinding.ensureInitialized();
+        final outbox = ActivityFileOutbox.forTesting(root);
+        final coordinator = HubProductionTelemetryCoordinator(
+          outbox: outbox,
+          contentRegistry: PinnedActivityPublicationRegistry(),
           clock: () => DateTime.utc(2026, 11, 4, 12),
         );
         final registry = ActivityRegistry();
@@ -132,7 +162,10 @@ void main() {
       try {
         final outbox = ActivityFileOutbox.forTesting(root);
         final content = MapPublishedContentRegistry({
-          ShapeMatchingConstants.activityId: contentId,
+          ShapeMatchingConstants.activityId: PublishedActivityPublication(
+            contentVersionId: contentId,
+            consentPolicyVersion: 'synthetic-policy-v1',
+          ),
         });
         final coordinator = HubProductionTelemetryCoordinator(
           outbox: outbox,

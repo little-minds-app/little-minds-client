@@ -31,6 +31,7 @@ class HubProductionTelemetrySnapshot {
     this.deviceId,
     this.contentVersionId,
     this.playSessionId,
+    this.consentPolicyVersion,
   });
 
   final bool allowed;
@@ -39,6 +40,7 @@ class HubProductionTelemetrySnapshot {
   final String? deviceId;
   final String? contentVersionId;
   final String? playSessionId;
+  final String? consentPolicyVersion;
 }
 
 /// Evaluates LMP-51 production gates for Kids Hub Shape Matching (LMP-134).
@@ -106,8 +108,10 @@ abstract final class HubProductionTelemetryGate {
       deviceId: deviceId,
       contentVersionId: publishedContentVersionId,
       playSessionId: const Uuid().v4(),
+      consentPolicyVersion: null,
     );
   }
+
 }
 
 /// Builds Shape Matching activities with production or local event buffers.
@@ -145,15 +149,34 @@ class HubProductionTelemetryCoordinator {
       );
       return _lastSnapshot!;
     }
-    final published = await contentRegistry.contentVersionIdForActivity(
+    final publication = await contentRegistry.publicationForActivity(
       ShapeMatchingConstants.activityId,
     );
+    if (publication == null) {
+      _lastSnapshot = HubProductionTelemetryGate.evaluate(
+        session: session,
+        selectedChildId: selectedChildId,
+        deviceId: deviceId,
+        publishedContentVersionId: null,
+      );
+      return _lastSnapshot!;
+    }
     _lastSnapshot = HubProductionTelemetryGate.evaluate(
       session: session,
       selectedChildId: selectedChildId,
       deviceId: deviceId,
-      publishedContentVersionId: published,
+      publishedContentVersionId: publication.contentVersionId,
     );
+    if (_lastSnapshot!.allowed) {
+      _lastSnapshot = HubProductionTelemetrySnapshot(
+        allowed: true,
+        session: _lastSnapshot!.session,
+        deviceId: _lastSnapshot!.deviceId,
+        contentVersionId: _lastSnapshot!.contentVersionId,
+        playSessionId: _lastSnapshot!.playSessionId,
+        consentPolicyVersion: publication.consentPolicyVersion,
+      );
+    }
     return _lastSnapshot!;
   }
 
@@ -214,13 +237,15 @@ class HubProductionTelemetryCoordinator {
     final deviceId = snapshot.deviceId!;
     final contentVersionId = snapshot.contentVersionId!;
     final playSessionId = snapshot.playSessionId!;
+    final policyVersion =
+        snapshot.consentPolicyVersion ?? consentPolicyVersion;
     final startedAt = _clock().toUtc();
     final emitter = ActivityEventEmitter(
       outbox: outbox,
       session: session,
       deviceId: deviceId,
       contentVersionId: contentVersionId,
-      consentPolicyVersion: consentPolicyVersion,
+      consentPolicyVersion: policyVersion,
       clock: _clock,
     );
     final sessionPayload = <String, dynamic>{
@@ -233,7 +258,7 @@ class HubProductionTelemetryCoordinator {
       'consent': {
         'purpose': 'essential_service_telemetry',
         'consent_scope': 'essential_play_events',
-        'policy_version': consentPolicyVersion,
+        'policy_version': policyVersion,
         'decision': 'granted',
       },
       'provenance': {
