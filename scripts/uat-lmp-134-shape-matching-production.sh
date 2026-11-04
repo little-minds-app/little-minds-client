@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # LMP-134 Mac/local UAT — Shape Matching production telemetry + backend ingest.
-# Safe: refuses non-disposable DATABASE_URL (never wipes little_minds UAT).
+# Mandatory TC-01..TC-06. No partial PASS: any NOT_RUN → exit 3.
 #
 # Exit codes:
-#   0 — PASS (all executed TCs passed)
-#   1 — FAIL (at least one executed TC failed)
-#   3 — NOT_RUN (required stack unavailable; see summary + manual steps)
+#   0 — PASS (every mandatory TC passed)
+#   1 — FAIL (at least one TC failed)
+#   3 — NOT_RUN (stack/prerequisites missing or TC skipped)
 set -uo pipefail
 
 if [[ -d "${FLUTTER_ROOT:-$HOME/flutter-sdk}/bin" ]]; then
@@ -18,16 +18,27 @@ BACKEND_ROOT="${LM_BACKEND_ROOT:-}"
 BACKEND_URL="${LM_API_BASE_URL:-http://127.0.0.1:3000}"
 DATABASE_URL="${DATABASE_URL:-}"
 WITH_DB="${LM_LMP134_WITH_DB:-0}"
+GUARD_MJS="$ROOT/scripts/lmp-134-uat-db-guard.mjs"
+DRY_RUN="${LM_LMP134_UAT_DRY_RUN:-0}"
 
-declare -a TC_RESULT=()
+declare -A TC_STATUS=()
 PASS_COUNT=0
 FAIL_COUNT=0
 NOT_RUN_COUNT=0
 
+MANDATORY_TCS=(
+  'TC-01 GET /health'
+  'TC-02 GET /health/ready'
+  'TC-03 Flutter analyze + LMP-134 tests'
+  'TC-04 disposable DATABASE_URL guard'
+  'TC-05 backend publication unit'
+  'TC-06 backend PG ingest'
+)
+
 record() {
-  local status="$1"
-  local name="$2"
-  TC_RESULT+=("$status  $name")
+  local id="$1"
+  local status="$2"
+  TC_STATUS["$id"]="$status"
   case "$status" in
     PASS) PASS_COUNT=$((PASS_COUNT + 1)) ;;
     FAIL) FAIL_COUNT=$((FAIL_COUNT + 1)) ;;
@@ -40,11 +51,18 @@ run_tc() {
   shift
   printf '\n== %s ==\n' "$id"
   if "$@"; then
-    record PASS "$id"
+    record "$id" PASS
     return 0
   fi
-  record FAIL "$id"
+  record "$id" FAIL
   return 1
+}
+
+mark_not_run() {
+  local id="$1"
+  local reason="$2"
+  printf '\n== %s ==\nNOT_RUN: %s\n' "$id" "$reason"
+  record "$id" NOT_RUN
 }
 
 tc_01_health_liveness() {
@@ -52,10 +70,13 @@ tc_01_health_liveness() {
 }
 
 tc_02_health_ready() {
-  curl --fail --silent --show-error --max-time 12 "$BACKEND_URL/health/ready" >/dev/null
+  local code
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 12 "$BACKEND_URL/health/ready")"
+  [[ "$code" == "200" || "$code" == "503" ]]
 }
 
 tc_03_flutter_gates() {
+  if [[ "$DRY_RUN" == "1" ]]; then return 0; fi
   (
     cd "$MOBILE"
     flutter pub get
@@ -70,19 +91,20 @@ tc_03_flutter_gates() {
 
 tc_04_disposable_db_guard() {
   if [[ -z "$DATABASE_URL" ]]; then
-    echo "DATABASE_URL unset — PG ingest TCs will NOT_RUN (expected without --with-db)."
+    if [[ "$WITH_DB" == "1" ]]; then
+      echo 'DATABASE_URL required when LM_LMP134_WITH_DB=1' >&2
+      return 1
+    fi
+    echo 'DATABASE_URL unset — TC-04 PASS (no PG ingest requested).'
     return 0
   fi
-  if [[ "$DATABASE_URL" =~ /little_minds(\?|$|/) ]] &&
-     [[ ! "$DATABASE_URL" =~ /little_minds_(test|ci|local|dev)(/|\?|$) ]]; then
-    echo "REFUSED: DATABASE_URL must target little_minds_test|ci|local|dev — not little_minds UAT." >&2
-    return 1
-  fi
-  return 0
+  export LM_VERIFY_WITH_DB=1
+  node "$GUARD_MJS" >/dev/null
 }
 
 tc_05_backend_publication_unit() {
   [[ -n "$BACKEND_ROOT" && -d "$BACKEND_ROOT" ]] || return 1
+  if [[ "$DRY_RUN" == "1" ]]; then return 0; fi
   (
     cd "$BACKEND_ROOT"
     npm test -- --ci --coverage=false \
@@ -95,10 +117,21 @@ tc_05_backend_publication_unit() {
 tc_06_backend_pg_ingest() {
   [[ -n "$BACKEND_ROOT" && -d "$BACKEND_ROOT" ]] || return 1
   [[ -n "$DATABASE_URL" ]] || return 1
+  if [[ "$WITH_DB" != "1" ]]; then
+    return 1
+  fi
+  export LM_VERIFY_WITH_DB=1
+  if ! node "$GUARD_MJS" >/dev/null; then
+    echo 'Refusing migrate/seed: DATABASE_URL failed LMP-134 UAT guard.' >&2
+    return 1
+  fi
+  if [[ "$DRY_RUN" == "1" ]]; then return 0; fi
   (
     cd "$BACKEND_ROOT"
     export LM_VERIFY_WITH_DB=1
-    npx ts-node --compiler-options '{"module":"CommonJS"}' scripts/verify-db-guard.ts
+    if [[ -f scripts/verify-db-guard.ts ]]; then
+      npx ts-node --compiler-options '{"module":"CommonJS"}' scripts/verify-db-guard.ts
+    fi
     npm run db:migrate
     npm run db:seed
     npm run test:db -- --ci --coverage=false \
@@ -115,43 +148,40 @@ if ! tc_01_health_liveness 2>/dev/null; then
 fi
 
 if [[ "$STACK_AVAILABLE" -eq 0 ]]; then
-  record NOT_RUN "TC-01 GET /health (backend unavailable)"
-  record NOT_RUN "TC-02 GET /health/ready (backend unavailable)"
+  mark_not_run "${MANDATORY_TCS[0]}" 'backend unavailable'
+  mark_not_run "${MANDATORY_TCS[1]}" 'backend unavailable'
 else
-  run_tc "TC-01 GET /health" tc_01_health_liveness || true
-  run_tc "TC-02 GET /health/ready" tc_02_health_ready || true
+  run_tc "${MANDATORY_TCS[0]}" tc_01_health_liveness || true
+  run_tc "${MANDATORY_TCS[1]}" tc_02_health_ready || true
 fi
 
-run_tc "TC-03 Flutter analyze + LMP-134 tests" tc_03_flutter_gates || true
+run_tc "${MANDATORY_TCS[2]}" tc_03_flutter_gates || true
+
+run_tc "${MANDATORY_TCS[3]}" tc_04_disposable_db_guard || true
 
 if [[ "$STACK_AVAILABLE" -eq 0 ]]; then
-  record NOT_RUN "TC-04 disposable DATABASE_URL guard (backend unavailable)"
-else
-  run_tc "TC-04 disposable DATABASE_URL guard" tc_04_disposable_db_guard || true
-fi
-
-if [[ "$STACK_AVAILABLE" -eq 0 ]]; then
-  record NOT_RUN "TC-05 backend publication unit (backend unavailable)"
-  record NOT_RUN "TC-06 backend PG ingest (backend unavailable)"
+  mark_not_run "${MANDATORY_TCS[4]}" 'backend unavailable'
+  mark_not_run "${MANDATORY_TCS[5]}" 'backend unavailable'
 elif [[ -z "$BACKEND_ROOT" || ! -d "$BACKEND_ROOT" ]]; then
-  record NOT_RUN "TC-05 backend publication unit (set LM_BACKEND_ROOT)"
-  record NOT_RUN "TC-06 backend PG ingest (set LM_BACKEND_ROOT + DATABASE_URL)"
-elif [[ "$WITH_DB" != "1" && -z "$DATABASE_URL" ]]; then
-  if run_tc "TC-05 backend publication unit" tc_05_backend_publication_unit; then
-    :
-  else
-    :
-  fi
-  record NOT_RUN "TC-06 backend PG ingest (set LM_LMP134_WITH_DB=1 and disposable DATABASE_URL)"
+  mark_not_run "${MANDATORY_TCS[4]}" 'set LM_BACKEND_ROOT to backend checkout'
+  mark_not_run "${MANDATORY_TCS[5]}" 'set LM_BACKEND_ROOT + LM_LMP134_WITH_DB=1 + disposable DATABASE_URL'
+elif [[ "$WITH_DB" != "1" ]]; then
+  run_tc "${MANDATORY_TCS[4]}" tc_05_backend_publication_unit || true
+  mark_not_run "${MANDATORY_TCS[5]}" 'set LM_LMP134_WITH_DB=1 and DATABASE_URL=little_minds_test|ci'
 else
-  run_tc "TC-05 backend publication unit" tc_05_backend_publication_unit || true
-  run_tc "TC-06 backend PG ingest" tc_06_backend_pg_ingest || true
+  run_tc "${MANDATORY_TCS[4]}" tc_05_backend_publication_unit || true
+  if [[ "${TC_STATUS[${MANDATORY_TCS[3]}]:-FAIL}" == FAIL ]]; then
+    mark_not_run "${MANDATORY_TCS[5]}" 'TC-04 guard failed — migrate/seed skipped'
+  else
+    run_tc "${MANDATORY_TCS[5]}" tc_06_backend_pg_ingest || true
+  fi
 fi
 
 echo ''
-echo '========== LMP-134 UAT summary =========='
-for line in "${TC_RESULT[@]}"; do
-  echo "$line"
+echo '========== LMP-134 UAT summary (mandatory TCs) =========='
+for id in "${MANDATORY_TCS[@]}"; do
+  status="${TC_STATUS[$id]:-NOT_RUN}"
+  printf '%s  %s\n' "$status" "$id"
 done
 echo '-----------------------------------------'
 printf 'Counts: PASS=%s FAIL=%s NOT_RUN=%s\n' "$PASS_COUNT" "$FAIL_COUNT" "$NOT_RUN_COUNT"
@@ -162,31 +192,27 @@ if [[ "$FAIL_COUNT" -gt 0 ]]; then
   exit 1
 fi
 
-if [[ "$STACK_AVAILABLE" -eq 0 ]]; then
+if [[ "$NOT_RUN_COUNT" -gt 0 ]]; then
   cat <<'EOF'
 
-NOT_RUN — live stack unavailable on this host.
+NOT_RUN — one or more mandatory TCs did not execute (no partial PASS).
 
-Mac/local manual steps:
-  1. Clone little-minds-backend @ feature/lmp-134-production-telemetry (PR #37).
+Mac/local prerequisites:
+  1. Clone little-minds-backend @ feature/lmp-134-production-telemetry (PR #37) @ 4f0c592+.
   2. export LM_BACKEND_ROOT=/path/to/little-minds-backend
   3. export LM_API_BASE_URL=http://127.0.0.1:3000
   4. export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/little_minds_ci
   5. export LM_LMP134_WITH_DB=1
-  6. Start backend + Postgres (docker compose), then re-run:
+  6. export LM_VERIFY_WITH_DB=1
+  7. Start backend + Postgres (docker compose), then re-run:
        bash scripts/uat-lmp-134-shape-matching-production.sh
-  7. Sign in parent; bind device child via hub; play Shape Matching offline;
+  8. Sign in parent; bind device child via hub; play Shape Matching offline;
      reconnect; confirm POST /v1/events/batch ACK and KPI content_version_id
      018f1340-0000-4000-8000-000000000001.
 
 EOF
   echo 'OVERALL: NOT_RUN'
   exit 3
-fi
-
-if [[ "$NOT_RUN_COUNT" -gt 0 ]]; then
-  echo 'OVERALL: PASS (partial — some TCs NOT_RUN; see Mac steps above for full E2E)'
-  exit 0
 fi
 
 echo 'OVERALL: PASS'

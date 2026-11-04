@@ -217,7 +217,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
         }
       }
       await widget.hubDeviceChildBinding?.synchronizeSelectedChild(
-        session: _parentAuth.session,
+        readSession: () => _parentAuth.session,
         installationId: installationId,
         scopedDeviceId: scopedDeviceId,
         selectedChildId: _profiles.selectedId,

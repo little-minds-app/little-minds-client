@@ -1,9 +1,9 @@
 {
-  "$comment": "LMP-134 device active-child bind/read + prior LMP-54 dashboard routes",
+  "$comment": "LMP-134 device active-child bind/read + binding_revision CAS (409 stale)",
   "backendRepository": "little-minds-app/little-minds-backend",
-  "backendCommitSha": "d787ea606def7c2d195a04dec63ba64f7b3da0f3",
+  "backendCommitSha": "4f0c592d38db7d964ed713f6b7d5f5a5f834e269",
   "artifactPath": "contracts/openapi.yaml",
-  "artifactBlobSha": "d4736975f4bf09601378593b988ba8e5143551f9",
-  "contractVersion": "0.14.3",
+  "artifactBlobSha": "18b2fc027fb458bcfd5dbd092f29aa29143d95f4",
+  "contractVersion": "0.14.4",
   "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/37"
 }

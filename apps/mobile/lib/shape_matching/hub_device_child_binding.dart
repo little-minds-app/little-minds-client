@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../auth/auth_session.dart';
 import 'hub_authorized_device_child.dart';
 
@@ -21,6 +23,7 @@ abstract class HubDeviceChildBindingClient {
     required AuthSession session,
     required String installationId,
     required String selectedChildId,
+    Future<void>? abortTrigger,
   });
 }
 
@@ -32,6 +35,7 @@ final class FailClosedHubDeviceChildBindingClient
     required AuthSession session,
     required String installationId,
     required String selectedChildId,
+    Future<void>? abortTrigger,
   }) async =>
       const HubDeviceChildBindingFailed();
 }
@@ -43,6 +47,7 @@ final class FakeHubDeviceChildBindingClient implements HubDeviceChildBindingClie
     required AuthSession session,
     required String installationId,
     required String selectedChildId,
+    Future<void>? abortTrigger,
   }) async =>
       HubDeviceChildBound(selectedChildId);
 }
@@ -57,12 +62,16 @@ final class HubDeviceChildBindingService {
   final HubAuthorizedDeviceChildCatalog catalog;
   final HubDeviceChildBindingClient client;
 
+  int _bindGeneration = 0;
+  Completer<void>? _inFlightAbort;
+
   Future<void> synchronizeSelectedChild({
-    required AuthSession? session,
+    required AuthSession? Function() readSession,
     required String? installationId,
     required String? scopedDeviceId,
     required String? selectedChildId,
   }) async {
+    final session = readSession();
     if (session == null ||
         installationId == null ||
         installationId.isEmpty ||
@@ -70,29 +79,67 @@ final class HubDeviceChildBindingService {
         scopedDeviceId.isEmpty) {
       return;
     }
-    if (selectedChildId == null || selectedChildId.isEmpty) {
+
+    _inFlightAbort?.complete();
+    final abort = Completer<void>();
+    _inFlightAbort = abort;
+
+    final token = ++_bindGeneration;
+    final intentParentId = session.parentId;
+    final intentChildId = selectedChildId;
+    final intentScopedDeviceId = scopedDeviceId;
+
+    if (intentChildId == null || intentChildId.isEmpty) {
+      if (!_stillLatestBind(token, readSession, intentParentId)) {
+        return;
+      }
       await catalog.applyServerAuthorizedChild(
-        parentId: session.parentId,
-        scopedDeviceId: scopedDeviceId,
+        parentId: intentParentId,
+        scopedDeviceId: intentScopedDeviceId,
         childId: null,
       );
       return;
     }
+
     final result = await client.bindSelectedChild(
       session: session,
       installationId: installationId,
-      selectedChildId: selectedChildId,
+      selectedChildId: intentChildId,
+      abortTrigger: abort.future,
     );
+
+    if (!_stillLatestBind(token, readSession, intentParentId)) {
+      return;
+    }
+
     switch (result) {
       case HubDeviceChildBound(:final childId):
+        if (childId != intentChildId) {
+          break;
+        }
         await catalog.applyServerAuthorizedChild(
-          parentId: session.parentId,
-          scopedDeviceId: scopedDeviceId,
+          parentId: intentParentId,
+          scopedDeviceId: intentScopedDeviceId,
           childId: childId,
         );
       case HubDeviceChildBindingFailed():
         break;
     }
+  }
+
+  bool _stillLatestBind(
+    int token,
+    AuthSession? Function() readSession,
+    String intentParentId,
+  ) {
+    if (token != _bindGeneration) {
+      return false;
+    }
+    final sessionAfter = readSession();
+    if (sessionAfter == null || sessionAfter.parentId != intentParentId) {
+      return false;
+    }
+    return true;
   }
 
   Future<void> onParentLoggedOut(String parentId) =>
