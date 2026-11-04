@@ -9,7 +9,7 @@ void main() {
     final view = mapMissionStatusToView(sampleMissionStatusResponse());
     expect(view.isEmpty, isFalse);
     expect(view.rows.single.reportPresentation, MissionReportPresentation.reported);
-    expect(view.rows.single.reportLabel, contains('caregiver_report'));
+    expect(view.rows.single.reportLabel, contains('Ebeveyn bildirimi'));
     expect(view.rows.single.reportLabel, contains('Tamamlandı'));
   });
 

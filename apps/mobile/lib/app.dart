@@ -12,6 +12,7 @@ import 'child_hub/hub_audio_guidance.dart';
 import 'child_profiles/child_profile_repository.dart';
 import 'child_profiles/child_profiles_controller.dart';
 import 'config/app_config.dart';
+import 'theme/little_minds_parent_theme.dart';
 import 'config/app_config_scope.dart';
 import 'game/flame_host.dart';
 import 'l10n/app_localizations.dart';
@@ -457,11 +458,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
             GlobalCupertinoLocalizations.delegate,
           ],
           supportedLocales: AppLocalizations.supportedLocales,
-          theme: ThemeData(
-            colorScheme:
-                ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
-            useMaterial3: true,
-          ),
+          theme: LittleMindsParentTheme.theme(),
           home: Builder(
             builder: (context) {
               switch (_route) {

@@ -22,6 +22,7 @@ SessionKpiResponse sampleKpiResponse({
   int eligible = 3,
   SessionKpiResponseFreshnessStatusEnum freshness =
       SessionKpiResponseFreshnessStatusEnum.fresh,
+  List<SessionKpiActivityBreakdown>? byActivity,
 }) {
   return SessionKpiResponse(
     definitionVersion: '2026-11-03',
@@ -53,7 +54,7 @@ SessionKpiResponse sampleKpiResponse({
       totalPlayDurationSeconds: 600,
       completedSessionRate: availableRate(value: 0.67, numerator: 2, denominator: 3),
       distinctPlayDays: 2,
-      byActivity: const [],
+      byActivity: byActivity ?? const [],
       firstAttemptAccuracy: unavailableRate(),
     ),
   );

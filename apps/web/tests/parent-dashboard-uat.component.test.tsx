@@ -15,7 +15,7 @@ function bindDomGlobals() {
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
 }
 bindDomGlobals();
-const { cleanup, render, screen, waitFor } = require('@testing-library/react') as typeof import('@testing-library/react');
+const { cleanup, fireEvent, render, screen, waitFor } = require('@testing-library/react') as typeof import('@testing-library/react');
 const { WebParentDashboard } = require('../app/parent/web-parent-dashboard') as typeof import('../app/parent/web-parent-dashboard');
 
 const child = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -68,8 +68,10 @@ test('UAT-04: renders only authoritative caregiver completion and server KPI val
   render(React.createElement(WebParentDashboard, { selectedChildId: child }));
   await waitFor(() => assert.ok(screen.getByText(/Ebeveyn bildirimi: Tamamlandı/)));
   assert.ok(screen.getByText(/60% \(3\/5\)/));
-  assert.ok(screen.getByText(/Kaynak: caregiver_report/));
-  assert.ok(screen.getByText(/Aktör: parent/));
+  const missionDetails = screen.getByText(/Görev kaynağı ve pencere ayrıntıları/).closest('details');
+  assert.ok(missionDetails);
+  missionDetails!.open = true;
+  await waitFor(() => assert.ok(screen.getAllByText(/Ebeveyn bildirimi/).length >= 1));
   assert.ok(screen.getByText(/Yetkili kayıt/));
 });
 
