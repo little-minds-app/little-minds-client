@@ -907,6 +907,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Persisted current checkpoint.'**
   String get screenTimeDebugStatusPersist;
+
+  /// No description provided for @shapeMatchingPromptMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Match the shape at the top.'**
+  String get shapeMatchingPromptMatch;
+
+  /// No description provided for @shapeMatchingPromptDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Nice matching!'**
+  String get shapeMatchingPromptDone;
+
+  /// No description provided for @shapeMatchingVisualOnlyAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Visual cues only — sound packs not installed.'**
+  String get shapeMatchingVisualOnlyAudio;
+
+  /// No description provided for @shapeMatchingTapOrDragHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap or drag to match.'**
+  String get shapeMatchingTapOrDragHint;
+
+  /// No description provided for @shapeMatchingHintLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'Hint {level}'**
+  String shapeMatchingHintLevel(int level);
+
+  /// No description provided for @shapeMatchingShapeCircle.
+  ///
+  /// In en, this message translates to:
+  /// **'Circle'**
+  String get shapeMatchingShapeCircle;
+
+  /// No description provided for @shapeMatchingShapeSquare.
+  ///
+  /// In en, this message translates to:
+  /// **'Square'**
+  String get shapeMatchingShapeSquare;
+
+  /// No description provided for @shapeMatchingShapeTriangle.
+  ///
+  /// In en, this message translates to:
+  /// **'Triangle'**
+  String get shapeMatchingShapeTriangle;
+
+  /// No description provided for @shapeMatchingShapeStar.
+  ///
+  /// In en, this message translates to:
+  /// **'Star'**
+  String get shapeMatchingShapeStar;
+
+  /// No description provided for @shapeMatchingShapeHexagon.
+  ///
+  /// In en, this message translates to:
+  /// **'Hexagon'**
+  String get shapeMatchingShapeHexagon;
 }
 
 class _AppLocalizationsDelegate

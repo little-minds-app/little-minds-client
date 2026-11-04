@@ -244,5 +244,20 @@
   "screenTimeDebugStatusAtCap": "Budget set to 30:00 (cap).",
   "screenTimeDebugStatusReset": "Budget reset to 0:00.",
   "screenTimeDebugStatusReload": "Reloaded from store.",
-  "screenTimeDebugStatusPersist": "Persisted current checkpoint."
+  "screenTimeDebugStatusPersist": "Persisted current checkpoint.",
+  "shapeMatchingPromptMatch": "Match the shape at the top.",
+  "shapeMatchingPromptDone": "Nice matching!",
+  "shapeMatchingVisualOnlyAudio": "Visual cues only — sound packs not installed.",
+  "shapeMatchingTapOrDragHint": "Tap or drag to match.",
+  "shapeMatchingHintLevel": "Hint {level}",
+  "@shapeMatchingHintLevel": {
+    "placeholders": {
+      "level": {"type": "int"}
+    }
+  },
+  "shapeMatchingShapeCircle": "Circle",
+  "shapeMatchingShapeSquare": "Square",
+  "shapeMatchingShapeTriangle": "Triangle",
+  "shapeMatchingShapeStar": "Star",
+  "shapeMatchingShapeHexagon": "Hexagon"
 }

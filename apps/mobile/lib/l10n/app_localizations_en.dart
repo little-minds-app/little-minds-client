@@ -442,4 +442,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get screenTimeDebugStatusPersist => 'Persisted current checkpoint.';
+
+  @override
+  String get shapeMatchingPromptMatch => 'Match the shape at the top.';
+
+  @override
+  String get shapeMatchingPromptDone => 'Nice matching!';
+
+  @override
+  String get shapeMatchingVisualOnlyAudio =>
+      'Visual cues only — sound packs not installed.';
+
+  @override
+  String get shapeMatchingTapOrDragHint => 'Tap or drag to match.';
+
+  @override
+  String shapeMatchingHintLevel(int level) {
+    return 'Hint $level';
+  }
+
+  @override
+  String get shapeMatchingShapeCircle => 'Circle';
+
+  @override
+  String get shapeMatchingShapeSquare => 'Square';
+
+  @override
+  String get shapeMatchingShapeTriangle => 'Triangle';
+
+  @override
+  String get shapeMatchingShapeStar => 'Star';
+
+  @override
+  String get shapeMatchingShapeHexagon => 'Hexagon';
 }

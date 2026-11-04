@@ -134,5 +134,15 @@
   "screenTimeDebugStatusAtCap": "Bütçe 30:00 (limit) olarak ayarlandı.",
   "screenTimeDebugStatusReset": "Bütçe 0:00 olarak sıfırlandı.",
   "screenTimeDebugStatusReload": "Depodan yeniden yüklendi.",
-  "screenTimeDebugStatusPersist": "Geçerli kontrol noktası kaydedildi."
+  "screenTimeDebugStatusPersist": "Geçerli kontrol noktası kaydedildi.",
+  "shapeMatchingPromptMatch": "Üstteki şekille eşleştir.",
+  "shapeMatchingPromptDone": "Güzel eşleştirme!",
+  "shapeMatchingVisualOnlyAudio": "Yalnızca görsel ipuçları — ses paketi yüklü değil.",
+  "shapeMatchingTapOrDragHint": "Eşleştirmek için dokun veya sürükle.",
+  "shapeMatchingHintLevel": "İpucu {level}",
+  "shapeMatchingShapeCircle": "Daire",
+  "shapeMatchingShapeSquare": "Kare",
+  "shapeMatchingShapeTriangle": "Üçgen",
+  "shapeMatchingShapeStar": "Yıldız",
+  "shapeMatchingShapeHexagon": "Altıgen"
 }
