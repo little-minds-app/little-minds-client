@@ -26,17 +26,29 @@ afterEach(() => {
 function reply(status: number, data: unknown): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => data } as Response;
 }
-const a = { child_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', nickname: 'Demo', age_months: 32, preferred_locale: 'tr-TR' };
+type ChildRow = {
+  child_id: string;
+  nickname: string | null;
+  age_months: number;
+  preferred_locale: string;
+};
+type ChildPatchBody = {
+  age_months: number;
+  reference_date: string;
+  nickname: string | null;
+  timezone: string;
+};
+const a: ChildRow = {
+  child_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  nickname: 'Demo',
+  age_months: 32,
+  preferred_locale: 'tr-TR',
+};
 
 test('loading, empty state, create, select and edit in parent UI', async () => {
   let rows = [] as typeof a[];
   let saves = 0;
-  let updatedAgeBody: {
-    age_months: number;
-    reference_date: string;
-    nickname: string | null;
-    timezone: string;
-  } | null = null;
+  const patchCapture: { body: ChildPatchBody | null } = { body: null };
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
     if (url === '/api/auth/me') return reply(200, { parent_id: 'parent-a' });
     if (url === '/api/children' && !init?.method) return reply(200, { children: rows });
@@ -48,13 +60,8 @@ test('loading, empty state, create, select and edit in parent UI', async () => {
     }
     if (init?.method === 'PATCH' && url.startsWith('/api/children/')) {
       saves++;
-      const body = JSON.parse(init.body as string) as {
-        nickname: string | null;
-        age_months: number;
-        reference_date: string;
-        timezone: string;
-      };
-      updatedAgeBody = body;
+      const body = JSON.parse(init.body as string) as ChildPatchBody;
+      patchCapture.body = body;
       rows = [{ ...a, nickname: body.nickname, age_months: body.age_months }];
       return reply(200, rows[0]);
     }
@@ -73,10 +80,11 @@ test('loading, empty state, create, select and edit in parent UI', async () => {
   fireEvent.change(screen.getByLabelText('Yaş (ay)'), { target: { value: '17' } });
   fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
   await waitFor(() => assert.ok(screen.getByRole('button', { name: /Updated · 17 ay/ })));
-  assert.equal(updatedAgeBody?.age_months, 17);
-  assert.match(updatedAgeBody?.reference_date ?? '', /^\d{4}-\d{2}-\d{2}$/);
-  assert.equal(updatedAgeBody?.timezone, PROFILE_REFERENCE_TIMEZONE);
-  assert.equal(updatedAgeBody?.nickname, 'Updated');
+  assert.ok(patchCapture.body);
+  assert.equal(patchCapture.body.age_months, 17);
+  assert.match(patchCapture.body.reference_date, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(patchCapture.body.timezone, PROFILE_REFERENCE_TIMEZONE);
+  assert.equal(patchCapture.body.nickname, 'Updated');
   assert.equal(saves, 2);
   assert.ok(screen.getByText(/Profil sunucuda kaydedildi/));
 });
