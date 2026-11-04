@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../child_profiles/child_profiles_controller.dart';
+import '../l10n/app_localizations.dart';
 import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
 import '../parent_dashboard/mission_status_repository.dart';
@@ -51,6 +52,7 @@ class ParentDashboardSurface extends StatefulWidget {
   static const Key childPromptKey = Key('parent-dashboard-child-prompt');
   static const Key emptyBannerKey = Key('parent-dashboard-empty-banner');
   static const Key activityChartKey = Key('parent-dashboard-activity-chart');
+  static const Key childSwitcherKey = Key('parent-dashboard-child-switcher');
 
   @override
   State<ParentDashboardSurface> createState() => _ParentDashboardSurfaceState();
@@ -109,7 +111,7 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
         body: KeyedSubtree(
           key: ParentDashboardSurface.surfaceKey,
           child: AnimatedBuilder(
-            animation: _controller,
+            animation: Listenable.merge([_controller, widget.profiles]),
             builder: (context, _) => _body(context),
           ),
         ),
@@ -130,6 +132,10 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
                 'Özet için bir çocuk profili seçin veya oluşturun.',
                 textAlign: TextAlign.center,
               ),
+              if (widget.profiles.children.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _childProfileSwitcher(context, allowSingleSelect: true),
+              ],
               if (widget.onManageProfiles != null) ...[
                 const SizedBox(height: 16),
                 FilledButton(
@@ -195,7 +201,6 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
 
   Widget _overview(BuildContext context, {required bool empty, bool kpiFailed = false}) {
     final view = _controller.view;
-    final selected = widget.profiles.selected;
     return SingleChildScrollView(
       key: empty ? ParentDashboardSurface.emptyKey : ParentDashboardSurface.contentKey,
       padding: const EdgeInsets.all(24),
@@ -206,12 +211,10 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (selected != null)
-                Text(
-                  'Profil: ${selected.nickname}',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              const SizedBox(height: 8),
+              if (widget.profiles.children.isNotEmpty) ...[
+                _childProfileSwitcher(context),
+                const SizedBox(height: 8),
+              ],
               if (kpiFailed)
                 ParentFeedbackBanner(
                   key: ParentDashboardSurface.kpiErrorKey,
@@ -507,6 +510,54 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
             child: const SizedBox(height: 10),
           ),
       ],
+    );
+  }
+
+  Widget _childProfileSwitcher(
+    BuildContext context, {
+    bool allowSingleSelect = false,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final children = widget.profiles.children;
+    if (children.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final selectedId = widget.profiles.selectedId;
+    final value = children.any((child) => child.childId == selectedId)
+        ? selectedId
+        : null;
+    final loading = _controller.phase == ParentDashboardPhase.loading ||
+        (_controller.phase == ParentDashboardPhase.initial && !allowSingleSelect);
+    final canSwitch = !loading &&
+        (children.length > 1 || (allowSingleSelect && children.isNotEmpty));
+
+    return Semantics(
+      key: ParentDashboardSurface.childSwitcherKey,
+      label: l10n.parentDashboardChildSelectorLabel,
+      hint: l10n.parentDashboardChildSelectorHint,
+      child: DropdownButtonFormField<String>(
+        key: ValueKey('parent-dashboard-child-switcher-field-$selectedId'),
+        initialValue: value,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: l10n.parentDashboardChildSelectorLabel,
+        ),
+        items: [
+          for (final child in children)
+            DropdownMenuItem<String>(
+              value: child.childId,
+              key: Key('parent-dashboard-child-option-${child.childId}'),
+              child: Text(child.nickname ?? child.childId),
+            ),
+        ],
+        onChanged: canSwitch
+            ? (next) {
+                if (next == null || next == widget.profiles.selectedId) return;
+                widget.profiles.select(next);
+              }
+            : null,
+      ),
     );
   }
 

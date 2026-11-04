@@ -252,5 +252,13 @@
   "screenTimeDebugStatusAtCap": "Budget set to 30:00 (cap).",
   "screenTimeDebugStatusReset": "Budget reset to 0:00.",
   "screenTimeDebugStatusReload": "Reloaded from store.",
-  "screenTimeDebugStatusPersist": "Persisted current checkpoint."
+  "screenTimeDebugStatusPersist": "Persisted current checkpoint.",
+  "parentDashboardChildSelectorLabel": "Child profile",
+  "@parentDashboardChildSelectorLabel": {
+    "description": "Accessible label for the Parent Dashboard child profile switcher."
+  },
+  "parentDashboardChildSelectorHint": "Choose which child's overview and mission status to show.",
+  "@parentDashboardChildSelectorHint": {
+    "description": "Accessibility hint for the dashboard child profile dropdown."
+  }
 }
