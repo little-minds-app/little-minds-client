@@ -7,6 +7,7 @@ import 'daily_policy.dart';
 import 'monotonic_clock.dart';
 import 'persistent_store.dart';
 import 'screen_time_accountant.dart';
+import 'trust_recovery.dart';
 import 'wall_clock.dart';
 
 /// Kids Mode lifecycle bridge around [ScreenTimeAccountant] (LMP-49 Step 2/3).
@@ -17,10 +18,13 @@ import 'wall_clock.dart';
 /// Mentor, Near/Far / RW mission on the parent path, or off-app time.
 ///
 /// ## Trust / recovery
-/// Never calls [ScreenTimeAccountant.recoverTrust] or
-/// [TrustRecovery.forceNewLocalDay]. Child surfaces cannot override caps.
-/// Storage open/restore/persist failures fail closed (block play; no silent
-/// fresh day).
+/// Production / child lifecycle paths never call
+/// [ScreenTimeAccountant.recoverTrust] or [TrustRecovery.forceNewLocalDay].
+/// Child surfaces cannot override caps. Debug/QA only:
+/// [debugResetBudgetForQa] may recover via [TrustRecovery.forceNewLocalDay]
+/// so the inspector Reset Budget control can unblock UAT after fail-closed
+/// restart detection. Storage open/restore/persist failures fail closed
+/// (block play; no silent fresh day).
 ///
 /// ## Cap timeliness
 /// While counting, a one-shot deadline is scheduled for
@@ -597,6 +601,70 @@ final class ScreenTimeCoordinator extends ChangeNotifier
     }
     _beginDebugQaOp();
     return persist().whenComplete(_endDebugQaOp);
+  }
+
+  /// Debug/QA: explicit budget reset that also recovers degraded/uncertain trust.
+  ///
+  /// UAT: after app restart across a calendar day, restore sets
+  /// [TrustState.uncertain] + [clockSkewDetected] (ADR-016 fail-closed). Plain
+  /// budget mutation refuses degraded trust, so Debug "Reset Budget" could not
+  /// unblock Kids Mode. This path is debug-only and mirrors parent-authorized
+  /// [TrustRecovery.forceNewLocalDay] when trust is degraded/corrupt; when
+  /// already trusted it zeros the current day's used seconds.
+  Future<void> debugResetBudgetForQa({bool Function()? mutationsAllowed}) {
+    try {
+      _ensureDebugMutationsPermitted(mutationsAllowed: mutationsAllowed);
+    } catch (error, stack) {
+      return Future<void>.error(error, stack);
+    }
+    if (_phase != _CoordinatorPhase.active) {
+      return Future<void>.error(
+        StateError('ScreenTimeCoordinator is unavailable'),
+      );
+    }
+    if (_storageFailed) {
+      return Future<void>.error(
+        StateError(
+          'Debug QA cannot reset budget while storage is fail-closed',
+        ),
+      );
+    }
+    _beginDebugQaOp();
+    final done = Completer<void>();
+    _persistChain = _persistChain.then((_) async {
+      try {
+        _ensureDebugMutationsPermitted(mutationsAllowed: mutationsAllowed);
+        if (_phase != _CoordinatorPhase.active) {
+          throw StateError('ScreenTimeCoordinator is unavailable');
+        }
+        if (_storageFailed) {
+          throw StateError(
+            'Debug QA cannot reset budget while storage is fail-closed',
+          );
+        }
+        if (_accountant.isTrustDegraded || _accountant.isCorruptPersistence) {
+          _accountant.recoverTrust(TrustRecovery.forceNewLocalDay);
+        } else {
+          _accountant.applyDebugQaAccumulatedSeconds(
+            0,
+            mutationsAllowed: mutationsAllowed,
+          );
+        }
+        await _persistUnlocked();
+        _syncCounting(persistOnStop: false);
+        if (!done.isCompleted) done.complete();
+      } catch (error, stack) {
+        if (!done.isCompleted) done.completeError(error, stack);
+      } finally {
+        _endDebugQaOp();
+        if (_phase == _CoordinatorPhase.active) {
+          notifyListeners();
+        }
+      }
+    }).catchError((Object _) {
+      // Keep the chain alive after a failure so later ops still run.
+    });
+    return done.future;
   }
 }
 

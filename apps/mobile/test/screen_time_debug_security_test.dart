@@ -116,20 +116,28 @@ void main() {
     test('TC-ST-S04 no production reset API on coordinator/accountant surface',
         () async {
       await fresh();
-      // Production-facing reset must not exist: only debug QA resetBudget.
+      // Production-facing child reset must not exist: only debug QA resetBudget.
       expect(ScreenTimeDebugQa.showEntry(), isTrue); // test VM is debug
       expect(kDebugMode, isTrue);
-      // recoverTrust remains explicit and is never called by DebugQa.
       expect(coordinator.accountant.trustState, TrustState.trusted);
       final qa = ScreenTimeDebugQa(coordinator);
       await qa.resetBudget();
       expect(coordinator.accountant.trustState, TrustState.trusted);
       expect(coordinator.accountant.accumulatedActiveSeconds, 0);
     });
+
+    test('TC-ST-S05 debugResetBudgetForQa refuses when mutationsAllowed false',
+        () async {
+      await fresh();
+      expect(
+        () => coordinator.debugResetBudgetForQa(mutationsAllowed: () => false),
+        throwsA(isA<UnsupportedError>()),
+      );
+    });
   });
 
   group('corrupt / degraded cannot be bypassed', () {
-    test('TC-ST-S10 corrupt: direct apply and facade refuse; trust unchanged',
+    test('TC-ST-S10 corrupt: setNearCap/apply refuse; resetBudget recovers',
         () async {
       final store = InMemoryPersistentStore();
       store.corrupt(ScreenTimeSnapshot.storeKey, '{bad');
@@ -146,13 +154,19 @@ void main() {
       );
 
       final qa = ScreenTimeDebugQa(coordinator);
-      expect(qa.resetBudget, throwsA(isA<StateError>()));
+      // Near/at-cap still refuse — no silent budget rewrite while corrupt.
       expect(qa.setNearCap, throwsA(isA<StateError>()));
-      expect(coordinator.accountant.isCorruptPersistence, isTrue);
-      expect(coordinator.allowsChildPlay, isFalse);
+      // Explicit Debug Reset Budget is the UAT recovery path (forceNewLocalDay).
+      await qa.resetBudget();
+      expect(coordinator.accountant.isCorruptPersistence, isFalse);
+      expect(coordinator.accountant.trustState, TrustState.trusted);
+      expect(coordinator.accountant.clockSkewDetected, isFalse);
+      expect(coordinator.accountant.accumulatedActiveSeconds, 0);
+      expect(coordinator.allowsChildPlay, isTrue);
     });
 
-    test('TC-ST-S11 degraded trust: QA cannot reset or manufacture trust',
+    test(
+        'TC-ST-S11 degraded trust: setAtCap/apply refuse; resetBudget recovers',
         () async {
       await fresh();
       // Backward wall → guarded (degraded) without corrupt bytes.
@@ -169,10 +183,9 @@ void main() {
       expect(accountant.trustState, TrustState.guarded);
       expect(accountant.isCorruptPersistence, isFalse);
 
-      final before = accountant.trustState;
       final usedBefore = accountant.accumulatedActiveSeconds;
       final qa = ScreenTimeDebugQa(coordinator);
-      expect(qa.resetBudget, throwsA(isA<StateError>()));
+      // Near/at-cap must still refuse (no manufactured remaining via set).
       expect(qa.setAtCap, throwsA(isA<StateError>()));
       expect(
         () => accountant.applyDebugQaAccumulatedSeconds(
@@ -181,9 +194,15 @@ void main() {
         ),
         throwsA(isA<StateError>()),
       );
-      expect(accountant.trustState, before);
       expect(accountant.isTrustDegraded, isTrue);
       expect(accountant.accumulatedActiveSeconds, usedBefore);
+
+      // Debug Reset Budget recovers via forceNewLocalDay (UAT unblock).
+      await qa.resetBudget();
+      expect(accountant.trustState, TrustState.trusted);
+      expect(accountant.clockSkewDetected, isFalse);
+      expect(accountant.accumulatedActiveSeconds, 0);
+      expect(coordinator.allowsChildPlay, isTrue);
     });
   });
 
@@ -304,6 +323,10 @@ void main() {
       );
       expect(
         () => coordinator.debugPersistForQa(mutationsAllowed: deny),
+        throwsA(isA<UnsupportedError>()),
+      );
+      expect(
+        () => coordinator.debugResetBudgetForQa(mutationsAllowed: deny),
         throwsA(isA<UnsupportedError>()),
       );
       final qa = ScreenTimeDebugQa(coordinator, mutationsAllowed: deny);

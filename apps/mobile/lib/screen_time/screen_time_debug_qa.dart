@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'screen_time_accountant.dart';
 import 'screen_time_coordinator.dart';
+import 'trust_recovery.dart';
 
 /// Debug/QA-only mutations for the screen-time inspector (LMP-49 Step 3.2–3.4).
 ///
@@ -20,7 +21,10 @@ import 'screen_time_coordinator.dart';
 ///
 /// ## Non-goals
 /// - Not a production parent control surface / no alt production route.
-/// - Does **not** call [recoverTrust], clear corrupt evidence, or expose prefs keys.
+/// - [setNearCap] / [setAtCap] do **not** recover trust or clear corrupt evidence.
+/// - [resetBudget] is the sole debug path that may recover via
+///   [TrustRecovery.forceNewLocalDay] (still dual-gated; not a child surface).
+/// - Does not expose prefs keys.
 final class ScreenTimeDebugQa {
   ScreenTimeDebugQa(
     this._coordinator, {
@@ -77,10 +81,27 @@ final class ScreenTimeDebugQa {
   /// Set accumulated used time to 30:00 (cap reached).
   Future<void> setAtCap() => _applyUsed(atCapUsedSeconds);
 
-  /// Reset used time to 0 for the current local day (trusted path only).
+  /// Reset used time / unblock Kids Mode for the current local wall day.
   ///
-  /// Debug/QA only — not a production parent reset API.
-  Future<void> resetBudget() => _applyUsed(0);
+  /// Debug/QA only — not a production parent reset API. When trust is already
+  /// trusted, zeros accumulated seconds. When trust is degraded/corrupt
+  /// (e.g. cross-day restart → uncertain + clockSkew), recovers via
+  /// [TrustRecovery.forceNewLocalDay] so UAT Reset Budget can restore play.
+  Future<void> resetBudget() async {
+    _ensureDebug();
+    if (_coordinator.storageFailed) {
+      throw StateError(
+        'Debug QA refuses budget reset while storage is fail-closed',
+      );
+    }
+    // Parent-path inspector: stop Kids Mode counting before rewriting budget.
+    if (_coordinator.kidsModeShellActive) {
+      _coordinator.setKidsModeShellActive(false);
+    }
+    await _coordinator.debugResetBudgetForQa(
+      mutationsAllowed: mutationsAllowed,
+    );
+  }
 
   Future<void> _applyUsed(int usedSeconds) async {
     _ensureDebug();

@@ -362,7 +362,8 @@ void main() {
       expect(st.accountant.accumulatedActiveSeconds, 0);
     });
 
-    test('TC-ST-D10 corrupt persistence is not bypassed by QA set', () async {
+    test('TC-ST-D10 corrupt persistence: set refuses; resetBudget recovers',
+        () async {
       store = InMemoryPersistentStore();
       store.corrupt(ScreenTimeSnapshot.storeKey, '{not-json');
       mono = FakeMonotonicClock(epochId: 'boot-0');
@@ -378,9 +379,10 @@ void main() {
 
       final qa = ScreenTimeDebugQa(coordinator);
       expect(qa.setNearCap, throwsA(isA<StateError>()));
-      expect(qa.resetBudget, throwsA(isA<StateError>()));
-      expect(coordinator.accountant.isCorruptPersistence, isTrue);
-      expect(coordinator.allowsChildPlay, isFalse);
+      await qa.resetBudget();
+      expect(coordinator.accountant.isCorruptPersistence, isFalse);
+      expect(coordinator.accountant.trustState, TrustState.trusted);
+      expect(coordinator.allowsChildPlay, isTrue);
     });
 
     testWidgets('TC-ST-D11 phone landscape inspector layout (F-034)',
