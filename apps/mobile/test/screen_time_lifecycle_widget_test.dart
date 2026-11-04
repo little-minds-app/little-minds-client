@@ -96,6 +96,7 @@ void main() {
     await _setLandscapePhone(tester);
     final st = await readyCoordinator(usedMinutes: 30);
     expect(st.allowsChildPlay, isFalse);
+    expect(st.childPlayBlockReason, ChildPlayBlockReason.dailyCap);
 
     await tester.pumpWidget(
       LittleMindsApp(
@@ -109,8 +110,60 @@ void main() {
 
     expect(find.byKey(KidsModeCalmBoundary.surfaceKey), findsOneWidget);
     expect(find.text('Time for a break'), findsOneWidget);
+    expect(find.text('Ask a grown-up'), findsNothing);
     // Hub chrome still present underneath; 6-tile catalog not redesigned.
     expect(find.byKey(ChildHubSurface.surfaceKey), findsOneWidget);
+
+    await tester.tap(find.byKey(KidsModeCalmBoundary.grownUpsKey));
+    await _pumpFrames(tester);
+    expect(find.byKey(ParentGateSurface.surfaceKey), findsOneWidget);
+  });
+
+  testWidgets(
+      'TC-ST-UI-002b trust/clock block uses distinct copy; Parent Gate preserved',
+      (tester) async {
+    await _setLandscapePhone(tester);
+    // Seed trusted budget, then cross-day reboot → uncertain + remaining > 0.
+    final st = await readyCoordinator(usedMinutes: 5);
+    await st.persist();
+    st.dispose();
+    await st.shutdownComplete;
+
+    mono = FakeMonotonicClock(epochId: 'boot-1');
+    wall = FakeWallClock(DateTime.utc(2026, 10, 28, 9));
+    coordinator = ScreenTimeCoordinator.withDependencies(
+      monotonicClock: mono,
+      wallClock: wall,
+      store: store,
+      tickInterval: Duration.zero,
+    );
+    await coordinator.initialize();
+    final blocked = coordinator;
+    expect(blocked.accountant.trustState, TrustState.uncertain);
+    expect(blocked.accountant.remainingSeconds, greaterThan(0));
+    expect(blocked.allowsChildPlay, isFalse);
+    expect(blocked.childPlayBlockReason, ChildPlayBlockReason.trustOrStorage);
+    expect(blocked.shouldShowCalmBoundary, isTrue);
+
+    await tester.pumpWidget(
+      LittleMindsApp(
+        game: StubLearningGame(),
+        audioGuidance: RecordingHubAudioGuidance(),
+        screenTime: blocked,
+      ),
+    );
+    await _pumpFrames(tester);
+    await tester.pump();
+
+    expect(find.byKey(KidsModeCalmBoundary.surfaceKey), findsOneWidget);
+    expect(find.text('Ask a grown-up'), findsOneWidget);
+    expect(
+      find.textContaining('not because today\'s time is used up'),
+      findsOneWidget,
+    );
+    // Must NOT reuse daily-cap exhaustion copy when remaining > 0.
+    expect(find.text('Time for a break'), findsNothing);
+    expect(find.textContaining('enough screen time for today'), findsNothing);
 
     await tester.tap(find.byKey(KidsModeCalmBoundary.grownUpsKey));
     await _pumpFrames(tester);

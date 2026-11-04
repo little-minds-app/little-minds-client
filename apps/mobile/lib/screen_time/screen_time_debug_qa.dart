@@ -22,8 +22,10 @@ import 'trust_recovery.dart';
 /// ## Non-goals
 /// - Not a production parent control surface / no alt production route.
 /// - [setNearCap] / [setAtCap] do **not** recover trust or clear corrupt evidence.
-/// - [resetBudget] is the sole debug path that may recover via
-///   [TrustRecovery.forceNewLocalDay] (still dual-gated; not a child surface).
+/// - [resetBudget] may recover **degraded** trust via
+///   [TrustRecovery.forceNewLocalDay] (dual-gated; parent-settings inspector
+///   only — not a child surface). **Corrupt persistence is refused** so debug
+///   Reset cannot clear corrupt evidence + grant a fresh budget.
 /// - Does not expose prefs keys.
 final class ScreenTimeDebugQa {
   ScreenTimeDebugQa(
@@ -84,14 +86,21 @@ final class ScreenTimeDebugQa {
   /// Reset used time / unblock Kids Mode for the current local wall day.
   ///
   /// Debug/QA only — not a production parent reset API. When trust is already
-  /// trusted, zeros accumulated seconds. When trust is degraded/corrupt
-  /// (e.g. cross-day restart → uncertain + clockSkew), recovers via
+  /// trusted, zeros accumulated seconds. When trust is **degraded** (valid
+  /// snapshot; e.g. cross-day restart → uncertain + clockSkew), recovers via
   /// [TrustRecovery.forceNewLocalDay] so UAT Reset Budget can restore play.
+  /// **Corrupt persistence is refused** (narrowed security: no silent clear of
+  /// corrupt evidence + fresh budget from Debug Reset).
   Future<void> resetBudget() async {
     _ensureDebug();
     if (_coordinator.storageFailed) {
       throw StateError(
         'Debug QA refuses budget reset while storage is fail-closed',
+      );
+    }
+    if (_coordinator.accountant.isCorruptPersistence) {
+      throw StateError(
+        'Debug QA refuses Reset Budget while persistence is corrupt',
       );
     }
     // Parent-path inspector: stop Kids Mode counting before rewriting budget.

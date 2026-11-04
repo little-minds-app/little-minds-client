@@ -321,6 +321,13 @@ class AppLocalizationsTr extends AppLocalizations {
       'Bugünlük ekran süresi doldu. Hazır olduğunda bir büyüğe sor.';
 
   @override
+  String get screenTimeCalmTrustTitle => 'Bir büyüğe sor';
+
+  @override
+  String get screenTimeCalmTrustBody =>
+      'Oyun, bir büyük ekran süresini kontrol edene kadar duraklatıldı. Bugünkü süren bitmiş değil.';
+
+  @override
   String get screenTimeCalmGrownUps => 'Büyükler';
 
   @override

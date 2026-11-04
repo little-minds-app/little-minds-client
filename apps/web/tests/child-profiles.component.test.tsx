@@ -1,19 +1,23 @@
 import assert from 'node:assert/strict';
-import { afterEach, test } from 'node:test';
+import { afterEach, beforeEach, test } from 'node:test';
 import React from 'react';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
-Object.assign(globalThis, {
-  window: dom.window,
-  document: dom.window.document,
-  HTMLElement: dom.window.HTMLElement,
-  MutationObserver: dom.window.MutationObserver,
-});
-Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
+function bindDomGlobals() {
+  Object.assign(globalThis, {
+    window: dom.window,
+    document: dom.window.document,
+    HTMLElement: dom.window.HTMLElement,
+    MutationObserver: dom.window.MutationObserver,
+  });
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
+}
+bindDomGlobals();
 const { cleanup, fireEvent, render, screen, waitFor } = require('@testing-library/react') as typeof import('@testing-library/react');
 const { ChildProfiles } = require('../app/parent/child-profiles') as typeof import('../app/parent/child-profiles');
 
+beforeEach(() => { bindDomGlobals(); });
 afterEach(() => {
   cleanup();
   delete (globalThis as { fetch?: unknown }).fetch;

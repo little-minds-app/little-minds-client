@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../game/game_lifecycle_phase.dart';
+import 'child_play_block_reason.dart';
 import 'daily_policy.dart';
 import 'monotonic_clock.dart';
 import 'persistent_store.dart';
@@ -152,6 +153,21 @@ final class ScreenTimeCoordinator extends ChangeNotifier
     if (_phase != _CoordinatorPhase.active) return false;
     if (!_initialized) return false;
     return !allowsChildPlay;
+  }
+
+  /// Differentiated block reason for [KidsModeCalmBoundary] copy.
+  ///
+  /// Prefer [ChildPlayBlockReason.trustOrStorage] when trust/storage fail-closed
+  /// even if remaining seconds happen to be 0 (corrupt path reports 0). Cap
+  /// copy is only for a trusted, non-corrupt exhausted day.
+  ChildPlayBlockReason? get childPlayBlockReason {
+    if (!shouldShowCalmBoundary) return null;
+    if (_storageFailed ||
+        _accountant.isCorruptPersistence ||
+        _accountant.isTrustDegraded) {
+      return ChildPlayBlockReason.trustOrStorage;
+    }
+    return ChildPlayBlockReason.dailyCap;
   }
 
   int get remainingSeconds {
@@ -603,14 +619,17 @@ final class ScreenTimeCoordinator extends ChangeNotifier
     return persist().whenComplete(_endDebugQaOp);
   }
 
-  /// Debug/QA: explicit budget reset that also recovers degraded/uncertain trust.
+  /// Debug/QA: explicit budget reset that recovers **degraded** (not corrupt)
+  /// trust.
   ///
   /// UAT: after app restart across a calendar day, restore sets
   /// [TrustState.uncertain] + [clockSkewDetected] (ADR-016 fail-closed). Plain
   /// budget mutation refuses degraded trust, so Debug "Reset Budget" could not
-  /// unblock Kids Mode. This path is debug-only and mirrors parent-authorized
-  /// [TrustRecovery.forceNewLocalDay] when trust is degraded/corrupt; when
-  /// already trusted it zeros the current day's used seconds.
+  /// unblock Kids Mode. This path is debug-only (dual-gate) and mirrors
+  /// parent-authorized [TrustRecovery.forceNewLocalDay] for valid-but-degraded
+  /// snapshots. **Corrupt persistence is refused** — clearing corrupt evidence
+  /// + granting a fresh budget must stay an explicit parent-authorized recovery,
+  /// not a debug Reset shortcut. When already trusted, zeros used seconds.
   Future<void> debugResetBudgetForQa({bool Function()? mutationsAllowed}) {
     try {
       _ensureDebugMutationsPermitted(mutationsAllowed: mutationsAllowed);
@@ -629,6 +648,14 @@ final class ScreenTimeCoordinator extends ChangeNotifier
         ),
       );
     }
+    if (_accountant.isCorruptPersistence) {
+      return Future<void>.error(
+        StateError(
+          'Debug QA refuses Reset Budget while persistence is corrupt; '
+          'use explicit parent-authorized recovery',
+        ),
+      );
+    }
     _beginDebugQaOp();
     final done = Completer<void>();
     _persistChain = _persistChain.then((_) async {
@@ -642,7 +669,13 @@ final class ScreenTimeCoordinator extends ChangeNotifier
             'Debug QA cannot reset budget while storage is fail-closed',
           );
         }
-        if (_accountant.isTrustDegraded || _accountant.isCorruptPersistence) {
+        if (_accountant.isCorruptPersistence) {
+          throw StateError(
+            'Debug QA refuses Reset Budget while persistence is corrupt; '
+            'use explicit parent-authorized recovery',
+          );
+        }
+        if (_accountant.isTrustDegraded) {
           _accountant.recoverTrust(TrustRecovery.forceNewLocalDay);
         } else {
           _accountant.applyDebugQaAccumulatedSeconds(

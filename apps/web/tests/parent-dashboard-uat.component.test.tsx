@@ -2,16 +2,19 @@
  * Uses synthetic responses only; does not access real accounts or mutate UAT data.
  */
 import assert from 'node:assert/strict';
-import { afterEach, test } from 'node:test';
+import { afterEach, beforeEach, test } from 'node:test';
 import React from 'react';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
-Object.assign(globalThis, {
-  window: dom.window, document: dom.window.document,
-  HTMLElement: dom.window.HTMLElement, MutationObserver: dom.window.MutationObserver,
-});
-Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
+function bindDomGlobals() {
+  Object.assign(globalThis, {
+    window: dom.window, document: dom.window.document,
+    HTMLElement: dom.window.HTMLElement, MutationObserver: dom.window.MutationObserver,
+  });
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
+}
+bindDomGlobals();
 const { cleanup, render, screen, waitFor } = require('@testing-library/react') as typeof import('@testing-library/react');
 const { WebParentDashboard } = require('../app/parent/web-parent-dashboard') as typeof import('../app/parent/web-parent-dashboard');
 
@@ -52,6 +55,7 @@ const mission = {
 function response(status: number, body: unknown): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
 }
+beforeEach(() => { bindDomGlobals(); });
 afterEach(() => { cleanup(); delete (globalThis as { fetch?: unknown }).fetch; });
 
 test('UAT-04: renders only authoritative caregiver completion and server KPI values', async () => {

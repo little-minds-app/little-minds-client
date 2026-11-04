@@ -134,10 +134,44 @@ void main() {
         throwsA(isA<UnsupportedError>()),
       );
     });
+
+    test(
+        'TC-ST-S06 dual-gate refuses reset even when trust is degraded (UAT path)',
+        () async {
+      final seed = InMemoryPersistentStore();
+      await fresh(store: seed);
+      coordinator.setKidsModeShellActive(true);
+      mono.elapse(const Duration(minutes: 5));
+      coordinator.tickForTest();
+      coordinator.setKidsModeShellActive(false);
+      await coordinator.persist();
+      coordinator.dispose();
+      await coordinator.shutdownComplete;
+
+      mono = FakeMonotonicClock(epochId: 'boot-1');
+      wall = FakeWallClock(day0.add(const Duration(days: 1)));
+      coordinator = ScreenTimeCoordinator.withDependencies(
+        monotonicClock: mono,
+        wallClock: wall,
+        store: seed,
+        tickInterval: Duration.zero,
+      );
+      await coordinator.initialize();
+      expect(coordinator.accountant.isTrustDegraded, isTrue);
+
+      final qa = ScreenTimeDebugQa(coordinator, mutationsAllowed: () => false);
+      expect(qa.resetBudget, throwsA(isA<UnsupportedError>()));
+      expect(
+        () => coordinator.debugResetBudgetForQa(mutationsAllowed: () => false),
+        throwsA(isA<UnsupportedError>()),
+      );
+      expect(coordinator.accountant.isTrustDegraded, isTrue);
+      expect(coordinator.allowsChildPlay, isFalse);
+    });
   });
 
   group('corrupt / degraded cannot be bypassed', () {
-    test('TC-ST-S10 corrupt: setNearCap/apply refuse; resetBudget recovers',
+    test('TC-ST-S10 corrupt: setNearCap/apply/resetBudget all refuse',
         () async {
       final store = InMemoryPersistentStore();
       store.corrupt(ScreenTimeSnapshot.storeKey, '{bad');
@@ -156,13 +190,14 @@ void main() {
       final qa = ScreenTimeDebugQa(coordinator);
       // Near/at-cap still refuse — no silent budget rewrite while corrupt.
       expect(qa.setNearCap, throwsA(isA<StateError>()));
-      // Explicit Debug Reset Budget is the UAT recovery path (forceNewLocalDay).
-      await qa.resetBudget();
-      expect(coordinator.accountant.isCorruptPersistence, isFalse);
-      expect(coordinator.accountant.trustState, TrustState.trusted);
-      expect(coordinator.accountant.clockSkewDetected, isFalse);
-      expect(coordinator.accountant.accumulatedActiveSeconds, 0);
-      expect(coordinator.allowsChildPlay, isTrue);
+      // Narrowed: Debug Reset must NOT clear corrupt evidence + grant budget.
+      expect(qa.resetBudget, throwsA(isA<StateError>()));
+      expect(
+        () => coordinator.debugResetBudgetForQa(mutationsAllowed: () => true),
+        throwsA(isA<StateError>()),
+      );
+      expect(coordinator.accountant.isCorruptPersistence, isTrue);
+      expect(coordinator.allowsChildPlay, isFalse);
     });
 
     test(

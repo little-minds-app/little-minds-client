@@ -656,7 +656,7 @@ abstract class AppLocalizations {
   /// **'Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof.'**
   String get mentorCardOpenMissionHint;
 
-  /// Calm daily screen-time boundary title (LMP-49 / K06-lite). No pressure copy.
+  /// Calm daily screen-time boundary title when the local daily cap is reached (LMP-49 / K06-lite). No pressure copy.
   ///
   /// In en, this message translates to:
   /// **'Time for a break'**
@@ -667,6 +667,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'That\'s enough screen time for today. Ask a grown-up when you\'re ready.'**
   String get screenTimeCalmBody;
+
+  /// Calm boundary title when Kids Mode is blocked for clock/trust/storage integrity (not daily-cap exhaustion). LMP-49.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a grown-up'**
+  String get screenTimeCalmTrustTitle;
+
+  /// Accessible parent-assistance body when trust/clock/storage fail-closed blocks play while remaining budget may still be > 0.
+  ///
+  /// In en, this message translates to:
+  /// **'Play is paused until a grown-up checks screen time. This is not because today\'s time is used up.'**
+  String get screenTimeCalmTrustBody;
 
   /// Optional Parent Gate exit from the calm screen-time boundary.
   ///
