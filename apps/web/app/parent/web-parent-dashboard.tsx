@@ -20,6 +20,10 @@ type Snapshot = { parentId: string; childId: string; kpi: Phase<Kpi>; missions: 
 
 const failure = (status: number) => status === 401 || status === 403 || status === 404;
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
 export function dashboardWindow(now = new Date()) {
   const date = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -129,25 +133,37 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
     if (!snapshot || snapshot.blocked || !selectedChildId || snapshot.childId !== selectedChildId) return;
     const expectedParent = snapshot.parentId;
     const childId = snapshot.childId;
-    let revalidateGeneration = 0;
+    let revalidateEpoch = 0;
+    let inFlightAbort: AbortController | null = null;
 
     async function revalidateSession() {
-      const pass = ++revalidateGeneration;
+      const epoch = ++revalidateEpoch;
+      inFlightAbort?.abort();
       const abort = new AbortController();
+      inFlightAbort = abort;
       try {
         const me = await fetch('/api/auth/me', { cache: 'no-store', signal: abort.signal });
-        if (pass !== revalidateGeneration) return;
+        if (epoch !== revalidateEpoch || abort.signal.aborted) return;
         if (!me.ok) {
           invalidateProtectedData(childId);
           return;
         }
         const parent = await me.json() as { parent_id?: string };
+        if (epoch !== revalidateEpoch || abort.signal.aborted) return;
         if (!parent.parent_id || parent.parent_id !== expectedParent) {
           invalidateProtectedData(childId);
         }
-      } catch {
-        if (abort.signal.aborted || pass !== revalidateGeneration) return;
-        invalidateProtectedData(childId);
+      } catch (error) {
+        const aborted = abort.signal.aborted;
+        const superseded = epoch !== revalidateEpoch;
+        if (aborted && superseded) return;
+        if (aborted && !isAbortError(error)) {
+          invalidateProtectedData(childId);
+          return;
+        }
+        if (!aborted) invalidateProtectedData(childId);
+      } finally {
+        if (inFlightAbort === abort) inFlightAbort = null;
       }
     }
 
@@ -162,7 +178,9 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
-      revalidateGeneration += 1;
+      revalidateEpoch += 1;
+      inFlightAbort?.abort();
+      inFlightAbort = null;
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };

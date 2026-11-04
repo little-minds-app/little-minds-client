@@ -203,12 +203,12 @@ test('tab focus network error on session revalidation fails closed', async () =>
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
   assert.ok(screen.getByText(/Ebeveyn bildirimi yok \(uygulama etkileşimi tamamlanma kanıtı değildir\)/));
   failMeOnFocus = true;
-  await act(async () => {
-    fireEvent(window, new dom.window.Event('focus'));
+  fireEvent(window, new dom.window.Event('focus'));
+  await waitFor(() => {
+    assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/));
+    assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
+    assert.equal(screen.queryByText(/Ebeveyn bildirimi yok \(uygulama etkileşimi tamamlanma kanıtı değildir\)/), null);
   });
-  assert.ok(await screen.findByText(/Korumalı bilgiler gizlendi/));
-  assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
-  assert.equal(screen.queryByText(/Ebeveyn bildirimi yok/), null);
 });
 
 test('retry refetches both independent data panels', async () => {
