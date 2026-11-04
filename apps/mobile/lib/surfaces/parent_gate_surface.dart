@@ -137,21 +137,24 @@ class ParentGateSurfaceState extends State<ParentGateSurface>
   }
 
   Widget _onboarding(BuildContext context, ParentAuthController auth) {
-    return Column(
-      key: ParentGateSurface.onboardingKey,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Parent sign-in',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          AuthPrivacyNotice.engineeringSummary,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 24),
-        FilledButton(
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          key: ParentGateSurface.onboardingKey,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Parent sign-in',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              AuthPrivacyNotice.engineeringSummary,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
           key: const Key('parent-auth-phone-entry'),
           onPressed: auth.openPhoneFlow,
           child: const Text('Continue with phone'),
@@ -178,13 +181,18 @@ class ParentGateSurfaceState extends State<ParentGateSurface>
               'Sign in with Google requires a future native SDK integration.',
           key: const Key('parent-auth-google'),
         ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 
   Widget _phoneFlow(BuildContext context, ParentAuthController auth) {
     final verifying = auth.step == ParentAuthStep.phoneVerify;
-    return Column(
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
@@ -234,6 +242,8 @@ class ParentGateSurfaceState extends State<ParentGateSurface>
           child: const Text('Back'),
         ),
       ],
+        ),
+      ),
     );
   }
 
@@ -298,7 +308,10 @@ class ParentGateSurfaceState extends State<ParentGateSurface>
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 8),
-        Text('Parent ID: ${auth.session?.parentId ?? '—'}'),
+        Text(
+          'Your caregiver account is verified. Open Parent Settings to manage profiles and the dashboard.',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
         const SizedBox(height: 24),
         FilledButton(
           key: const Key('parent-auth-open-settings'),

@@ -1,6 +1,5 @@
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
-import Link from 'next/link';
+import React, { useEffect, useState, type FormEvent } from 'react';
 import { LmButton, LmCard, LmField, LmInput } from './parent/lm-ui';
 import { ParentFeedback } from './parent/parent-feedback';
 
@@ -35,7 +34,7 @@ export default function ParentHome() {
 
   useEffect(() => {
     let mounted = true;
-    api('me').then((result) => {
+    api('me').then(() => {
       if (!mounted) return;
       setState('signed_in');
       // Never auto-redirect: authorization failure must not create a redirect loop.
@@ -55,7 +54,7 @@ export default function ParentHome() {
         // OTP is consumed on success. Never offer it again if profile load fails.
         setState('checking_session'); setCode('');
         try {
-          const me = await api('me');
+          await api('me');
           setState('signed_in');
         } catch {
           setError('Giriş başarılı, ancak profil yüklenemedi. Tekrar kontrol edin.');
@@ -115,7 +114,7 @@ export default function ParentHome() {
         </div>}
         {state === 'signed_in' && <div className="auth-panel__actions">
           <ParentFeedback kind="success" title="Giriş başarılı" message="Oturumunuz doğrulandı. Çocuğunuzun oyun ve görev özetine geçebilirsiniz." />
-          <Link className="lm-btn lm-btn--primary auth-panel__link" href="/parent" onClick={async (event) => { if (!event.nativeEvent.isTrusted) { event.preventDefault(); return; } event.preventDefault(); try { await api('activity', {}); window.location.assign('/parent'); } catch { setError('Oturum doğrulanamadı. Lütfen yeniden deneyin.'); } }}>Ebeveyn paneline git</Link>
+          <a className="lm-btn lm-btn--primary auth-panel__link" href="/parent" onClick={async (event) => { if (!event.nativeEvent.isTrusted) { event.preventDefault(); return; } event.preventDefault(); try { await api('activity', {}); window.location.assign('/parent'); } catch { setError('Oturum doğrulanamadı. Lütfen yeniden deneyin.'); } }}>Ebeveyn paneline git</a>
           <LmButton variant="secondary" disabled={busy} onClick={logout}>Çıkış yap</LmButton>
         </div>}
         {(state === 'signed_out' || state === 'otp') && <form className="lm-form auth-panel__form" onSubmit={submit}>

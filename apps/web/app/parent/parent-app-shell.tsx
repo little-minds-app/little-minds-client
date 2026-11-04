@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
+import { AuthLogoutButton } from './auth-logout-button';
 
 export function ParentAppShell({
   children,
@@ -24,7 +24,7 @@ export function ParentAppShell({
           <nav className="parent-app__nav" aria-label="Ebeveyn gezintisi">
             <a className="parent-app__nav-link parent-app__nav-link--active" href="#dashboard">Özet</a>
             <a className="parent-app__nav-link" href="#profiles">Profiller</a>
-            <Link className="parent-app__nav-link" href="/">Çıkış</Link>
+            <AuthLogoutButton variant="ghost" className="parent-app__logout" label="Çıkış yap" />
           </nav>
         </div>
         {activeChildLabel && (

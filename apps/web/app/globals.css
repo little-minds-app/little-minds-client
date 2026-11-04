@@ -542,6 +542,115 @@ a:focus-visible { outline: 3px solid var(--lm-accent); outline-offset: 4px; }
 .dashboard-chart__placeholder-lines span:nth-child(2) { height: 70%; }
 .dashboard-chart__placeholder-lines span:nth-child(3) { height: 55%; }
 
+.auth-shell {
+  width: min(100% - 32px, 1120px);
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 420px);
+  gap: clamp(24px, 4vw, 48px);
+  align-items: start;
+  padding-top: clamp(32px, 6vw, 72px);
+  padding-bottom: var(--lm-space-6);
+}
+
+.auth-intro {
+  padding: var(--lm-space-5);
+  border-radius: var(--lm-radius-lg);
+  background: linear-gradient(145deg, #1a4480 0%, #2552a4 55%, #3d6ec4 100%);
+  color: #fff;
+  box-shadow: var(--lm-shadow-md);
+}
+
+.auth-intro__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--lm-space-3);
+  font-weight: 700;
+  margin-bottom: var(--lm-space-4);
+}
+
+.auth-intro__eyebrow {
+  margin: 0 0 var(--lm-space-2);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+}
+
+.auth-intro h1 {
+  margin: 0 0 var(--lm-space-3);
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  line-height: 1.2;
+}
+
+.auth-intro__description {
+  margin: 0 0 var(--lm-space-4);
+  opacity: 0.95;
+  max-width: 42ch;
+}
+
+.auth-intro__features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--lm-space-2);
+}
+
+.auth-intro__features li {
+  display: flex;
+  gap: var(--lm-space-2);
+  align-items: flex-start;
+}
+
+.auth-panel { display: grid; gap: var(--lm-space-3); }
+
+.auth-panel__status,
+.auth-panel__legal,
+.auth-panel__footnote {
+  margin: 0;
+  color: var(--lm-muted);
+  font-size: 0.88rem;
+}
+
+.auth-panel__legal { margin-top: var(--lm-space-2); }
+
+.auth-panel__actions {
+  display: grid;
+  gap: var(--lm-space-3);
+  margin-top: var(--lm-space-3);
+}
+
+.auth-panel__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  text-align: center;
+}
+
+.auth-panel__form { margin-top: var(--lm-space-2); }
+
+.parent-app__logout .lm-btn {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: transparent;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+
+.parent-app__logout .lm-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.parent-app__logout .parent-feedback { display: none; }
+
+@media (max-width: 900px) {
+  .auth-shell {
+    grid-template-columns: 1fr;
+    width: calc(100% - 24px);
+  }
+}
+
 @media (max-width: 480px) {
   .parent-app__main { width: calc(100% - 24px); }
   .parent-dashboard__charts { grid-template-columns: 1fr; }
