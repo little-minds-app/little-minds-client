@@ -253,6 +253,24 @@
   "screenTimeDebugStatusReset": "Budget reset to 0:00.",
   "screenTimeDebugStatusReload": "Reloaded from store.",
   "screenTimeDebugStatusPersist": "Persisted current checkpoint.",
+  "shapeMatchingPromptMatch": "Find the same shape!",
+  "shapeMatchingPromptDone": "You did it!",
+  "shapeMatchingTapOrDragHint": "Tap or drag your shape.",
+  "shapeMatchingTargetLabel": "Match this one",
+  "shapeMatchingChoicesLabel": "Pick one",
+  "shapeMatchingTryAgain": "Try again!",
+  "shapeMatchingPlayAgain": "Play again",
+  "shapeMatchingHintLevel": "A little help: look for the same shape ({level})",
+  "@shapeMatchingHintLevel": {
+    "placeholders": {
+      "level": {"type": "int"}
+    }
+  },
+  "shapeMatchingShapeCircle": "Circle",
+  "shapeMatchingShapeSquare": "Square",
+  "shapeMatchingShapeTriangle": "Triangle",
+  "shapeMatchingShapeStar": "Star",
+  "shapeMatchingShapeHexagon": "Hexagon",
   "parentDashboardChildSelectorLabel": "Child profile",
   "@parentDashboardChildSelectorLabel": {
     "description": "Accessible label for the Parent Dashboard child profile switcher."

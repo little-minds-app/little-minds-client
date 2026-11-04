@@ -920,16 +920,36 @@ abstract class AppLocalizations {
   /// **'Persisted current checkpoint.'**
   String get screenTimeDebugStatusPersist;
 
+  String get shapeMatchingPromptMatch;
+
+  String get shapeMatchingPromptDone;
+
+  String get shapeMatchingTapOrDragHint;
+
+  String get shapeMatchingTargetLabel;
+
+  String get shapeMatchingChoicesLabel;
+
+  String get shapeMatchingTryAgain;
+
+  String get shapeMatchingPlayAgain;
+
+  String shapeMatchingHintLevel(int level);
+
+  String get shapeMatchingShapeCircle;
+
+  String get shapeMatchingShapeSquare;
+
+  String get shapeMatchingShapeTriangle;
+
+  String get shapeMatchingShapeStar;
+
+  String get shapeMatchingShapeHexagon;
+
   /// Accessible label for the Parent Dashboard child profile switcher.
-  ///
-  /// In en, this message translates to:
-  /// **'Child profile'**
   String get parentDashboardChildSelectorLabel;
 
   /// Accessibility hint for the dashboard child profile dropdown.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose which child\'s overview and mission status to show.'**
   String get parentDashboardChildSelectorHint;
 }
 

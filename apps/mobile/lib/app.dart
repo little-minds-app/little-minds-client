@@ -14,7 +14,9 @@ import 'child_profiles/child_profiles_controller.dart';
 import 'config/app_config.dart';
 import 'theme/little_minds_parent_theme.dart';
 import 'config/app_config_scope.dart';
+import 'game/activity_registry.dart';
 import 'game/flame_host.dart';
+import 'shape_matching/hub_activity_registry.dart';
 import 'l10n/app_localizations.dart';
 import 'mentor/mentor_card.dart';
 import 'mentor/mentor_card_fixtures.dart';
@@ -146,8 +148,21 @@ bool get _isWidgetTestBinding =>
           'TestWidgetsFlutterBinding',
         );
 
+/// Mutable bridge so hub registry can read the selected child after bootstrap.
+final class _HubChildAgeBridge {
+  ChildProfilesController? profiles;
+  int? get ageMonths => profiles?.selected?.ageMonths;
+}
+
 class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObserver {
-  late final StubLearningGame _game = widget.game ?? StubLearningGame();
+  final _hubChildAge = _HubChildAgeBridge();
+  late final ActivityRegistry _hubRegistry = widget.game?.registry ??
+      createHubActivityRegistry(
+        ageMonthsProvider: () => _hubChildAge.ageMonths,
+        localeTag: widget.locale?.toLanguageTag() ?? 'en-US',
+      );
+  late final StubLearningGame _game =
+      widget.game ?? StubLearningGame(registry: _hubRegistry);
   late _ShellRoute _route =
       widget.initialNearFarDemo && widget.testOnlyAdultAccess &&
               _isWidgetTestBinding && !kReleaseMode
@@ -242,6 +257,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
       ),
       auth: _parentAuth,
     );
+    _hubChildAge.profiles = _profiles;
     _parentAuth.addListener(_handleAuthChange);
     if (widget.offlineSync != null) {
       _flushOfflineSafely();

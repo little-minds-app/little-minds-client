@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'activity_registry.dart';
 
-/// Shared Flame game shell. Production registry stays empty until a later
-/// E03 task registers a real playable [LearningActivity] (LMP-55+).
+/// Shared Flame game shell. Production registry seeds Shape Matching (LMP-55);
+/// other hub engines remain unregistered until later E03 tasks.
 ///
 /// Session pause/resume is driven by [ActivitySessionController] (LMP-44).
 class StubLearningGame extends FlameGame {

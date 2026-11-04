@@ -10,6 +10,8 @@ import 'activity_session_controller.dart';
 import 'activity_session_snapshot.dart';
 import 'flame_host.dart';
 import 'game_lifecycle_phase.dart';
+import '../shape_matching/shape_matching_activity.dart';
+import '../shape_matching/shape_matching_play_field.dart';
 import 'learning_activity.dart';
 
 /// Landscape mini-game host with shared Flame lifecycle (LMP-44 / ADR-018).
@@ -43,6 +45,7 @@ class ActivityPlayHost extends StatefulWidget {
   static const Key phaseKey = Key('activity-play-phase');
   static const Key errorKey = Key('activity-play-error');
   static const Key loadingKey = Key('activity-play-loading');
+  static const Key inputBlockKey = Key('activity-play-input-blocked');
 
   @override
   State<ActivityPlayHost> createState() => _ActivityPlayHostState();
@@ -72,6 +75,9 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
       return;
     }
     _enterStarted = true;
+    if (widget.activity is ShapeMatchingActivity) {
+      (widget.activity as ShapeMatchingActivity).bindFlameGame(widget.game);
+    }
     final ok = await _controller.enter(widget.activity);
     if (!mounted || _controller.isDisposed) {
       return;
@@ -178,8 +184,6 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
     }
   }
 
-  static const Key inputBlockKey = Key('activity-play-input-blocked');
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -226,9 +230,22 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
                         absorbing: blockInput,
                         child: GameWidget(game: widget.game),
                       ),
+                      if (widget.activity is ShapeMatchingActivity &&
+                          phase != GameLifecyclePhase.preparing &&
+                          phase != GameLifecyclePhase.idle)
+                        AbsorbPointer(
+                          absorbing: blockInput,
+                          child: ShapeMatchingPlayField(
+                            activity: widget.activity as ShapeMatchingActivity,
+                            controller: _controller,
+                            reduceMotion: MediaQuery.maybeOf(context)
+                                    ?.disableAnimations ??
+                                false,
+                          ),
+                        ),
                       if (blockInput)
                         const ModalBarrier(
-                          key: inputBlockKey,
+                          key: ActivityPlayHost.inputBlockKey,
                           dismissible: false,
                           color: Color(0x33000000),
                         ),
