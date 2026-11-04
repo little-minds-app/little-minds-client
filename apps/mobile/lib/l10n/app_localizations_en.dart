@@ -449,4 +449,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get screenTimeDebugStatusPersist => 'Persisted current checkpoint.';
+
+  @override
+  String get parentDashboardChildSelectorLabel => 'Child profile';
+
+  @override
+  String get parentDashboardChildSelectorHint =>
+      'Choose which child\'s overview and mission status to show.';
 }

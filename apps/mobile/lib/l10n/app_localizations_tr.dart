@@ -455,4 +455,11 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get screenTimeDebugStatusPersist =>
       'Geçerli kontrol noktası kaydedildi.';
+
+  @override
+  String get parentDashboardChildSelectorLabel => 'Çocuk profili';
+
+  @override
+  String get parentDashboardChildSelectorHint =>
+      'Hangi çocuğun özeti ve görev durumunun gösterileceğini seçin.';
 }

@@ -919,6 +919,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Persisted current checkpoint.'**
   String get screenTimeDebugStatusPersist;
+
+  /// Accessible label for the Parent Dashboard child profile switcher.
+  ///
+  /// In en, this message translates to:
+  /// **'Child profile'**
+  String get parentDashboardChildSelectorLabel;
+
+  /// Accessibility hint for the dashboard child profile dropdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which child\'s overview and mission status to show.'**
+  String get parentDashboardChildSelectorHint;
 }
 
 class _AppLocalizationsDelegate

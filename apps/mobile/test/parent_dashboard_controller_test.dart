@@ -23,6 +23,7 @@ class FakeSessionKpiRepository extends SessionKpiRepository {
   SessionKpiResponse? response;
   Completer<SessionKpiResponse>? pending;
   final Map<String, Completer<SessionKpiResponse>> pendingByChild = {};
+  final Map<String, SessionKpiResponse> responseByChild = {};
   String? lastChildId;
   Object? throwError;
 
@@ -37,6 +38,9 @@ class FakeSessionKpiRepository extends SessionKpiRepository {
       return pendingByChild[childId]!.future;
     }
     if (pending != null) return pending!.future;
+    if (childId != null && responseByChild.containsKey(childId)) {
+      return responseByChild[childId]!;
+    }
     if (response == null) {
       throw ApiException(503, 'offline');
     }
@@ -335,6 +339,68 @@ void main() {
     expect(controller.view, isNull);
     expect(controller.missionPhase, MissionStatusPhase.loaded);
     expect(controller.missionView?.rows, isNotEmpty);
+  });
+
+  test('child selection A→B→A reloads KPIs for each profile', () async {
+    final auth = signedIn(parentId: _parentA);
+    final profiles = await profilesWithChild(auth);
+
+    final repo = FakeSessionKpiRepository(auth);
+    repo.responseByChild[_childAda] = sampleKpiResponse(eligible: 2);
+    repo.responseByChild[_childBob] = sampleKpiResponse(eligible: 8);
+    final mission = FakeMissionStatusRepository(auth)
+      ..response = sampleMissionStatusResponse(items: []);
+
+    final controller = dashboardController(
+      kpi: repo,
+      mission: mission,
+      auth: auth,
+      profiles: profiles,
+    );
+    await controller.load();
+    expect(controller.view?.eligibleSessions, 2);
+
+    profiles.select(_childBob);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.view?.eligibleSessions, 8);
+
+    profiles.select(_childAda);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.view?.eligibleSessions, 2);
+    expect(profiles.selectedId, _childAda);
+  });
+
+  test('logout drops in-flight dashboard data and clears child binding', () async {
+    final auth = signedIn(parentId: _parentA);
+    final profiles = await profilesWithChild(auth);
+
+    final repo = FakeSessionKpiRepository(auth);
+    repo.pending = Completer<SessionKpiResponse>();
+    final mission = FakeMissionStatusRepository(auth)
+      ..response = sampleMissionStatusResponse(items: []);
+    final controller = dashboardController(
+      kpi: repo,
+      mission: mission,
+      auth: auth,
+      profiles: profiles,
+    );
+
+    // ignore: discarded_futures
+    controller.load();
+    await Future<void>.delayed(Duration.zero);
+    auth.seedAuthenticatedSessionForTests(const AuthSession(
+      accessToken: 'other',
+      refreshToken: 'other-r',
+      parentId: '22222222-2222-4222-8222-222222222222',
+      sessionId: _sessionS2,
+      expiresInSeconds: 900,
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.phase, ParentDashboardPhase.initial);
+    expect(controller.view, isNull);
+    expect(profiles.selectedId, isNull);
+    expect(profiles.children, isEmpty);
   });
 
   test('KPI load succeeds when mission fetch fails', () async {

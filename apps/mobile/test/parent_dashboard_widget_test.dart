@@ -12,17 +12,31 @@ import 'package:little_minds_mobile/parent_dashboard/mission_status_repository.d
 import 'package:little_minds_mobile/parent_dashboard/parent_dashboard_controller.dart';
 import 'package:little_minds_mobile/parent_dashboard/session_kpi_repository.dart';
 import 'package:little_minds_mobile/parent_dashboard/session_kpi_window.dart';
+import 'package:little_minds_mobile/l10n/app_localizations.dart';
 import 'package:little_minds_mobile/surfaces/parent_dashboard_surface.dart';
 import 'package:little_minds_mobile/surfaces/parent_settings_surface.dart';
 
 import 'child_profiles_widget_test.dart' show FakeChildProfiles;
 import 'parent_dashboard_fixtures.dart';
 
+Widget localizedDashboardTestApp(Widget child, {Locale? locale}) {
+  return MaterialApp(
+    locale: locale,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: child,
+  );
+}
+
+const _childAda = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const _childBob = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
 class FakeSessionKpiRepository extends SessionKpiRepository {
   FakeSessionKpiRepository(ParentAuthController auth)
       : super(config: AppConfig.developmentLocal, auth: auth);
 
   SessionKpiResponse? response;
+  final Map<String, SessionKpiResponse> responseByChild = {};
   Object? throwError;
 
   @override
@@ -31,6 +45,9 @@ class FakeSessionKpiRepository extends SessionKpiRepository {
     String? childId,
   }) async {
     if (throwError != null) throw throwError!;
+    if (childId != null && responseByChild.containsKey(childId)) {
+      return responseByChild[childId]!;
+    }
     if (response == null) throw ApiException(503, 'offline');
     return response!;
   }
@@ -97,8 +114,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: ParentDashboardSurface(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
           auth: auth,
           profiles: profiles,
           repository: repo,
@@ -156,8 +173,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: ParentDashboardSurface(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
           auth: auth,
           profiles: profiles,
           repository: repo,
@@ -218,8 +235,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: ParentDashboardSurface(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
           auth: auth,
           profiles: profiles,
           repository: repo,
@@ -274,8 +291,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: ParentDashboardSurface(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
           auth: auth,
           profiles: profiles,
           repository: repo,
@@ -332,8 +349,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: ParentDashboardSurface(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
           auth: auth,
           profiles: profiles,
           repository: repo,
@@ -389,8 +406,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: ParentDashboardSurface(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
           auth: auth,
           profiles: profiles,
           repository: repo,
@@ -447,8 +464,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: ParentDashboardSurface(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
           auth: auth,
           profiles: profiles,
           repository: repo,
@@ -508,8 +525,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: ParentDashboardSurface(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
           auth: auth,
           profiles: profiles,
           repository: repo,
@@ -586,8 +603,8 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: ParentDashboardSurface(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
           auth: auth,
           profiles: profiles,
           repository: repo,
@@ -604,6 +621,274 @@ void main() {
     expect(find.text('activity-play'), findsOneWidget);
     expect(find.textContaining('0 dk'), findsWidgets);
     expect(find.byKey(const Key('activity-chart-meta-activity-play')), findsOneWidget);
+  });
+
+  testWidgets('child switcher lists owned children and reloads KPIs A→B→A',
+      (tester) async {
+    final auth = ParentAuthController(
+      repository: ParentAuthRepository(
+        config: AppConfig.developmentLocal,
+        tokenStore: InMemoryAuthTokenStore(),
+      ),
+    );
+    auth.seedAuthenticatedSessionForTests(const AuthSession(
+      accessToken: 'token',
+      refreshToken: 'refresh',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      expiresInSeconds: 900,
+    ));
+
+    final fakeProfiles = FakeChildProfiles(auth);
+    fakeProfiles.rows.addAll([
+      ChildProfileResponse(
+        childId: _childAda,
+        nickname: 'Ada',
+        ageMonths: 32,
+        preferredLocale: 'tr-TR',
+      ),
+      ChildProfileResponse(
+        childId: _childBob,
+        nickname: 'Bora',
+        ageMonths: 36,
+        preferredLocale: 'tr-TR',
+      ),
+    ]);
+    final profiles = ChildProfilesController(repository: fakeProfiles, auth: auth);
+    await profiles.load();
+    profiles.select(_childAda);
+
+    final repo = FakeSessionKpiRepository(auth)
+      ..responseByChild[_childAda] = sampleKpiResponse(eligible: 3)
+      ..responseByChild[_childBob] = sampleKpiResponse(eligible: 7);
+    final missionRepo = FakeMissionStatusRepository(auth)
+      ..response = sampleMissionStatusResponse();
+
+    final dashboardController = ParentDashboardController(
+      repository: repo,
+      missionRepository: missionRepo,
+      auth: auth,
+      profiles: profiles,
+    );
+
+    await tester.pumpWidget(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
+          auth: auth,
+          profiles: profiles,
+          repository: repo,
+          missionRepository: missionRepo,
+          controller: dashboardController,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(ParentDashboardSurface.childSwitcherKey), findsOneWidget);
+    expect(find.text('3'), findsWidgets);
+
+    final dropdownFinder = find.descendant(
+      of: find.byKey(ParentDashboardSurface.childSwitcherKey),
+      matching: find.byType(DropdownButtonFormField<String>),
+    );
+    await tester.tap(dropdownFinder);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('parent-dashboard-child-option-$_childBob')).last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(profiles.selectedId, _childBob);
+    expect(find.text('7'), findsWidgets);
+
+    await tester.tap(dropdownFinder);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('parent-dashboard-child-option-$_childAda')).last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(profiles.selectedId, _childAda);
+    expect(find.text('3'), findsWidgets);
+  });
+
+  testWidgets('child switcher uses TR and EN localized labels', (tester) async {
+    Future<void> expectLabel(Locale locale, String label) async {
+      final auth = ParentAuthController(
+        repository: ParentAuthRepository(
+          config: AppConfig.developmentLocal,
+          tokenStore: InMemoryAuthTokenStore(),
+        ),
+      );
+      auth.seedAuthenticatedSessionForTests(const AuthSession(
+        accessToken: 'token',
+        refreshToken: 'refresh',
+        parentId: '11111111-1111-4111-8111-111111111111',
+        sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        expiresInSeconds: 900,
+      ));
+      final fakeProfiles = FakeChildProfiles(auth);
+      fakeProfiles.rows.add(ChildProfileResponse(
+        childId: _childAda,
+        nickname: 'Ada',
+        ageMonths: 32,
+        preferredLocale: 'tr-TR',
+      ));
+      final profiles = ChildProfilesController(repository: fakeProfiles, auth: auth);
+      await profiles.load();
+      profiles.select(_childAda);
+      final repo = FakeSessionKpiRepository(auth)..response = sampleKpiResponse();
+      final missionRepo = FakeMissionStatusRepository(auth)
+        ..response = sampleMissionStatusResponse();
+      final dashboardController = ParentDashboardController(
+        repository: repo,
+        missionRepository: missionRepo,
+        auth: auth,
+        profiles: profiles,
+      );
+      await tester.pumpWidget(
+        localizedDashboardTestApp(
+          ParentDashboardSurface(
+            auth: auth,
+            profiles: profiles,
+            repository: repo,
+            missionRepository: missionRepo,
+            controller: dashboardController,
+          ),
+          locale: locale,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text(label), findsOneWidget);
+    }
+
+    await expectLabel(const Locale('en'), 'Child profile');
+    await expectLabel(const Locale('tr'), 'Çocuk profili');
+  });
+
+  testWidgets('single owned child shows non-interactive switcher', (tester) async {
+    final auth = ParentAuthController(
+      repository: ParentAuthRepository(
+        config: AppConfig.developmentLocal,
+        tokenStore: InMemoryAuthTokenStore(),
+      ),
+    );
+    auth.seedAuthenticatedSessionForTests(const AuthSession(
+      accessToken: 'token',
+      refreshToken: 'refresh',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      expiresInSeconds: 900,
+    ));
+    final fakeProfiles = FakeChildProfiles(auth);
+    fakeProfiles.rows.add(ChildProfileResponse(
+      childId: _childAda,
+      nickname: 'Only',
+      ageMonths: 30,
+      preferredLocale: 'tr-TR',
+    ));
+    final profiles = ChildProfilesController(repository: fakeProfiles, auth: auth);
+    await profiles.load();
+    profiles.select(_childAda);
+    final repo = FakeSessionKpiRepository(auth)..response = sampleKpiResponse();
+    final missionRepo = FakeMissionStatusRepository(auth)
+      ..response = sampleMissionStatusResponse();
+    final dashboardController = ParentDashboardController(
+      repository: repo,
+      missionRepository: missionRepo,
+      auth: auth,
+      profiles: profiles,
+    );
+
+    await tester.pumpWidget(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
+          auth: auth,
+          profiles: profiles,
+          repository: repo,
+          missionRepository: missionRepo,
+          controller: dashboardController,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final dropdown = tester.widget<DropdownButtonFormField<String>>(
+      find.descendant(
+        of: find.byKey(ParentDashboardSurface.childSwitcherKey),
+        matching: find.byType(DropdownButtonFormField<String>),
+      ),
+    );
+    expect(dropdown.onChanged, isNull);
+    expect(find.text('Only'), findsOneWidget);
+  });
+
+  testWidgets('child prompt shows switcher when profiles exist but none selected',
+      (tester) async {
+    final auth = ParentAuthController(
+      repository: ParentAuthRepository(
+        config: AppConfig.developmentLocal,
+        tokenStore: InMemoryAuthTokenStore(),
+      ),
+    );
+    auth.seedAuthenticatedSessionForTests(const AuthSession(
+      accessToken: 'token',
+      refreshToken: 'refresh',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      sessionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      expiresInSeconds: 900,
+    ));
+    final fakeProfiles = FakeChildProfiles(auth);
+    fakeProfiles.rows.add(ChildProfileResponse(
+      childId: _childAda,
+      nickname: 'Ada',
+      ageMonths: 32,
+      preferredLocale: 'tr-TR',
+    ));
+    final profiles = ChildProfilesController(repository: fakeProfiles, auth: auth);
+    await profiles.load();
+
+    final repo = FakeSessionKpiRepository(auth)
+      ..responseByChild[_childAda] = sampleKpiResponse(eligible: 4);
+    final missionRepo = FakeMissionStatusRepository(auth)
+      ..response = sampleMissionStatusResponse();
+    final dashboardController = ParentDashboardController(
+      repository: repo,
+      missionRepository: missionRepo,
+      auth: auth,
+      profiles: profiles,
+    );
+
+    await tester.pumpWidget(
+      localizedDashboardTestApp(
+        ParentDashboardSurface(
+          auth: auth,
+          profiles: profiles,
+          repository: repo,
+          missionRepository: missionRepo,
+          controller: dashboardController,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(ParentDashboardSurface.childPromptKey), findsOneWidget);
+    expect(find.byKey(ParentDashboardSurface.childSwitcherKey), findsOneWidget);
+
+    final dropdownFinder = find.descendant(
+      of: find.byKey(ParentDashboardSurface.childSwitcherKey),
+      matching: find.byType(DropdownButtonFormField<String>),
+    );
+    await tester.tap(dropdownFinder);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ada').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(profiles.selectedId, _childAda);
+    expect(find.byKey(ParentDashboardSurface.contentKey), findsOneWidget);
   });
 
   testWidgets('Child Hub does not expose dashboard entry without parent path',

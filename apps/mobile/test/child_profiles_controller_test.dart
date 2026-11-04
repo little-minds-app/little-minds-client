@@ -5,6 +5,23 @@ import 'package:little_minds_mobile/child_profiles/child_profiles_controller.dar
 import 'child_profiles_widget_test.dart' show FakeChildProfiles, signedIn;
 
 void main() {
+  test('select ignores child ids not in the loaded parent list', () async {
+    final auth = signedIn('11111111-1111-4111-8111-111111111111');
+    final fake = FakeChildProfiles(auth);
+    fake.rows.add(ChildProfileResponse(
+      childId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      nickname: 'Ada',
+      ageMonths: 32,
+      preferredLocale: 'tr-TR',
+    ));
+    final controller = ChildProfilesController(repository: fake, auth: auth);
+    await controller.load();
+    controller.select('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+    expect(controller.selectedId, isNull);
+    controller.dispose();
+    auth.dispose();
+  });
+
   test('save applies child age correction 32 to 17 months and refreshes list', () async {
     final auth = signedIn('11111111-1111-4111-8111-111111111111');
     final fake = FakeChildProfiles(auth);

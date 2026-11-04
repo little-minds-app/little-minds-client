@@ -136,5 +136,7 @@
   "screenTimeDebugStatusAtCap": "Bütçe 30:00 (limit) olarak ayarlandı.",
   "screenTimeDebugStatusReset": "Bütçe 0:00 olarak sıfırlandı.",
   "screenTimeDebugStatusReload": "Depodan yeniden yüklendi.",
-  "screenTimeDebugStatusPersist": "Geçerli kontrol noktası kaydedildi."
+  "screenTimeDebugStatusPersist": "Geçerli kontrol noktası kaydedildi.",
+  "parentDashboardChildSelectorLabel": "Çocuk profili",
+  "parentDashboardChildSelectorHint": "Hangi çocuğun özeti ve görev durumunun gösterileceğini seçin."
 }
