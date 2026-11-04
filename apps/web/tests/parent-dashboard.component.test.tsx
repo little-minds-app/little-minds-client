@@ -9,7 +9,7 @@ Object.assign(globalThis, {
   MutationObserver: dom.window.MutationObserver,
 });
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
-const { cleanup, render, screen, waitFor, fireEvent } = require('@testing-library/react') as typeof import('@testing-library/react');
+const { act, cleanup, render, screen, waitFor, fireEvent } = require('@testing-library/react') as typeof import('@testing-library/react');
 const { WebParentDashboard, dashboardWindow, formatSessionKpiRate } = require('../app/parent/web-parent-dashboard') as typeof import('../app/parent/web-parent-dashboard');
 
 const childA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -189,20 +189,23 @@ test('tab focus clears dashboard when parent identity changes', async () => {
 });
 
 test('tab focus network error on session revalidation fails closed', async () => {
-  let meCalls = 0;
+  let failMeOnFocus = false;
   globalThis.fetch = (async (url: string) => {
     if (url === '/api/auth/me') {
-      meCalls += 1;
-      if (meCalls > 2) throw new TypeError('Failed to fetch');
+      if (failMeOnFocus) throw new TypeError('Failed to fetch');
       return reply(200, { parent_id: 'parent-a' });
     }
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
   assert.ok(screen.getByText(/Ebeveyn bildirimi yok \(uygulama etkileşimi tamamlanma kanıtı değildir\)/));
-  fireEvent(window, new dom.window.Event('focus'));
+  failMeOnFocus = true;
+  await act(async () => {
+    fireEvent(window, new dom.window.Event('focus'));
+  });
   assert.ok(await screen.findByText(/Korumalı bilgiler gizlendi/));
   assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
   assert.equal(screen.queryByText(/Ebeveyn bildirimi yok/), null);
