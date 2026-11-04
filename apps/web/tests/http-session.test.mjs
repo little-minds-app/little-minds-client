@@ -163,7 +163,7 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
     assert.equal(activityCount, 1, 'cross-origin/CSRF activity denied');
     const protectedPage = await fetch(origin + '/parent', { headers: { cookie: browserCookie }, redirect: 'manual' });
     assert.equal(protectedPage.status, 200);
-    assert.match(await protectedPage.text(), /Ebeveyn alanı/);
+    assert.match(await protectedPage.text(), /Ebeveyn paneli/);
     const list = await fetch(origin + '/api/children', { headers: { cookie: browserCookie } });
     assert.equal(list.status, 200);
     assert.deepEqual((await list.json()).children, []);

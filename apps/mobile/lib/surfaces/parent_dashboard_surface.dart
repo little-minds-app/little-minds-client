@@ -8,6 +8,7 @@ import '../parent_dashboard/mission_status_view_data.dart';
 import '../parent_dashboard/parent_dashboard_controller.dart';
 import '../parent_dashboard/parent_dashboard_view_data.dart';
 import '../parent_dashboard/session_kpi_repository.dart';
+import '../parent_dashboard/widgets/session_composition_donut.dart';
 import '../shell/adaptive_shell.dart';
 import '../auth/parent_auth_controller.dart';
 import '../feedback/parent_feedback_banner.dart';
@@ -163,7 +164,7 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
+              constraints: const BoxConstraints(maxWidth: 960),
               child: ParentFeedbackBanner(
                 kind: ParentFeedbackKind.error,
                 title: 'Özet yüklenemedi',
@@ -201,7 +202,7 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
+          constraints: const BoxConstraints(maxWidth: 960),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -351,29 +352,49 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text('Oturum istatistikleri', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _metricTile(context, 'Uygun oturum', '${view.eligibleSessions}', emphasized: true),
+                _metricTile(context, 'Tamamlanan', '${view.completedSessions}'),
+                _metricTile(context, 'Yarıda kalan', '${view.interruptedSessions}'),
+                _metricTile(context, 'Devam eden', '${view.inProgressSessions}'),
+                _metricTile(context, 'Toplam oyun süresi', view.totalPlayDurationLabel, emphasized: true),
+                _metricTile(
+                  context,
+                  'Tamamlanma oranı',
+                  view.completedRateLabel,
+                  unavailable: view.completedRateUnavailable,
+                ),
+                _metricTile(context, 'Farklı oyun günü', '${view.distinctPlayDays}'),
+                _metricTile(
+                  context,
+                  'İlk deneme doğruluğu',
+                  view.firstAttemptAccuracyLabel,
+                  unavailable: view.firstAttemptAccuracyUnavailable,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SessionCompositionDonut(
+              eligible: view.eligibleSessions,
+              completed: view.completedSessions,
+              interrupted: view.interruptedSessions,
+              inProgress: view.inProgressSessions,
+              abandoned: view.abandonedSessions,
+            ),
+            const SizedBox(height: 16),
+            Text('Oyun süresi dağılımı', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
-            _metricRow('Uygun oturum', '${view.eligibleSessions}'),
-            _metricRow('Tamamlanan', '${view.completedSessions}'),
-            _metricRow('Yarıda kalan', '${view.interruptedSessions}'),
-            _metricRow('Devam eden', '${view.inProgressSessions}'),
-            _metricRow('Toplam oyun süresi', view.totalPlayDurationLabel),
-            _metricRow(
-              'Tamamlanma oranı',
-              view.completedRateLabel,
-              unavailable: view.completedRateUnavailable,
-            ),
-            _metricRow('Farklı oyun günü', '${view.distinctPlayDays}'),
-            _metricRow(
-              'İlk deneme doğruluğu',
-              view.firstAttemptAccuracyLabel,
-              unavailable: view.firstAttemptAccuracyUnavailable,
-            ),
-            if (view.activityRows.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text('Oyun süresi dağılımı', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 8),
+            if (view.activityRows.isEmpty)
+              Text(
+                'Bu dönemde etkinlik bazlı oyun süresi kaydı yok.',
+                style: Theme.of(context).textTheme.bodySmall,
+              )
+            else
               _activityChart(context, view),
-            ],
             const SizedBox(height: 12),
             Text('Pencere: ${view.windowLabel}', style: Theme.of(context).textTheme.bodySmall),
             Text(
@@ -489,23 +510,36 @@ class _ParentDashboardSurfaceState extends State<ParentDashboardSurface> {
     );
   }
 
-  Widget _metricRow(String label, String value, {bool unavailable = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+  Widget _metricTile(
+    BuildContext context,
+    String label,
+    String value, {
+    bool unavailable = false,
+    bool emphasized = false,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 160,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: emphasized ? scheme.primaryContainer.withValues(alpha: 0.35) : scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 2, child: Text(label)),
-          Expanded(
-            flex: 3,
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: unavailable ? const TextStyle(fontStyle: FontStyle.italic) : null,
-            ),
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontStyle: unavailable ? FontStyle.italic : null,
+                ),
           ),
         ],
       ),
     );
   }
+
 }

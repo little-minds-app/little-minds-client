@@ -2,7 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { components } from '../../../../generated/typescript/schema';
-import { ActivityDurationChart } from './dashboard-charts';
+import { ActivityDurationChart, SessionCompositionDonut, TrendsPlaceholderChart } from './dashboard-charts';
+import { LmButton, LmCard, LmDisclosure, LmKpiMetric } from './lm-ui';
 import { ParentFeedback } from './parent-feedback';
 import {
   completenessLabel,
@@ -220,14 +221,19 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
   const kpiView = kpi.value ? mapSessionKpiView(kpi.value) : null;
   const windowMeta = dashboardWindow();
 
+  const metrics = kpi.value?.metrics;
+
   return (
     <section aria-label="Ebeveyn özeti" className="parent-dashboard">
-      <h2>Oyun ve görev özeti</h2>
-      <p className="parent-dashboard__hero">Son 7 tamamlanmış gün ve bugün · {windowMeta.timezone}</p>
-      <button type="button" onClick={refresh}>Özeti yenile</button>
+      <div className="parent-dashboard__toolbar">
+        <div>
+          <h2 className="parent-dashboard__heading">Oyun ve görev özeti</h2>
+          <p className="parent-dashboard__hero">Son 7 tamamlanmış gün ve bugün</p>
+        </div>
+        <LmButton variant="secondary" onClick={refresh}>Özeti yenile</LmButton>
+      </div>
 
-      <section aria-label="Oturum KPI" className="parent-dashboard__panel">
-        <h3>Oturum istatistikleri</h3>
+      <LmCard title="Oturum KPI" subtitle="Sunucu oturum metrikleri">
         {kpi.state === 'error' ? (
           <ParentFeedback kind="error" title="Oturum özeti" message={kpi.message ?? 'Yüklenemedi.'} onRetry={refresh} />
         ) : (
@@ -236,71 +242,100 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
               <ParentFeedback
                 kind="info"
                 title="Henüz oturum yok"
-                message="Bu dönemde uygun oturum bulunamadı. Aşağıdaki sayılar ve örnek bilgileri sunucudan gelmektedir."
+                message="Bu dönemde uygun oturum bulunamadı. Kartlar ve grafikler sunucudan gelen gerçek değerlerle doldurulur."
               />
             )}
-            {kpi.value && kpiView && (
+            {kpi.value && kpiView && metrics && (
               <>
-                <dl className="parent-dashboard__metrics">
-                  <div><dt>Uygun oturum</dt><dd>{kpi.value.metrics.eligible_session_count}</dd></div>
-                  <div><dt>Tamamlanan</dt><dd>{kpi.value.metrics.completed_session_count}</dd></div>
-                  <div><dt>Yarıda kalan</dt><dd>{kpi.value.metrics.interrupted_session_count}</dd></div>
-                  <div><dt>Devam eden</dt><dd>{kpi.value.metrics.in_progress_session_count}</dd></div>
-                  <div><dt>Toplam oyun süresi</dt><dd>{formatPlayDuration(kpi.value.metrics.total_play_duration_seconds)}</dd></div>
-                  <div>
-                    <dt>Tamamlanma oranı</dt>
-                    <dd>{kpiView.completedRate.unavailable
-                      ? <span aria-label="Oran kullanılamıyor">{kpiView.completedRate.label}</span>
-                      : kpiView.completedRate.label}</dd>
-                  </div>
-                  <div><dt>Farklı oyun günü</dt><dd>{kpi.value.metrics.distinct_play_days}</dd></div>
-                  <div>
-                    <dt>İlk deneme doğruluğu</dt>
-                    <dd>{kpiView.accuracy.unavailable
-                      ? <span aria-label="Oran kullanılamıyor">{kpiView.accuracy.label}</span>
-                      : kpiView.accuracy.label}</dd>
-                  </div>
-                </dl>
-                <p>Tazelik: {freshnessStatusLabel(kpi.value.freshness.status)} · Bütünlük: {completenessLabel(kpi.value.freshness.data_completeness)}</p>
-                <p>{kpiView.sampleLabel}</p>
+                <div className="parent-dashboard__kpi-grid">
+                  <LmKpiMetric label="Uygun oturum" value={String(metrics.eligible_session_count)} emphasis />
+                  <LmKpiMetric label="Tamamlanan" value={String(metrics.completed_session_count)} />
+                  <LmKpiMetric label="Yarıda kalan" value={String(metrics.interrupted_session_count)} />
+                  <LmKpiMetric label="Devam eden" value={String(metrics.in_progress_session_count)} />
+                  <LmKpiMetric label="Toplam oyun süresi" value={formatPlayDuration(metrics.total_play_duration_seconds)} emphasis />
+                  <LmKpiMetric
+                    label="Tamamlanma oranı"
+                    value={kpiView.completedRate.label}
+                    unavailable={kpiView.completedRate.unavailable}
+                  />
+                  <LmKpiMetric label="Farklı oyun günü" value={String(metrics.distinct_play_days)} />
+                  <LmKpiMetric
+                    label="İlk deneme doğruluğu"
+                    value={kpiView.accuracy.label}
+                    unavailable={kpiView.accuracy.unavailable}
+                  />
+                </div>
                 {kpiView.isStale && <ParentFeedback kind="warning" title="Güncellik" message="Veriler güncel olmayabilir." />}
                 {kpiView.isPartial && <ParentFeedback kind="warning" title="Kısmi veri" message="Veri seti kısmi olabilir." />}
-                <p>Güncellendi: {dateLabel(kpi.value.generated_at)}</p>
-                <p>Aralık: {dateLabel(kpi.value.window.from)} – {dateLabel(kpi.value.window.to)} (üst sınır hariç)</p>
-                <ActivityDurationChart rows={kpiView.activityRows} maxSeconds={kpiView.maxPlaySeconds} />
+                <p className="parent-dashboard__status-line" role="status">
+                  Tazelik: {freshnessStatusLabel(kpi.value.freshness.status)} · Bütünlük: {completenessLabel(kpi.value.freshness.data_completeness)} · {kpiView.sampleLabel}
+                </p>
+                <div className="parent-dashboard__charts">
+                  <SessionCompositionDonut
+                    eligible={metrics.eligible_session_count}
+                    completed={metrics.completed_session_count}
+                    interrupted={metrics.interrupted_session_count}
+                    inProgress={metrics.in_progress_session_count}
+                    abandoned={metrics.abandoned_session_count}
+                  />
+                  <ActivityDurationChart rows={kpiView.activityRows} maxSeconds={kpiView.maxPlaySeconds} />
+                  <TrendsPlaceholderChart />
+                </div>
+                <LmDisclosure summary="Teknik ayrıntılar ve zaman aralığı">
+                  <dl className="parent-dashboard__meta-list">
+                    <div><dt>Güncellendi</dt><dd>{dateLabel(kpi.value.generated_at)}</dd></div>
+                    <div><dt>Aralık</dt><dd>{dateLabel(kpi.value.window.from)} – {dateLabel(kpi.value.window.to)} (üst sınır hariç)</dd></div>
+                    <div><dt>Saat dilimi</dt><dd>{windowMeta.timezone}</dd></div>
+                  </dl>
+                </LmDisclosure>
               </>
             )}
           </>
         )}
-      </section>
+      </LmCard>
 
-      <section aria-label="Gerçek dünya görevleri" className="parent-dashboard__panel">
-        <h3>Gerçek dünya görevleri</h3>
+      <LmCard title="Gerçek dünya görevleri" subtitle="Sunucu kayıtlı etkileşim ve ebeveyn bildirimi">
         {missions.state === 'error' ? (
           <ParentFeedback kind="error" title="Görev durumları" message={missions.message ?? 'Yüklenemedi.'} onRetry={refresh} />
         ) : (
           <>
-            {missions.state === 'empty' && <p>Bu dönemde görev kaydı bulunamadı.</p>}
+            {missions.state === 'empty' && (
+              <p className="parent-dashboard__empty-copy" role="status">Bu dönemde görev kaydı bulunamadı.</p>
+            )}
             {missions.value && (
               <>
                 {missions.value.pagination.truncated && (
                   <ParentFeedback kind="warning" title="Sınırlı liste" message="En fazla 50 kayıt gösteriliyor; sonuçlar sınırlı." />
                 )}
-                <p>Güncellendi: {dateLabel(missions.value.generated_at)} · Kaynak: sunucu</p>
-                <p>Aralık: {dateLabel(missions.value.window.from)} – {dateLabel(missions.value.window.to)} (üst sınır hariç)</p>
-                <ul>{missions.value.items.map((item) => (
-                  <li key={item.occurrence_id}>
-                    <strong>Görev {item.mission_id}</strong>{' — '}
-                    {item.parent_report.availability === 'reported'
-                      ? <>Ebeveyn bildirimi: {statusLabel(item.parent_report.status)} · Kaynak: {missionReportSourceLabel(item.parent_report.source)} · Aktör: {missionReportActorLabel(item.parent_report.actor)} · {item.parent_report.authoritative ? 'Yetkili kayıt' : 'Bilgilendirici'} · {dateLabel(item.parent_report.recorded_at)}</>
-                      : <>Ebeveyn bildirimi yok (uygulama etkileşimi tamamlanma kanıtı değildir)</>}
-                  </li>
-                ))}</ul>
+                <ul className="parent-dashboard__mission-list">
+                  {missions.value.items.map((item) => (
+                    <li key={item.occurrence_id} className="parent-dashboard__mission-item">
+                      <p className="parent-dashboard__mission-title">Görev {item.mission_id}</p>
+                      <p className="parent-dashboard__mission-copy">
+                        {item.parent_report.availability === 'reported'
+                          ? <>Ebeveyn bildirimi: {statusLabel(item.parent_report.status)} · {dateLabel(item.parent_report.recorded_at)}</>
+                          : <>Ebeveyn bildirimi yok (uygulama etkileşimi tamamlanma kanıtı değildir)</>}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <LmDisclosure summary="Görev kaynağı ve pencere ayrıntıları">
+                  <dl className="parent-dashboard__meta-list">
+                    <div><dt>Güncellendi</dt><dd>{dateLabel(missions.value.generated_at)}</dd></div>
+                    <div><dt>Aralık</dt><dd>{dateLabel(missions.value.window.from)} – {dateLabel(missions.value.window.to)} (üst sınır hariç)</dd></div>
+                    {missions.value.items.map((item) => item.parent_report.availability === 'reported' && (
+                      <div key={`${item.occurrence_id}-prov`}>
+                        <dt>{item.mission_id} kaynağı</dt>
+                        <dd>{missionReportSourceLabel(item.parent_report.source)} · {missionReportActorLabel(item.parent_report.actor)} · {item.parent_report.authoritative ? 'Yetkili kayıt' : 'Bilgilendirici'}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </LmDisclosure>
               </>
             )}
           </>
         )}
-      </section>
+      </LmCard>
     </section>
   );
 }

@@ -49,13 +49,13 @@ test('loading, empty state, create, select and edit in parent UI', async () => {
   fireEvent.change(screen.getByLabelText('Takma ad (isteğe bağlı)'), { target: { value: 'Demo' } });
   fireEvent.change(screen.getByLabelText('Yaş (ay)'), { target: { value: '32' } });
   fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
-  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo — 32 ay/ })));
-  fireEvent.click(screen.getByRole('button', { name: /Demo — 32 ay/ }));
-  assert.ok(screen.getByText(/Seçili profil:/));
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo · 32 ay/ })));
+  fireEvent.click(screen.getByRole('button', { name: /Demo · 32 ay/ }));
+  assert.equal(screen.getByRole('button', { name: /Demo · 32 ay/ }).getAttribute('aria-pressed'), 'true');
   fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
   fireEvent.change(screen.getByLabelText('Takma ad (isteğe bağlı)'), { target: { value: 'Updated' } });
   fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
-  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Updated — 32 ay/ })));
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Updated · 32 ay/ })));
   assert.equal(saves, 2);
   assert.ok(screen.getByText(/Profil sunucuda kaydedildi/));
 });
@@ -69,7 +69,7 @@ test('profile PATCH failure maps status to actionable message and keeps form', a
     throw new Error('Unexpected');
   }) as typeof fetch;
   render(React.createElement(ChildProfiles));
-  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo — 32 ay/ })));
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo · 32 ay/ })));
   fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
   fireEvent.change(screen.getByLabelText('Yaş (ay)'), { target: { value: '17' } });
   fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
@@ -107,7 +107,7 @@ test('stale child request cannot repopulate a changed parent', async () => {
   parent = 'parent-b';
   release(reply(200, { children: [a] }));
   await waitFor(() => assert.ok(screen.getByRole('alert')));
-  assert.equal(screen.queryByText(/Demo — 32 ay/), null);
+  assert.equal(screen.queryByRole('button', { name: /Demo · 32 ay/ }), null);
   fireEvent.click(screen.getByRole('button', { name: 'Listeyi tekrar yükle' }));
   await waitFor(() => assert.ok(screen.getByText('Henüz çocuk profili yok.')));
 });
@@ -140,7 +140,7 @@ test('PATCH ok then session identity change on verify fails closed without succe
     throw new Error('Unexpected');
   }) as typeof fetch;
   render(React.createElement(ChildProfiles));
-  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo — 32 ay/ })));
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo · 32 ay/ })));
   fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
   fireEvent.change(screen.getByLabelText('Takma ad (isteğe bağlı)'), { target: { value: 'Updated' } });
   fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
@@ -163,7 +163,7 @@ test('save network error retries PATCH not only reload', async () => {
     throw new Error('Unexpected');
   }) as typeof fetch;
   render(React.createElement(ChildProfiles));
-  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo — 32 ay/ })));
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo · 32 ay/ })));
   fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
   fireEvent.change(screen.getByLabelText('Yaş (ay)'), { target: { value: '33' } });
   fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
@@ -182,7 +182,7 @@ test('409 conflict on save offers save retry', async () => {
     throw new Error('Unexpected');
   }) as typeof fetch;
   render(React.createElement(ChildProfiles));
-  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo — 32 ay/ })));
+  await waitFor(() => assert.ok(screen.getByRole('button', { name: /Demo · 32 ay/ })));
   fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
   fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
   await waitFor(() => assert.match(screen.getByRole('alert').textContent ?? '', /çakışması/));

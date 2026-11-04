@@ -7,5 +7,5 @@ test('responsive accessible parent web shell exists', () => {
  const layout=readFileSync(new URL('app/layout.tsx',base),'utf8');
  const home=readFileSync(new URL('app/page.tsx',base),'utf8');
  assert.match(css,/width:min\(/);assert.match(css,/@media/);
- assert.match(layout,/lang="tr"/);assert.match(home,/<main>/);
+ assert.match(layout,/lang="tr"/);assert.match(home,/<main className="shell">/);
 });

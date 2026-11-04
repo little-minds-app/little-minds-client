@@ -93,7 +93,7 @@ export default function ParentHome() {
 
   async function apiPostLogout() { await api('logout', {}); }
 
-  return <main>
+  return <main className="shell">
     <h1>Little Minds</h1><h2>Parent Web</h2>
     {state === 'loading' && <p>Oturum kontrol ediliyor…</p>}
     {state === 'checking_session' && <section><p>Oturum oluşturuldu. Profil yüklenemedi.</p><button type="button" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { const me = await api('me'); setParentId(typeof me.parent_id === 'string' ? me.parent_id : ''); setState('signed_in'); } catch { setError('Profil şu anda yüklenemiyor.'); } finally { setBusy(false); } }}>Profili yeniden kontrol et</button><button type="button" disabled={busy} onClick={logout}>Çıkış yap</button></section>}

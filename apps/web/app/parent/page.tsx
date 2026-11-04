@@ -1,7 +1,6 @@
-import { OptionalParentProfile } from './optional-parent-profile';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { ParentOverview } from './parent-overview';
+import { ParentExperience } from './parent-experience';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,9 +17,24 @@ export default async function ProtectedParentPage() {
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });
-  } catch { return <main><h1>Servise ulaşılamıyor</h1><p>Oturumunuz korunuyor. Daha sonra yeniden deneyin.</p><a href="/parent">Yeniden dene</a></main>; }
+  } catch {
+    return (
+      <main className="parent-app parent-app--fallback">
+        <h1>Servise ulaşılamıyor</h1>
+        <p>Oturumunuz korunuyor. Daha sonra yeniden deneyin.</p>
+        <a className="lm-btn lm-btn--primary" href="/parent">Yeniden dene</a>
+      </main>
+    );
+  }
   if (response.status === 401 || response.status === 403) redirect('/');
-  if (!response.ok) return <main><h1>Servis geçici olarak kullanılamıyor</h1><p>Oturumunuz kapatılmadı.</p><a href="/parent">Yeniden dene</a></main>;
-  const parent = await response.json() as { parent_id?: string };
-  return <main><h1>Ebeveyn alanı</h1><p>Oturum doğrulandı.</p><p>Parent: {parent.parent_id ?? 'Aktif'}</p><OptionalParentProfile/><ParentOverview/><a href='/'>Ana sayfaya dön</a></main>;
+  if (!response.ok) {
+    return (
+      <main className="parent-app parent-app--fallback">
+        <h1>Servis geçici olarak kullanılamıyor</h1>
+        <p>Oturumunuz kapatılmadı.</p>
+        <a className="lm-btn lm-btn--primary" href="/parent">Yeniden dene</a>
+      </main>
+    );
+  }
+  return <ParentExperience />;
 }

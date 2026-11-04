@@ -13,6 +13,7 @@ class ParentDashboardViewData {
     required this.completedSessions,
     required this.interruptedSessions,
     required this.inProgressSessions,
+    required this.abandonedSessions,
     required this.totalPlayDurationLabel,
     required this.completedRateLabel,
     required this.completedRateUnavailable,
@@ -34,6 +35,7 @@ class ParentDashboardViewData {
   final int completedSessions;
   final int interruptedSessions;
   final int inProgressSessions;
+  final int abandonedSessions;
   final String totalPlayDurationLabel;
   final String completedRateLabel;
   final bool completedRateUnavailable;
@@ -103,6 +105,7 @@ ParentDashboardViewData mapSessionKpiToView(SessionKpiResponse response) {
     completedSessions: metrics.completedSessionCount,
     interruptedSessions: metrics.interruptedSessionCount,
     inProgressSessions: metrics.inProgressSessionCount,
+    abandonedSessions: metrics.abandonedSessionCount,
     totalPlayDurationLabel: formatPlayDuration(metrics.totalPlayDurationSeconds),
     completedRateLabel: completedRate.label,
     completedRateUnavailable: completedRate.unavailable,
