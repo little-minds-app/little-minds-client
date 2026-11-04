@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/auth/auth_session.dart';
 import 'package:little_minds_mobile/offline/activity_event_emitter.dart';
 import 'package:little_minds_mobile/offline/activity_file_outbox.dart';
+import 'package:little_minds_mobile/shape_matching/shape_matching_constants.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_events.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_production_event_buffer.dart';
 
@@ -79,6 +80,76 @@ void main() {
       expect(
         events.every((e) => e.payload['content_version_id'] == contentId),
         isTrue,
+      );
+    } finally {
+      if (await root.exists()) await root.delete(recursive: true);
+    }
+  });
+
+  test('production adapter rejects fixture and mismatched identifiers', () async {
+    final root = await Directory.systemTemp.createTemp('lmp55-id-guard-');
+    try {
+      const deviceId = '22222222-2222-4222-8222-222222222222';
+      const contentId = '33333333-3333-4333-8333-333333333333';
+      const sessionId = '44444444-4444-4444-8444-444444444444';
+      final emitter = ActivityEventEmitter(
+        outbox: ActivityFileOutbox.forTesting(root),
+        session: const AuthSession(
+          parentId: '11111111-1111-4111-8111-111111111111',
+          sessionId: 'auth-session',
+          accessToken: 'test',
+          refreshToken: 'test',
+          expiresInSeconds: 300,
+        ),
+        deviceId: deviceId,
+        contentVersionId: contentId,
+        consentPolicyVersion: 'privacy-notice-draft-0',
+      );
+      Map<String, dynamic> metadata(String id) => {
+            'schema_version': '1.0.0',
+            'play_session_id': id,
+            'device_id': deviceId,
+            'content_version_id': contentId,
+            'started_at': '2026-11-04T12:00:00Z',
+            'completion_status': 'started',
+            'consent': {
+              'purpose': 'essential_service_telemetry',
+              'consent_scope': 'essential_play_events',
+              'policy_version': 'privacy-notice-draft-0',
+              'decision': 'granted',
+            },
+            'provenance': {
+              'emitter': 'kids_mode_client',
+              'capture_channel': 'offline_queue',
+              'clock_trust': 'wall_clock_only',
+            },
+          };
+      expect(
+        () => ShapeMatchingProductionEventBuffer(
+          emitter: emitter,
+          sessionPayload: metadata('session-demo'),
+          deviceId: deviceId,
+          contentVersionId: contentId,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => ShapeMatchingProductionEventBuffer(
+          emitter: emitter,
+          sessionPayload: metadata(sessionId),
+          deviceId: deviceId,
+          contentVersionId: ShapeMatchingConstants.contentVersionId,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => ShapeMatchingProductionEventBuffer(
+          emitter: emitter,
+          sessionPayload: metadata(sessionId),
+          deviceId: deviceId,
+          contentVersionId: '55555555-5555-4555-8555-555555555555',
+        ),
+        throwsArgumentError,
       );
     } finally {
       if (await root.exists()) await root.delete(recursive: true);
