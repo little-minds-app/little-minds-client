@@ -9,6 +9,8 @@ import 'config/app_config.dart';
 import 'offline/activity_file_outbox.dart';
 import 'offline/activity_outbox_sync.dart';
 import 'screen_time/screen_time.dart';
+import 'shape_matching/hub_production_telemetry.dart';
+import 'shape_matching/published_content_registry.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +44,11 @@ Future<void> main() async {
     currentSession: () => parentAuth.session,
     send: ActivityHttpBatchSender(apiBaseUrl: config.apiBaseUrl).send,
   );
+  final publishedContent = FailClosedPublishedContentRegistry();
+  final hubTelemetry = HubProductionTelemetryCoordinator(
+    outbox: offlineOutbox,
+    contentRegistry: publishedContent,
+  );
 
   runApp(
     LittleMindsApp(
@@ -49,6 +56,7 @@ Future<void> main() async {
       screenTime: screenTime,
       parentAuthController: parentAuth,
       offlineSync: offlineSync,
+      hubTelemetry: hubTelemetry,
     ),
   );
 }

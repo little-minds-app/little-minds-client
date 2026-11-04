@@ -41,6 +41,9 @@ class ParentAuthController extends ChangeNotifier {
   int get resendAfterSeconds => _resendAfterSeconds;
   ParentAuthFailure? get lastError => _lastError;
 
+  /// App-scoped installation UUID sent on OTP verify (server-bound device_id).
+  Future<String> resolveDeviceId() => _repository.deviceId();
+
   Future<void> bootstrap() async {
     _lastError = null;
     final stored = await _repository.loadPersistedSession();
