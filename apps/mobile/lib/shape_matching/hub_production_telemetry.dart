@@ -5,10 +5,12 @@ import '../auth/auth_session.dart';
 import '../game/activity_registry.dart';
 import '../offline/activity_event_emitter.dart';
 import '../offline/activity_file_outbox.dart';
+import 'hub_authorized_device_child.dart';
 import 'published_content_registry.dart';
 import 'shape_matching_activity.dart';
 import 'shape_matching_constants.dart';
 import 'shape_matching_events.dart';
+import 'shape_matching_production_consent.dart';
 import 'shape_matching_production_event_buffer.dart';
 
 /// Why hub production telemetry remains on the local buffer.
@@ -18,6 +20,8 @@ enum HubProductionTelemetryBlockReason {
   noOutbox,
   noDeviceId,
   deviceIdNotUuid,
+  deviceChildNotAuthorized,
+  selectedChildMismatch,
   noPublishedContentVersion,
   contentVersionNotUuid,
 }
@@ -56,6 +60,7 @@ abstract final class HubProductionTelemetryGate {
     required AuthSession? session,
     required String? selectedChildId,
     required String? deviceId,
+    required String? authorizedDeviceChildId,
     required String? publishedContentVersionId,
   }) {
     if (session == null) {
@@ -80,6 +85,22 @@ abstract final class HubProductionTelemetryGate {
       return HubProductionTelemetrySnapshot(
         allowed: false,
         reason: HubProductionTelemetryBlockReason.deviceIdNotUuid,
+        session: session,
+        deviceId: deviceId,
+      );
+    }
+    if (authorizedDeviceChildId == null || authorizedDeviceChildId.isEmpty) {
+      return HubProductionTelemetrySnapshot(
+        allowed: false,
+        reason: HubProductionTelemetryBlockReason.deviceChildNotAuthorized,
+        session: session,
+        deviceId: deviceId,
+      );
+    }
+    if (selectedChildId != authorizedDeviceChildId) {
+      return HubProductionTelemetrySnapshot(
+        allowed: false,
+        reason: HubProductionTelemetryBlockReason.selectedChildMismatch,
         session: session,
         deviceId: deviceId,
       );
@@ -111,7 +132,6 @@ abstract final class HubProductionTelemetryGate {
       consentPolicyVersion: null,
     );
   }
-
 }
 
 /// Builds Shape Matching activities with production or local event buffers.
@@ -119,6 +139,7 @@ class HubProductionTelemetryCoordinator {
   HubProductionTelemetryCoordinator({
     required this.outbox,
     required this.contentRegistry,
+    required this.deviceChildCatalog,
     this.consentPolicyVersion = AuthPrivacyNotice.version,
     Uuid? uuid,
     DateTime Function()? clock,
@@ -127,11 +148,13 @@ class HubProductionTelemetryCoordinator {
 
   final ActivityFileOutbox outbox;
   final PublishedContentRegistry contentRegistry;
+  final HubAuthorizedDeviceChildCatalog deviceChildCatalog;
   final String consentPolicyVersion;
   final Uuid _uuid;
   final DateTime Function() _clock;
 
   HubProductionTelemetrySnapshot? _lastSnapshot;
+  int _reconcileGeneration = 0;
 
   HubProductionTelemetrySnapshot? get lastSnapshot => _lastSnapshot;
 
@@ -139,24 +162,54 @@ class HubProductionTelemetryCoordinator {
     required AuthSession? session,
     required String? selectedChildId,
     required String? deviceId,
+    required int reconcileToken,
   }) async {
+    final bound = reconcileToken;
     if (session == null) {
       _lastSnapshot = HubProductionTelemetryGate.evaluate(
         session: null,
         selectedChildId: selectedChildId,
         deviceId: deviceId,
+        authorizedDeviceChildId: null,
         publishedContentVersionId: null,
       );
       return _lastSnapshot!;
     }
+    final authorizedChildId = deviceId == null
+        ? null
+        : await deviceChildCatalog.authorizedChildId(
+            parentId: session.parentId,
+            scopedDeviceId: deviceId,
+          );
+    if (bound != _reconcileGeneration) {
+      return _lastSnapshot ??
+          HubProductionTelemetryGate.evaluate(
+            session: session,
+            selectedChildId: selectedChildId,
+            deviceId: deviceId,
+            authorizedDeviceChildId: authorizedChildId,
+            publishedContentVersionId: null,
+          );
+    }
     final publication = await contentRegistry.publicationForActivity(
       ShapeMatchingConstants.activityId,
     );
+    if (bound != _reconcileGeneration) {
+      return _lastSnapshot ??
+          HubProductionTelemetryGate.evaluate(
+            session: session,
+            selectedChildId: selectedChildId,
+            deviceId: deviceId,
+            authorizedDeviceChildId: authorizedChildId,
+            publishedContentVersionId: null,
+          );
+    }
     if (publication == null) {
       _lastSnapshot = HubProductionTelemetryGate.evaluate(
         session: session,
         selectedChildId: selectedChildId,
         deviceId: deviceId,
+        authorizedDeviceChildId: authorizedChildId,
         publishedContentVersionId: null,
       );
       return _lastSnapshot!;
@@ -165,6 +218,7 @@ class HubProductionTelemetryCoordinator {
       session: session,
       selectedChildId: selectedChildId,
       deviceId: deviceId,
+      authorizedDeviceChildId: authorizedChildId,
       publishedContentVersionId: publication.contentVersionId,
     );
     if (_lastSnapshot!.allowed) {
@@ -209,17 +263,21 @@ class HubProductionTelemetryCoordinator {
     String localeTag = 'en-US',
     bool soundOff = false,
   }) async {
+    final bound = ++_reconcileGeneration;
     final snapshot = await resolveSnapshot(
       session: session,
       selectedChildId: selectedChildId,
       deviceId: deviceId,
+      reconcileToken: bound,
     );
+    if (bound != _reconcileGeneration) return;
     final activity = await buildShapeMatchingActivity(
       ageMonthsProvider: ageMonthsProvider,
       snapshot: snapshot,
       localeTag: localeTag,
       soundOff: soundOff,
     );
+    if (bound != _reconcileGeneration) return;
     registry.register(activity);
   }
 
@@ -256,8 +314,8 @@ class HubProductionTelemetryCoordinator {
       'started_at': startedAt.toIso8601String(),
       'completion_status': 'started',
       'consent': {
-        'purpose': 'essential_service_telemetry',
-        'consent_scope': 'essential_play_events',
+        'purpose': ShapeMatchingProductionConsent.purpose,
+        'consent_scope': ShapeMatchingProductionConsent.scope,
         'policy_version': policyVersion,
         'decision': 'granted',
       },

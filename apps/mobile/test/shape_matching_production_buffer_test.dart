@@ -6,6 +6,7 @@ import 'package:little_minds_mobile/offline/activity_event_emitter.dart';
 import 'package:little_minds_mobile/offline/activity_file_outbox.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_constants.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_events.dart';
+import 'package:little_minds_mobile/shape_matching/shape_matching_production_consent.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_production_event_buffer.dart';
 
 void main() {
@@ -41,8 +42,8 @@ void main() {
           'started_at': '2026-11-04T12:00:00Z',
           'completion_status': 'started',
           'consent': {
-            'purpose': 'essential_service_telemetry',
-            'consent_scope': 'essential_play_events',
+            'purpose': ShapeMatchingProductionConsent.purpose,
+            'consent_scope': ShapeMatchingProductionConsent.scope,
             'policy_version': 'privacy-notice-draft-0',
             'decision': 'granted',
           },
@@ -113,8 +114,8 @@ void main() {
             'started_at': '2026-11-04T12:00:00Z',
             'completion_status': 'started',
             'consent': {
-              'purpose': 'essential_service_telemetry',
-              'consent_scope': 'essential_play_events',
+              'purpose': ShapeMatchingProductionConsent.purpose,
+              'consent_scope': ShapeMatchingProductionConsent.scope,
               'policy_version': 'privacy-notice-draft-0',
               'decision': 'granted',
             },

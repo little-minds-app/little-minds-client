@@ -3,6 +3,7 @@ import 'dart:async';
 import '../offline/activity_event_emitter.dart';
 import 'shape_matching_constants.dart';
 import 'shape_matching_events.dart';
+import 'shape_matching_production_consent.dart';
 
 /// Optional production adapter — construct only with server-bound UUID session ids.
 class ShapeMatchingProductionEventBuffer extends ShapeMatchingLocalEventBuffer {
@@ -22,8 +23,10 @@ class ShapeMatchingProductionEventBuffer extends ShapeMatchingLocalEventBuffer {
         emitter.deviceId != deviceId ||
         emitter.contentVersionId != contentVersionId ||
         sessionPayload['consent'] is! Map ||
+        (sessionPayload['consent'] as Map)['purpose'] !=
+            ShapeMatchingProductionConsent.purpose ||
         (sessionPayload['consent'] as Map)['consent_scope'] !=
-            'essential_play_events' ||
+            ShapeMatchingProductionConsent.scope ||
         (sessionPayload['consent'] as Map)['policy_version'] !=
             emitter.consentPolicyVersion ||
         sessionPayload['schema_version'] != '1.0.0' ||
@@ -85,7 +88,7 @@ class ShapeMatchingProductionEventBuffer extends ShapeMatchingLocalEventBuffer {
                   ShapeMatchingEventType.activityAbandoned.wireName;
       await emitter.emit(
         eventType: event.eventType,
-        consentScope: 'essential_play_events',
+        consentScope: ShapeMatchingProductionConsent.scope,
         payload: _canonicalPayload(event),
         source: 'instrumented',
         emitter: 'kids_mode_client',

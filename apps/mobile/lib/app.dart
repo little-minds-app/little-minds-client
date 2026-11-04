@@ -17,6 +17,7 @@ import 'config/app_config_scope.dart';
 import 'game/activity_registry.dart';
 import 'game/flame_host.dart';
 import 'shape_matching/hub_activity_registry.dart';
+import 'shape_matching/hub_device_child_binding.dart';
 import 'shape_matching/hub_production_telemetry.dart';
 import 'l10n/app_localizations.dart';
 import 'mentor/mentor_card.dart';
@@ -68,6 +69,7 @@ class LittleMindsApp extends StatefulWidget {
     this.sessionKpiRepository,
     this.missionStatusRepository,
     this.hubTelemetry,
+    this.hubDeviceChildBinding,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -131,6 +133,9 @@ class LittleMindsApp extends StatefulWidget {
   /// LMP-134: optional hub production telemetry coordinator (production [main]).
   final HubProductionTelemetryCoordinator? hubTelemetry;
 
+  /// LMP-134: mirrors server `devices.child_id` before production reconcile.
+  final HubDeviceChildBindingService? hubDeviceChildBinding;
+
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
 }
@@ -192,33 +197,41 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   Timer? _offlineSyncTimer;
   final List<({String token, AuthSession session, DateTime expiresAt})> _pendingRevokes = [];
   bool _revokeInFlight = false;
-  bool _hubTelemetryReconcileInFlight = false;
+  int _hubTelemetryReconcileGeneration = 0;
+  String? _lastAuthenticatedParentId;
 
   Future<void> _reconcileHubTelemetry() async {
     final coordinator = widget.hubTelemetry;
     if (coordinator == null || widget.game != null) return;
-    if (_hubTelemetryReconcileInFlight) return;
-    _hubTelemetryReconcileInFlight = true;
+    final generation = ++_hubTelemetryReconcileGeneration;
     try {
-      String? deviceId;
+      String? scopedDeviceId;
       if (_parentAuth.isAuthenticated) {
         try {
-          deviceId = await _parentAuth.resolveDeviceId();
+          scopedDeviceId = await _parentAuth.resolveScopedDeviceId();
         } catch (_) {
-          deviceId = null;
+          scopedDeviceId = null;
         }
       }
+      await widget.hubDeviceChildBinding?.synchronizeSelectedChild(
+        session: _parentAuth.session,
+        scopedDeviceId: scopedDeviceId,
+        selectedChildId: _profiles.selectedId,
+      );
+      if (generation != _hubTelemetryReconcileGeneration) return;
       await coordinator.reconcileHubRegistry(
         registry: _hubRegistry,
         ageMonthsProvider: () => _hubChildAge.ageMonths,
         session: _parentAuth.session,
         selectedChildId: _profiles.selectedId,
-        deviceId: deviceId,
+        deviceId: scopedDeviceId,
         localeTag: widget.locale?.toLanguageTag() ?? 'en-US',
       );
-      if (mounted) setState(() {});
-    } finally {
-      _hubTelemetryReconcileInFlight = false;
+      if (mounted && generation == _hubTelemetryReconcileGeneration) {
+        setState(() {});
+      }
+    } catch (_) {
+      // Hub reconcile must not surface as an unhandled async error from listeners.
     }
   }
 
@@ -422,6 +435,14 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
 
   void _handleAuthChange() {
     if (!mounted) return;
+    final session = _parentAuth.session;
+    if (session == null && _lastAuthenticatedParentId != null) {
+      // ignore: discarded_futures
+      widget.hubDeviceChildBinding?.onParentLoggedOut(_lastAuthenticatedParentId!);
+      _lastAuthenticatedParentId = null;
+    } else if (session != null) {
+      _lastAuthenticatedParentId = session.parentId;
+    }
     if (_parentAuth.isAuthenticated && widget.offlineSync != null) {
       _flushOfflineSafely();
     }

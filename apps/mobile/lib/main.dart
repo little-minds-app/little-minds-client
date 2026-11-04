@@ -9,6 +9,8 @@ import 'config/app_config.dart';
 import 'offline/activity_file_outbox.dart';
 import 'offline/activity_outbox_sync.dart';
 import 'screen_time/screen_time.dart';
+import 'shape_matching/hub_authorized_device_child.dart';
+import 'shape_matching/hub_device_child_binding.dart';
 import 'shape_matching/hub_production_telemetry.dart';
 import 'shape_matching/published_content_registry.dart';
 
@@ -45,9 +47,15 @@ Future<void> main() async {
     send: ActivityHttpBatchSender(apiBaseUrl: config.apiBaseUrl).send,
   );
   final publishedContent = PinnedActivityPublicationRegistry();
+  final deviceChildCatalog = MemoryHubAuthorizedDeviceChildCatalog();
+  final hubDeviceChildBinding = HubDeviceChildBindingService(
+    catalog: deviceChildCatalog,
+    client: FailClosedHubDeviceChildBindingClient(),
+  );
   final hubTelemetry = HubProductionTelemetryCoordinator(
     outbox: offlineOutbox,
     contentRegistry: publishedContent,
+    deviceChildCatalog: deviceChildCatalog,
   );
 
   runApp(
@@ -57,6 +65,7 @@ Future<void> main() async {
       parentAuthController: parentAuth,
       offlineSync: offlineSync,
       hubTelemetry: hubTelemetry,
+      hubDeviceChildBinding: hubDeviceChildBinding,
     ),
   );
 }
