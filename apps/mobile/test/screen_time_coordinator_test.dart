@@ -186,7 +186,20 @@ void main() {
     expect(next.accountant.accumulatedActiveSeconds, 20 * 60);
     // No silent fresh day / no recoverTrust side effect.
     expect(next.accountant.remainingSeconds, 10 * 60);
+    expect(next.childPlayBlockReason, ChildPlayBlockReason.trustOrStorage);
     next.dispose();
+  });
+
+  test('TC-ST-LIF-009b childPlayBlockReason distinguishes cap vs trust',
+      () async {
+    await fresh();
+    expect(coordinator.childPlayBlockReason, isNull);
+
+    coordinator.setKidsModeShellActive(true);
+    mono.elapse(const Duration(minutes: 30));
+    coordinator.tickForTest();
+    expect(coordinator.isCapReached, isTrue);
+    expect(coordinator.childPlayBlockReason, ChildPlayBlockReason.dailyCap);
   });
 
   test('TC-ST-LIF-010 nav churn does not reset budget', () async {

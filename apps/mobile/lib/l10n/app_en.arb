@@ -193,11 +193,19 @@
   "mentorCardOpenMissionHint": "Opens the existing Near/Far play and real-world mission. You can skip anytime. No photos or proof.",
   "screenTimeCalmTitle": "Time for a break",
   "@screenTimeCalmTitle": {
-    "description": "Calm daily screen-time boundary title (LMP-49 / K06-lite). No pressure copy."
+    "description": "Calm daily screen-time boundary title when the local daily cap is reached (LMP-49 / K06-lite). No pressure copy."
   },
   "screenTimeCalmBody": "That's enough screen time for today. Ask a grown-up when you're ready.",
   "@screenTimeCalmBody": {
     "description": "Calm body copy when the local daily cap is reached. No 'one more' language."
+  },
+  "screenTimeCalmTrustTitle": "Ask a grown-up",
+  "@screenTimeCalmTrustTitle": {
+    "description": "Calm boundary title when Kids Mode is blocked for clock/trust/storage integrity (not daily-cap exhaustion). LMP-49."
+  },
+  "screenTimeCalmTrustBody": "Play is paused until a grown-up checks screen time. This is not because today's time is used up.",
+  "@screenTimeCalmTrustBody": {
+    "description": "Accessible parent-assistance body when trust/clock/storage fail-closed blocks play while remaining budget may still be > 0."
   },
   "screenTimeCalmGrownUps": "Grown-ups",
   "@screenTimeCalmGrownUps": {
@@ -262,5 +270,13 @@
   "shapeMatchingShapeSquare": "Square",
   "shapeMatchingShapeTriangle": "Triangle",
   "shapeMatchingShapeStar": "Star",
-  "shapeMatchingShapeHexagon": "Hexagon"
+  "shapeMatchingShapeHexagon": "Hexagon",
+  "parentDashboardChildSelectorLabel": "Child profile",
+  "@parentDashboardChildSelectorLabel": {
+    "description": "Accessible label for the Parent Dashboard child profile switcher."
+  },
+  "parentDashboardChildSelectorHint": "Choose which child's overview and mission status to show.",
+  "@parentDashboardChildSelectorHint": {
+    "description": "Accessibility hint for the dashboard child profile dropdown."
+  }
 }

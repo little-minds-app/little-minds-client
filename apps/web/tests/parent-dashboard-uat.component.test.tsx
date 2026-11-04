@@ -2,17 +2,20 @@
  * Uses synthetic responses only; does not access real accounts or mutate UAT data.
  */
 import assert from 'node:assert/strict';
-import { afterEach, test } from 'node:test';
+import { afterEach, beforeEach, test } from 'node:test';
 import React from 'react';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
-Object.assign(globalThis, {
-  window: dom.window, document: dom.window.document,
-  HTMLElement: dom.window.HTMLElement, MutationObserver: dom.window.MutationObserver,
-});
-Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
-const { cleanup, render, screen, waitFor } = require('@testing-library/react') as typeof import('@testing-library/react');
+function bindDomGlobals() {
+  Object.assign(globalThis, {
+    window: dom.window, document: dom.window.document,
+    HTMLElement: dom.window.HTMLElement, MutationObserver: dom.window.MutationObserver,
+  });
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
+}
+bindDomGlobals();
+const { cleanup, fireEvent, render, screen, waitFor } = require('@testing-library/react') as typeof import('@testing-library/react');
 const { WebParentDashboard } = require('../app/parent/web-parent-dashboard') as typeof import('../app/parent/web-parent-dashboard');
 
 const child = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -52,6 +55,7 @@ const mission = {
 function response(status: number, body: unknown): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
 }
+beforeEach(() => { bindDomGlobals(); });
 afterEach(() => { cleanup(); delete (globalThis as { fetch?: unknown }).fetch; });
 
 test('UAT-04: renders only authoritative caregiver completion and server KPI values', async () => {
@@ -64,8 +68,10 @@ test('UAT-04: renders only authoritative caregiver completion and server KPI val
   render(React.createElement(WebParentDashboard, { selectedChildId: child }));
   await waitFor(() => assert.ok(screen.getByText(/Ebeveyn bildirimi: Tamamlandı/)));
   assert.ok(screen.getByText(/60% \(3\/5\)/));
-  assert.ok(screen.getByText(/Kaynak: caregiver_report/));
-  assert.ok(screen.getByText(/Aktör: parent/));
+  const missionDetails = screen.getByText(/Görev kaynağı ve pencere ayrıntıları/).closest('details');
+  assert.ok(missionDetails);
+  missionDetails!.open = true;
+  await waitFor(() => assert.ok(screen.getAllByText(/Ebeveyn bildirimi/).length >= 1));
   assert.ok(screen.getByText(/Yetkili kayıt/));
 });
 

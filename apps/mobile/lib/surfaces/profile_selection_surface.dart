@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../child_profiles/child_profiles_controller.dart';
+import '../feedback/parent_feedback_banner.dart';
 import '../orientation/app_surface.dart';
 import '../orientation/orientation_binder.dart';
 import '../shell/adaptive_shell.dart';
@@ -34,6 +35,7 @@ class _ProfileSelectionSurfaceState extends State<ProfileSelectionSurface> {
   final _age = TextEditingController(text: '32');
   String? _editingId;
   bool _started = false;
+  String? _saveSuccessMessage;
 
   @override
   void initState() {
@@ -86,11 +88,14 @@ class _ProfileSelectionSurfaceState extends State<ProfileSelectionSurface> {
       nickname: _nickname.text.trim(),
       ageMonths: ageMonths,
     );
-    if (success && mounted) {
-      setState(() { _editingId = null; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil kaydedildi.')),
-      );
+    if (!mounted) return;
+    if (success) {
+      setState(() {
+        _editingId = null;
+        _saveSuccessMessage = 'Profil sunucuda kaydedildi.';
+      });
+    } else if (controller.error != null) {
+      setState(() => _saveSuccessMessage = null);
     }
   }
 
@@ -136,14 +141,29 @@ class _ProfileSelectionSurfaceState extends State<ProfileSelectionSurface> {
                               const LinearProgressIndicator(),
                             if (!profiles.busy && profiles.loaded && profiles.children.isEmpty)
                               const Text('Henüz çocuk profili yok.'),
-                            if (profiles.error != null) ...[
-                              Text(profiles.error!, key: const Key('profile-error')),
-                              OutlinedButton(
-                                key: ProfileSelectionSurface.retryKey,
-                                onPressed: profiles.busy ? null : () => profiles.load(),
-                                child: const Text('Tekrar dene'),
+                            if (_saveSuccessMessage != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: ParentFeedbackBanner(
+                                  key: const Key('profile-save-success'),
+                                  kind: ParentFeedbackKind.success,
+                                  title: 'Kaydedildi',
+                                  message: _saveSuccessMessage!,
+                                ),
                               ),
-                            ],
+                            if (profiles.error != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: ParentFeedbackBanner(
+                                  key: const Key('profile-error'),
+                                  kind: ParentFeedbackKind.error,
+                                  title: 'Profil işlemi başarısız',
+                                  message: profiles.error!,
+                                  onRetry: profiles.busy ? null : () => profiles.load(),
+                                  retryLabel: 'Tekrar dene',
+                                  retryKey: ProfileSelectionSurface.retryKey,
+                                ),
+                              ),
                             for (final child in profiles.children)
                               Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 5),

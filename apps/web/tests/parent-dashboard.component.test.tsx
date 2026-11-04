@@ -1,15 +1,26 @@
 import assert from 'node:assert/strict';
-import { afterEach, test } from 'node:test';
+import { afterEach, beforeEach, test } from 'node:test';
 import React from 'react';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
-Object.assign(globalThis, {
-  window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement,
-  MutationObserver: dom.window.MutationObserver,
-});
-Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
-const { cleanup, render, screen, waitFor, fireEvent } = require('@testing-library/react') as typeof import('@testing-library/react');
+function bindDomGlobals() {
+  // Component tests in this package each create a JSDOM and assign globalThis.
+  // Re-bind before every test so window listeners + fireEvent share one document
+  // even when the Node test runner loads files concurrently.
+  Object.assign(globalThis, {
+    window: dom.window,
+    document: dom.window.document,
+    HTMLElement: dom.window.HTMLElement,
+    MutationObserver: dom.window.MutationObserver,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: dom.window.navigator,
+  });
+}
+bindDomGlobals();
+const { act, cleanup, render, screen, waitFor, fireEvent } = require('@testing-library/react') as typeof import('@testing-library/react');
 const { WebParentDashboard, dashboardWindow, formatSessionKpiRate } = require('../app/parent/web-parent-dashboard') as typeof import('../app/parent/web-parent-dashboard');
 
 const childA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -40,6 +51,7 @@ const mission = {
 function reply(status: number, data: unknown): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => data } as Response;
 }
+beforeEach(() => { bindDomGlobals(); });
 afterEach(() => { cleanup(); delete (globalThis as { fetch?: unknown }).fetch; });
 
 test('window matches previous seven Istanbul dates and today, half-open UTC', () => {
@@ -69,9 +81,10 @@ test('renders canonical KPI and reports no_report without inferring completion',
   assert.ok(screen.getByText('Uygun oturum'));
   assert.ok(screen.getByText('Toplam oyun süresi'));
   assert.ok(screen.getByText(/50% \(1\/2\)/));
-  assert.ok(screen.getByText('insufficient_data'));
-  assert.ok(screen.getByText(/Tazelik: fresh/));
+  assert.ok(screen.getByText('Henüz yeterli veri yok'));
+  assert.ok(screen.getByText(/Tazelik: Güncel · Bütünlük: Tam/));
   assert.ok(screen.getByText(/activity-alpha/));
+  assert.ok(screen.getByLabelText('Etkinlik oyun süresi dağılımı'));
   assert.equal(urls.filter((url) => url === '/api/auth/me').length, 2);
   assert.ok(urls.some((url) => url.includes('child_id=' + childA)));
   assert.ok(urls.some((url) => url.includes('/children/' + childA + '/missions?')));
@@ -135,7 +148,7 @@ test('formatSessionKpiRate uses server availability without recomputing', () => 
   }), { label: '25% (1/4)', unavailable: false });
   assert.deepEqual(formatSessionKpiRate({
     availability_status: 'unavailable', numerator: 0, denominator: 0, reason_code: 'no_signal',
-  }), { label: 'no_signal', unavailable: true });
+  }), { label: 'Bu dönemde ölçülebilir sonuç yok', unavailable: true });
 });
 
 test('stale and partial freshness metadata show warnings', async () => {
@@ -150,7 +163,8 @@ test('stale and partial freshness metadata show warnings', async () => {
     return reply(200, mission);
   }) as typeof fetch;
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
-  await waitFor(() => assert.ok(screen.getByText(/Veriler güncel olmayabilir/)));
+  await waitFor(() => assert.ok(screen.getByText(/Ebeveyn bildirimi yok/)));
+  assert.ok(await screen.findByText(/Veriler güncel olmayabilir/));
   assert.ok(screen.getByText(/Veri seti kısmi olabilir/));
 });
 
@@ -161,47 +175,68 @@ test('tab focus revalidates session and clears data after logout', async () => {
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
-  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  Object.defineProperty(dom.window.document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  });
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
   authed = false;
-  fireEvent(window, new dom.window.Event('focus'));
+  fireEvent(dom.window, new dom.window.Event('focus'));
   await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
   assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
 });
 
 test('tab focus clears dashboard when parent identity changes', async () => {
   let parent = 'parent-a';
+  let meCalls = 0;
   globalThis.fetch = (async (url: string) => {
-    if (url === '/api/auth/me') return reply(200, { parent_id: parent });
+    if (url === '/api/auth/me') {
+      meCalls += 1;
+      return reply(200, { parent_id: parent });
+    }
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
-  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  // Bind listeners + events to this file's JSDOM (avoid cross-file globalThis.window clobber).
+  Object.defineProperty(dom.window.document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  });
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/Ebeveyn bildirimi yok/)));
+  const meBeforeFocus = meCalls;
   parent = 'parent-b';
-  fireEvent(window, new dom.window.Event('focus'));
+  fireEvent(dom.window, new dom.window.Event('focus'));
+  await waitFor(() => assert.ok(meCalls > meBeforeFocus));
   await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
   assert.equal(screen.queryByText(/Ebeveyn bildirimi yok/), null);
 });
 
 test('tab focus network error on session revalidation fails closed', async () => {
-  let meCalls = 0;
+  let failMeOnFocus = false;
   globalThis.fetch = (async (url: string) => {
     if (url === '/api/auth/me') {
-      meCalls += 1;
-      if (meCalls > 2) throw new TypeError('Failed to fetch');
+      if (failMeOnFocus) throw new TypeError('Failed to fetch');
       return reply(200, { parent_id: 'parent-a' });
     }
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
+  Object.defineProperty(dom.window.document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  });
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
-  fireEvent(window, new dom.window.Event('focus'));
-  await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
-  assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
+  assert.ok(screen.getByText(/Ebeveyn bildirimi yok \(uygulama etkileşimi tamamlanma kanıtı değildir\)/));
+  failMeOnFocus = true;
+  fireEvent(dom.window, new dom.window.Event('focus'));
+  await waitFor(() => {
+    assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/));
+    assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
+    assert.equal(screen.queryByText(/Ebeveyn bildirimi yok \(uygulama etkileşimi tamamlanma kanıtı değildir\)/), null);
+  });
 });
 
 test('retry refetches both independent data panels', async () => {
@@ -216,4 +251,16 @@ test('retry refetches both independent data panels', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Özeti yenile' }));
   await waitFor(() => assert.ok(screen.getByText('Uygun oturum')));
   assert.equal(kpis, 2);
+});
+
+test('unavailable reasons are localized, unknown codes never leak, and zero remains distinct', () => {
+  const unavailable = (reason_code: string) => formatSessionKpiRate({
+    availability_status: 'unavailable', numerator: 0, denominator: 0, reason_code,
+  });
+  assert.deepEqual(unavailable('zero_denominator'), { label: 'Hesaplamak için henüz uygun veri yok', unavailable: true });
+  assert.deepEqual(unavailable('insufficient_denominator'), { label: 'Güvenilir bir oran için yeterli oturum yok', unavailable: true });
+  assert.deepEqual(unavailable('internal_unrecognized_code'), { label: 'Bu oran şu anda hesaplanamıyor', unavailable: true });
+  assert.deepEqual(formatSessionKpiRate({
+    availability_status: 'available', value: 0, numerator: 0, denominator: 5,
+  }), { label: '0% (0/5)', unavailable: false });
 });

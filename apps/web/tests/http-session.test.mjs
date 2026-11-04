@@ -163,7 +163,7 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
     assert.equal(activityCount, 1, 'cross-origin/CSRF activity denied');
     const protectedPage = await fetch(origin + '/parent', { headers: { cookie: browserCookie }, redirect: 'manual' });
     assert.equal(protectedPage.status, 200);
-    assert.match(await protectedPage.text(), /Ebeveyn alanı/);
+    assert.match(await protectedPage.text(), /Ebeveyn paneli/);
     const list = await fetch(origin + '/api/children', { headers: { cookie: browserCookie } });
     assert.equal(list.status, 200);
     assert.deepEqual((await list.json()).children, []);
@@ -180,18 +180,30 @@ test('HTTP: OTP exchange, opaque cookie, concurrent profile, CSRF, revocation, p
     const created = await childPost(data, browserCookie);
     assert.equal(created.status, 201);
     const newId = (await created.json()).child_id;
-    const patch = (id) => fetch(origin + '/api/children/' + id, {
+    const patch = (id, body) => fetch(origin + '/api/children/' + id, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json', origin, cookie: browserCookie },
-      body: JSON.stringify({ nickname: 'Updated', age_months: 33, reference_date: '2026-11-01' }),
+      body: JSON.stringify(body),
     });
-    const edit = await patch(newId);
+    const edit = await patch(newId, {
+      nickname: 'Updated',
+      age_months: 17,
+      reference_date: '2026-11-04',
+      timezone: 'Europe/Istanbul',
+    });
     assert.equal(edit.status, 200);
-    assert.equal((await edit.json()).nickname, 'Updated');
-    assert.equal((await patch('not-a-uuid')).status, 404, 'invalid ID blocked at BFF');
+    const edited = await edit.json();
+    assert.equal(edited.nickname, 'Updated');
+    assert.equal(edited.age_months, 17);
+    assert.equal((await patch('not-a-uuid', { age_months: 17, reference_date: '2026-11-04' })).status, 404, 'invalid ID blocked at BFF');
     const after = await fetch(origin + '/api/children', { headers: { cookie: browserCookie } });
-    assert.equal((await after.json()).children[0].nickname, 'Updated');
-    assert.equal(childApiCount, 4, 'invalid requests never reach backend');
+    const listed = (await after.json()).children[0];
+    assert.equal(listed.nickname, 'Updated');
+    assert.equal(listed.age_months, 17);
+    assert.equal(listed.child_id, newId);
+    const reload = await fetch(origin + '/api/children', { headers: { cookie: browserCookie } });
+    assert.equal((await reload.json()).children[0].age_months, 17, 'age correction persists on repeat list');
+    assert.equal(childApiCount, 5, 'invalid requests never reach backend');
     const dashboardQuery = '?from=2026-10-01T00:00:00.000Z&to=2026-11-01T00:00:00.000Z&timezone=Europe%2FIstanbul';
     const activityBeforeDashboard = activityCount;
     const kpis = await fetch(origin + '/api/insights/session-kpis' + dashboardQuery, { headers: { cookie: browserCookie } });

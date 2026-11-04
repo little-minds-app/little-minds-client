@@ -1,5 +1,7 @@
 'use client';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { LmButton, LmCard, LmField, LmInput, LmSelect } from './lm-ui';
+import { ParentFeedback } from './parent-feedback';
 
 type Profile = {
   first_name: string | null; last_name: string | null;
@@ -116,36 +118,54 @@ export function OptionalParentProfile() {
     }
   }
 
-  if (loading) return <section aria-label="Ebeveyn profili"><p role="status">Profil yükleniyor…</p></section>;
-  return <section aria-label="Ebeveyn profili">
-    <h2>Ebeveyn profili (isteğe bağlı)</h2>
-    <p>Bu bilgiler zorunlu değildir. Dilerseniz şimdi atlayabilir, sonra değiştirebilir veya silebilirsiniz. Analitik izni bu formdan alınmaz.</p>
-    {error && <p role="alert">{error} <button type="button" onClick={() => void reload()}>Yeniden dene</button></p>}
-    {info && <p role="status">{info}</p>}
-    <form onSubmit={(event) => { event.preventDefault(); void persist('PATCH'); }}>
-      <label>Ad <input maxLength={100} value={form.first_name ?? ''} onChange={(event) => update('first_name', event.target.value || null)} /></label>
-      <label>Soyad <input maxLength={100} value={form.last_name ?? ''} onChange={(event) => update('last_name', event.target.value || null)} /></label>
-      {([
-        ['age_band_optional', 'Yaş aralığı', ageBands],
-        ['gender_optional', 'Cinsiyet (isteğe bağlı)', genders],
-        ['occupation_optional', 'Çalışma alanınız / mesleki durumunuz', occupations],
-      ] as const).map(([key, title, options]) =>
-        <label key={key}>{title}
-          <select value={form[key] ?? ''} onChange={(event) => update(key, event.target.value || null)}>
-            <option value="">Şimdi değil / boş bırak</option>
-            {options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </label>)}
-      <label>Çocuk sayısı (isteğe bağlı)
-        <input type="number" min={0} max={30} step={1} value={form.number_of_children_optional ?? ''}
-          onChange={(event) => update('number_of_children_optional',
-            event.target.value === '' ? null : Number(event.target.value))} />
-      </label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, paddingTop: 12 }}>
-        <button type="submit" disabled={saving}>Kaydet ve devam et</button>
-        <button type="button" disabled={saving} onClick={() => { setInfo('Bu adımı atlayabilirsiniz.'); }}>Şimdi değil / Atla</button>
-        <button type="button" disabled={saving} onClick={() => void persist('DELETE')}>Tüm isteğe bağlı bilgileri sil</button>
-      </div>
-    </form>
-  </section>;
+  if (loading) {
+    return (
+      <LmCard title="Ebeveyn profili (isteğe bağlı)" subtitle="Zorunlu değil">
+        <p role="status">Profil yükleniyor…</p>
+      </LmCard>
+    );
+  }
+  return (
+    <LmCard title="Ebeveyn profili (isteğe bağlı)" subtitle="Analitik izni bu formdan alınmaz.">
+      <p className="lm-field__hint">Bu bilgiler zorunlu değildir. Dilerseniz şimdi atlayabilir, sonra değiştirebilir veya silebilirsiniz.</p>
+      {error && <ParentFeedback kind="error" title="Profil hatası" message={error} onRetry={() => void reload()} retryLabel="Yeniden dene" />}
+      {info && <ParentFeedback kind="success" title="Profil" message={info} />}
+      <form className="lm-form" onSubmit={(event) => { event.preventDefault(); void persist('PATCH'); }}>
+        <LmField label="Ad" htmlFor="parent-first-name">
+          <LmInput id="parent-first-name" maxLength={100} value={form.first_name ?? ''} onChange={(event) => update('first_name', event.target.value || null)} />
+        </LmField>
+        <LmField label="Soyad" htmlFor="parent-last-name">
+          <LmInput id="parent-last-name" maxLength={100} value={form.last_name ?? ''} onChange={(event) => update('last_name', event.target.value || null)} />
+        </LmField>
+        {([
+          ['age_band_optional', 'Yaş aralığı', ageBands],
+          ['gender_optional', 'Cinsiyet (isteğe bağlı)', genders],
+          ['occupation_optional', 'Çalışma alanınız / mesleki durumunuz', occupations],
+        ] as const).map(([key, title, options]) => (
+          <LmField key={key} label={title} htmlFor={`parent-${key}`}>
+            <LmSelect id={`parent-${key}`} value={form[key] ?? ''} onChange={(event) => update(key, event.target.value || null)}>
+              <option value="">Şimdi değil / boş bırak</option>
+              {options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </LmSelect>
+          </LmField>
+        ))}
+        <LmField label="Çocuk sayısı (isteğe bağlı)" htmlFor="parent-children-count">
+          <LmInput
+            id="parent-children-count"
+            type="number"
+            min={0}
+            max={30}
+            step={1}
+            value={form.number_of_children_optional ?? ''}
+            onChange={(event) => update('number_of_children_optional', event.target.value === '' ? null : Number(event.target.value))}
+          />
+        </LmField>
+        <div className="child-profile-actions">
+          <LmButton type="submit" disabled={saving}>Kaydet ve devam et</LmButton>
+          <LmButton type="button" variant="secondary" disabled={saving} onClick={() => { setInfo('Bu adımı atlayabilirsiniz.'); }}>Şimdi değil / Atla</LmButton>
+          <LmButton type="button" variant="ghost" disabled={saving} onClick={() => void persist('DELETE')}>Tüm isteğe bağlı bilgileri sil</LmButton>
+        </div>
+      </form>
+    </LmCard>
+  );
 }

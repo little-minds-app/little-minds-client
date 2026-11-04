@@ -362,7 +362,7 @@ void main() {
       expect(st.accountant.accumulatedActiveSeconds, 0);
     });
 
-    test('TC-ST-D10 corrupt persistence is not bypassed by QA set', () async {
+    test('TC-ST-D10 corrupt persistence: set and resetBudget refuse', () async {
       store = InMemoryPersistentStore();
       store.corrupt(ScreenTimeSnapshot.storeKey, '{not-json');
       mono = FakeMonotonicClock(epochId: 'boot-0');

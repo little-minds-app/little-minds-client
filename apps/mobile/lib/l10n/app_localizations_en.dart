@@ -320,6 +320,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'That\'s enough screen time for today. Ask a grown-up when you\'re ready.';
 
   @override
+  String get screenTimeCalmTrustTitle => 'Ask a grown-up';
+
+  @override
+  String get screenTimeCalmTrustBody =>
+      'Play is paused until a grown-up checks screen time. This is not because today\'s time is used up.';
+
+  @override
   String get screenTimeCalmGrownUps => 'Grown-ups';
 
   @override
@@ -483,4 +490,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shapeMatchingShapeHexagon => 'Hexagon';
+
+  @override
+  String get parentDashboardChildSelectorLabel => 'Child profile';
+
+  @override
+  String get parentDashboardChildSelectorHint =>
+      'Choose which child\'s overview and mission status to show.';
 }
