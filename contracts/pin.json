@@ -1,9 +1,9 @@
 {
-  "$comment": "LMP-134 batch ingest: UuidV4OrV7 accepts v5 parent-scoped device_id ([457]). Pinned to backend PR #37 @ 078ae32.",
+  "$comment": "LMP-134 privacy consent APIs (PrivacyApi) + batch ingest. Pinned to backend PR #37 @ e30900c.",
   "backendRepository": "little-minds-app/little-minds-backend",
-  "backendCommitSha": "078ae326271d7eaed4a5981395b705efb8a58443",
+  "backendCommitSha": "e30900c7b26690449ffa2bafce0a3562e9757d30",
   "artifactPath": "contracts/openapi.yaml",
-  "artifactBlobSha": "a4b47d6572d156553ac3f6e6a39fc84510fb9ee8",
+  "artifactBlobSha": "223e67417981ab74f42aafbe88458e7c0c3c71b5",
   "contractVersion": "0.14.5",
   "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/37"
 }

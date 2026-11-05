@@ -92,10 +92,20 @@ class EssentialPlayEventsConsentService extends ChangeNotifier {
   }
 
   Future<EssentialPlayEventsConsentMutationResult> withdraw(
-    AuthSession session,
-  ) async {
+    AuthSession session, {
+    String? policyVersion,
+  }) async {
+    final policy = policyVersion ?? _status?.policyVersion;
+    if (policy == null || policy.isEmpty) {
+      return const EssentialPlayEventsConsentMutationFailed(
+        'Missing policy version for withdrawal.',
+      );
+    }
     try {
-      final next = await _client.withdraw(session: session);
+      final next = await _client.withdraw(
+        session: session,
+        policyVersion: policy,
+      );
       if (next == null) {
         return const EssentialPlayEventsConsentMutationFailed(
           'Consent service is not available yet.',

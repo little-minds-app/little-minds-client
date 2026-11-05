@@ -38,6 +38,7 @@ class FakeEssentialPlayEventsConsentClient
   @override
   Future<EssentialPlayEventsConsentStatus?> withdraw({
     required AuthSession session,
+    required String policyVersion,
   }) async {
     withdrawCalls++;
     initialStatus = const EssentialPlayEventsConsentStatus(

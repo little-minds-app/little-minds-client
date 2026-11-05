@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:little_minds_api/api.dart';
 
 import '../auth/auth_api_clients.dart';
@@ -7,12 +5,7 @@ import '../auth/auth_session.dart';
 import '../config/app_config.dart';
 import 'essential_play_events_consent.dart';
 
-/// Reads/writes parent-level `essential_play_events` consent on the server.
-///
-/// Routes are coordinated with backend LMP-134 (OpenAPI to pin when published):
-/// - `GET  /v1/consent/scopes/essential_play_events/status`
-/// - `POST /v1/consent/scopes/essential_play_events/grant`
-/// - `POST /v1/consent/scopes/essential_play_events/withdraw`
+/// Reads/writes parent-level `essential_play_events` consent via pinned [PrivacyApi].
 abstract class EssentialPlayEventsConsentClient {
   Future<EssentialPlayEventsConsentStatus?> fetchStatus(AuthSession session);
 
@@ -24,6 +17,7 @@ abstract class EssentialPlayEventsConsentClient {
 
   Future<EssentialPlayEventsConsentStatus?> withdraw({
     required AuthSession session,
+    required String policyVersion,
   });
 }
 
@@ -45,56 +39,60 @@ final class FailClosedEssentialPlayEventsConsentClient
   @override
   Future<EssentialPlayEventsConsentStatus?> withdraw({
     required AuthSession session,
+    required String policyVersion,
   }) async =>
       null;
 }
 
-final class HttpEssentialPlayEventsConsentClient
+final class OpenApiEssentialPlayEventsConsentClient
     implements EssentialPlayEventsConsentClient {
-  HttpEssentialPlayEventsConsentClient(AppConfig config)
-      : _clients = AuthApiClients(basePath: config.apiBaseUrlString);
+  OpenApiEssentialPlayEventsConsentClient(AppConfig config)
+      : _privacy = PrivacyApi(
+          ApiClient(
+            basePath: config.apiBaseUrlString,
+            authentication: HttpBearerAuth(),
+          ),
+        );
 
-  HttpEssentialPlayEventsConsentClient.fromClients(this._clients);
+  OpenApiEssentialPlayEventsConsentClient.fromPrivacyApi(this._privacy);
 
-  final AuthApiClients _clients;
+  final PrivacyApi _privacy;
 
-  static const _scopePath = '/v1/consent/scopes/essential_play_events';
-
-  Future<Map<String, dynamic>?> _request(
-    AuthSession session,
-    String method, {
-    String subPath = '',
-    Map<String, dynamic>? body,
-  }) async {
-    _clients.setAccessToken(session.accessToken);
-    final response = await _clients.apiClient.invokeAPI(
-      '$_scopePath$subPath',
-      method,
-      [],
-      body,
-      {},
-      {},
-      body != null ? 'application/json' : null,
-    );
-    if (response.statusCode == 404) {
-      return null;
+  HttpBearerAuth get _bearer {
+    final auth = _privacy.apiClient.authentication;
+    if (auth is HttpBearerAuth) {
+      return auth;
     }
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(response.statusCode, 'Consent request failed');
-    }
-    if (response.body.isEmpty) {
-      return {};
-    }
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    throw StateError('PrivacyApi must use HttpBearerAuth');
   }
+
+  void _authorize(AuthSession session) {
+    _bearer.accessToken = session.accessToken;
+  }
+
+  static const _playScope = ConsentScope.essentialPlayEvents;
 
   @override
   Future<EssentialPlayEventsConsentStatus?> fetchStatus(
     AuthSession session,
   ) async {
-    final json = await _request(session, 'GET', subPath: '/status');
-    if (json == null) return null;
-    return EssentialPlayEventsConsentStatus.fromJson(json);
+    _authorize(session);
+    try {
+      final response = await _privacy.getEffectiveConsentScopes([_playScope]);
+      final scopes = response?.scopes ?? const <EffectiveConsentScope>[];
+      for (final row in scopes) {
+        if (row.consentScope == _playScope) {
+          return EssentialPlayEventsConsentStatus.fromEffectiveScope(row);
+        }
+      }
+      return const EssentialPlayEventsConsentStatus(
+        authorized: false,
+        effectiveStatus: 'not_granted',
+      );
+    } on ApiException catch (error) {
+      if (error.code == 404) return null;
+      rethrow;
+    }
   }
 
   @override
@@ -103,31 +101,46 @@ final class HttpEssentialPlayEventsConsentClient
     required String policyVersion,
     required String consentTextVersion,
   }) async {
-    final json = await _request(
-      session,
-      'POST',
-      subPath: '/grant',
-      body: {
-        'policy_version': policyVersion,
-        'consent_text_version': consentTextVersion,
-      },
-    );
-    if (json == null) return null;
-    return EssentialPlayEventsConsentStatus.fromJson(json);
+    _authorize(session);
+    try {
+      final response = await _privacy.grantConsentScope(
+        ConsentScopeMutationRequest(
+          consentScope: _playScope,
+          policyVersion: policyVersion,
+        ),
+      );
+      if (response == null) return null;
+      return EssentialPlayEventsConsentStatus.fromMutation(response);
+    } on ApiException catch (error) {
+      if (error.code == 404) return null;
+      rethrow;
+    }
   }
 
   @override
   Future<EssentialPlayEventsConsentStatus?> withdraw({
     required AuthSession session,
+    required String policyVersion,
   }) async {
-    final json = await _request(session, 'POST', subPath: '/withdraw');
-    if (json == null) return null;
-    return EssentialPlayEventsConsentStatus.fromJson(json);
+    _authorize(session);
+    try {
+      final response = await _privacy.withdrawConsentScope(
+        ConsentScopeMutationRequest(
+          consentScope: _playScope,
+          policyVersion: policyVersion,
+        ),
+      );
+      if (response == null) return null;
+      return EssentialPlayEventsConsentStatus.fromMutation(response);
+    } on ApiException catch (error) {
+      if (error.code == 404) return null;
+      rethrow;
+    }
   }
 }
 
 EssentialPlayEventsConsentClient essentialPlayEventsConsentClientFor(
   AppConfig config,
 ) {
-  return HttpEssentialPlayEventsConsentClient(config);
+  return OpenApiEssentialPlayEventsConsentClient(config);
 }

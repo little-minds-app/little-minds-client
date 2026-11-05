@@ -1,3 +1,5 @@
+import 'package:little_minds_api/api.dart';
+
 /// LMP-134 / F-033 — server-attested opt-in for Shape Matching play telemetry.
 abstract final class EssentialPlayEventsConsentCopy {
   static const purpose = 'essential_play_events';
@@ -47,6 +49,40 @@ class EssentialPlayEventsConsentStatus {
       effectiveStatus: status is String ? status : status.toString(),
       policyVersion: json['policy_version'] as String?,
     );
+  }
+
+  factory EssentialPlayEventsConsentStatus.fromEffectiveScope(
+    EffectiveConsentScope scope,
+  ) {
+    return EssentialPlayEventsConsentStatus(
+      authorized: scope.authorized,
+      effectiveStatus: _wireStatus(scope.status),
+      policyVersion: scope.policyVersion,
+    );
+  }
+
+  factory EssentialPlayEventsConsentStatus.fromMutation(
+    ConsentScopeMutationResponse response,
+  ) {
+    final granted =
+        response.status == ConsentScopeMutationResponseStatusEnum.granted;
+    return EssentialPlayEventsConsentStatus(
+      authorized: granted,
+      effectiveStatus: _wireStatus(response.status),
+      policyVersion: response.policyVersion,
+    );
+  }
+
+  static String _wireStatus(Object status) {
+    if (status is EffectiveConsentScopeStatusEnum) {
+      return const EffectiveConsentScopeStatusEnumTypeTransformer()
+          .encode(status);
+    }
+    if (status is ConsentScopeMutationResponseStatusEnum) {
+      return const ConsentScopeMutationResponseStatusEnumTypeTransformer()
+          .encode(status);
+    }
+    return status.toString();
   }
 }
 
