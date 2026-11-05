@@ -185,7 +185,7 @@ void main() {
         expiresInSeconds: 300,
       ),
       clock: () => DateTime.utc(2026, 11, 4),
-      send: (_, events, __) async => {
+      send: (_, events, _) async => {
         'results': [
           for (var i = 0; i < events.length; i++)
             {
