@@ -69,11 +69,18 @@ void main() {
         (session['consent'] as Map)['policy_version'],
         ShapeMatchingProductionBatchFixture.consentPolicyVersion,
       );
+      final deviceId = session['device_id'] as String;
       expect(
-        activityBatchUuidPattern.hasMatch(session['device_id'] as String),
+        activityBatchUuidPattern.hasMatch(deviceId),
         isTrue,
-        reason: 'parent-scoped device_id must satisfy OpenAPI UUID pattern',
+        reason: 'parent-scoped device_id must satisfy admission UuidV4OrV7 [457]',
       );
+      expect(
+        deviceId,
+        ShapeMatchingProductionBatchFixture.scopedDeviceId(),
+        reason: 'matches backend activity-batch-admission Shape Matching v5 wire',
+      );
+      expect(deviceId[14], '5', reason: 'RFC4122 v5 parent-scoped digest');
       expect(
         activityBatchUtcInstantZ.hasMatch(session['started_at'] as String),
         isTrue,
