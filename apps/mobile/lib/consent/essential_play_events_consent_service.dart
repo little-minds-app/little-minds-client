@@ -10,12 +10,10 @@ import 'essential_play_events_consent_client.dart';
 /// Cached server consent for production play telemetry (LMP-134).
 class EssentialPlayEventsConsentService extends ChangeNotifier {
   EssentialPlayEventsConsentService({
-    required EssentialPlayEventsConsentClient client,
-    required ActivityFileOutbox outbox,
-    ActivityOutboxSync? offlineSync,
-  })  : _client = client,
-        _outbox = outbox,
-        _offlineSync = offlineSync;
+    required EssentialPlayEventsConsentClient this._client,
+    required ActivityFileOutbox this._outbox,
+    ActivityOutboxSync? this._offlineSync,
+  });
 
   final EssentialPlayEventsConsentClient _client;
   final ActivityFileOutbox _outbox;
