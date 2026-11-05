@@ -45,6 +45,17 @@ Future<void> main() async {
   final offlineSync = ActivityOutboxSync(
     outbox: offlineOutbox,
     currentSession: () => parentAuth.session,
+    refreshSession: (session) async {
+      final access = await parentAuth.refreshForChildProfiles();
+      if (access == null) return null;
+      final active = parentAuth.session;
+      if (active == null ||
+          active.parentId != session.parentId ||
+          active.sessionId != session.sessionId) {
+        return null;
+      }
+      return active;
+    },
     send: ActivityHttpBatchSender(apiBaseUrl: config.apiBaseUrl).send,
   );
   offlineOutbox.onEventPersisted = (pendingHint) {

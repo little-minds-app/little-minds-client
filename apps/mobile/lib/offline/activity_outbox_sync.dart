@@ -10,12 +10,17 @@ import 'activity_batch_http_error.dart';
 import 'activity_batch_wire_codec.dart';
 import 'activity_event_outbox_wire_repair.dart';
 import 'activity_file_outbox.dart';
+import 'activity_session_outbox_wire_repair.dart';
 import 'activity_telemetry_diagnostics.dart';
 
 typedef EventBatchSender = Future<Map<String, dynamic>> Function(
   AuthSession session,
   List<Map<String, dynamic>> events,
   List<Map<String, dynamic>> sessions,
+);
+
+typedef ActivitySessionRefresher = Future<AuthSession?> Function(
+  AuthSession session,
 );
 
 /// Uses the LMP-51 API wire contract. Auth token stays only in request header.
@@ -196,6 +201,7 @@ class ActivityOutboxSync {
     required this.outbox,
     required this.send,
     required this.currentSession,
+    this.refreshSession,
     DateTime Function()? clock,
     Random? random,
   }) : _clock = clock ?? DateTime.now,
@@ -204,12 +210,15 @@ class ActivityOutboxSync {
   final ActivityFileOutbox outbox;
   final EventBatchSender send;
   final AuthSession? Function() currentSession;
+  final ActivitySessionRefresher? refreshSession;
   final DateTime Function() _clock;
   final Random _random;
   bool _disposed = false;
   bool _flushRunning = false;
   bool _followUpRequested = false;
   Completer<void>? _whenIdle;
+  DateTime? _authBackoffUntil;
+  static const _authExpiredBackoff = Duration(minutes: 5);
 
   /// Stops scheduling new flushes (tests and app teardown).
   void dispose() {
@@ -267,6 +276,11 @@ class ActivityOutboxSync {
   }
 
   Future<void> _flushOnce(AuthSession initial) async {
+      final now = _clock().toUtc();
+      if (_authBackoffUntil != null && _authBackoffUntil!.isAfter(now)) {
+        ActivityTelemetryDiagnostics.syncSkipped('auth_backoff');
+        return;
+      }
       // Each persisted record is capped at 16 KiB (including its session).
       // Twelve records plus the batch envelope fit under the 256 KiB cap.
       // A bounded prefix avoids one oversized batch blocking the entire queue.
@@ -287,7 +301,13 @@ class ActivityOutboxSync {
       Map<String, dynamic> result;
       try {
         final uniqueSessions = <String, Map<String, dynamic>>{};
+        final eventBySession = <String, Map<String, dynamic>>{};
         for (final item in pending) {
+          final playSessionId = item.payload['play_session_id'];
+          if (playSessionId is String &&
+              !eventBySession.containsKey(playSessionId)) {
+            eventBySession[playSessionId] = item.payload;
+          }
           if (item.sessionPayload != null) {
             final sessionId = item.sessionPayload!['play_session_id'];
             if (sessionId is! String) {
@@ -301,20 +321,30 @@ class ActivityOutboxSync {
               );
               return;
             }
+            final aligned = repairActivitySessionOutboxWire(
+              item.sessionPayload!,
+              eventBySession[sessionId] ?? item.payload,
+            );
             // Prefer the terminal metadata if the same session was completed.
             if (!uniqueSessions.containsKey(sessionId) ||
-                item.sessionPayload!['ended_at'] != null) {
-              uniqueSessions[sessionId] = item.sessionPayload!;
+                aligned['ended_at'] != null) {
+              uniqueSessions[sessionId] = aligned;
             }
           }
         }
-        result = await send(
+        result = await _sendWithAuthRefresh(
           initial,
           pending.map((e) => e.payload).toList(),
           uniqueSessions.values.toList(),
         );
       } on ActivityAuthExpired {
-        // No token refresh inside worker; caller must reauthenticate first.
+        _authBackoffUntil = _clock().toUtc().add(_authExpiredBackoff);
+        await _postponeBatch(
+          initial,
+          pending,
+          reason: 'auth_expired',
+          retryAfter: _authExpiredBackoff,
+        );
         ActivityTelemetryDiagnostics.syncSkipped('auth_expired');
         return;
       } on ActivityRequestTooLarge {
@@ -367,6 +397,7 @@ class ActivityOutboxSync {
         return;
       }
       if (!_sameAccount(initial)) return;
+      _authBackoffUntil = null;
       final rows = result['results'];
       if (rows is! List) {
         ActivityTelemetryDiagnostics.batchInvalidAck('results_not_list');
@@ -455,6 +486,23 @@ class ActivityOutboxSync {
         rejected: rejected,
         retryable: retryable,
       );
+  }
+
+  Future<Map<String, dynamic>> _sendWithAuthRefresh(
+    AuthSession session,
+    List<Map<String, dynamic>> events,
+    List<Map<String, dynamic>> sessions,
+  ) async {
+    try {
+      return await send(session, events, sessions);
+    } on ActivityAuthExpired {
+      final refresh = refreshSession;
+      if (refresh == null) rethrow;
+      if (!_sameAccount(session)) rethrow;
+      final refreshed = await refresh(session);
+      if (refreshed == null || !_sameAccount(refreshed)) rethrow;
+      return send(refreshed, events, sessions);
+    }
   }
 
   bool _sameAccount(AuthSession original) {

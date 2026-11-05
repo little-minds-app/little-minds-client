@@ -1,7 +1,6 @@
 import 'package:uuid/uuid.dart';
 
 import '../core/canonical_rfc4122_uuid.dart';
-import '../auth/auth_privacy_notice.dart';
 import '../auth/auth_session.dart';
 import '../game/activity_registry.dart';
 import '../offline/activity_event_emitter.dart';
@@ -59,6 +58,7 @@ abstract final class HubProductionTelemetryGate {
     required String? deviceId,
     required String? authorizedDeviceChildId,
     required String? publishedContentVersionId,
+    String? consentPolicyVersion,
   }) {
     if (session == null) {
       return const HubProductionTelemetrySnapshot(
@@ -126,7 +126,7 @@ abstract final class HubProductionTelemetryGate {
       deviceId: deviceId,
       contentVersionId: publishedContentVersionId,
       playSessionId: const Uuid().v4(),
-      consentPolicyVersion: null,
+      consentPolicyVersion: consentPolicyVersion,
     );
   }
 }
@@ -137,7 +137,6 @@ class HubProductionTelemetryCoordinator {
     required this.outbox,
     required this.contentRegistry,
     required this.deviceChildCatalog,
-    this.consentPolicyVersion = AuthPrivacyNotice.version,
     Uuid? uuid,
     DateTime Function()? clock,
   })  : _uuid = uuid ?? const Uuid(),
@@ -146,7 +145,6 @@ class HubProductionTelemetryCoordinator {
   final ActivityFileOutbox outbox;
   final PublishedContentRegistry contentRegistry;
   final HubAuthorizedDeviceChildCatalog deviceChildCatalog;
-  final String consentPolicyVersion;
   final Uuid _uuid;
   final DateTime Function() _clock;
 
@@ -217,17 +215,8 @@ class HubProductionTelemetryCoordinator {
       deviceId: deviceId,
       authorizedDeviceChildId: authorizedChildId,
       publishedContentVersionId: publication.contentVersionId,
+      consentPolicyVersion: publication.consentPolicyVersion,
     );
-    if (_lastSnapshot!.allowed) {
-      _lastSnapshot = HubProductionTelemetrySnapshot(
-        allowed: true,
-        session: _lastSnapshot!.session,
-        deviceId: _lastSnapshot!.deviceId,
-        contentVersionId: _lastSnapshot!.contentVersionId,
-        playSessionId: _lastSnapshot!.playSessionId,
-        consentPolicyVersion: publication.consentPolicyVersion,
-      );
-    }
     return _lastSnapshot!;
   }
 
@@ -300,8 +289,11 @@ class HubProductionTelemetryCoordinator {
     final deviceId = snapshot.deviceId!;
     final contentVersionId = snapshot.contentVersionId!;
     final playSessionId = snapshot.playSessionId!;
-    final policyVersion =
-        snapshot.consentPolicyVersion ?? consentPolicyVersion;
+    final policyVersion = snapshot.consentPolicyVersion;
+    if (policyVersion == null || policyVersion.isEmpty) {
+      ActivityTelemetryDiagnostics.gateBlocked('missingConsentPolicyVersion');
+      return ShapeMatchingLocalEventBuffer();
+    }
     final startedAt = _clock().toUtc();
     final emitter = ActivityEventEmitter(
       outbox: outbox,

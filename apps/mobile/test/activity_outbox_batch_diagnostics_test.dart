@@ -234,6 +234,185 @@ void main() {
     );
   });
 
+  test('HTTP 401 postpones batch and enters auth backoff', () async {
+    final logs = <String>[];
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) logs.add(message);
+    };
+    final root = await Directory.systemTemp.createTemp('lmp134-auth-401-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final outbox = ActivityFileOutbox.forTesting(root);
+    await outbox.enqueue(
+      PendingActivityEvent(
+        parentId: '11111111-1111-4111-8111-111111111111',
+        eventId: '33333333-3333-4333-8333-333333333333',
+        createdAt: DateTime.utc(2026, 11, 4),
+        payload: _minimalEvent(),
+        sessionPayload: _minimalSession(),
+      ),
+    );
+    var sendCalls = 0;
+    final sync = ActivityOutboxSync(
+      outbox: outbox,
+      currentSession: () => const AuthSession(
+        accessToken: 'test-only',
+        refreshToken: 'test-only',
+        sessionId: 'test-session',
+        parentId: '11111111-1111-4111-8111-111111111111',
+        expiresInSeconds: 300,
+      ),
+      clock: () => DateTime.utc(2026, 11, 4),
+      send: (_, _, _) async {
+        sendCalls++;
+        throw const ActivityAuthExpired();
+      },
+    );
+    await sync.flush();
+    expect(sendCalls, 1);
+    expect(
+      logs.any((line) => line.contains('sync_skipped reason=auth_expired')),
+      isTrue,
+    );
+    expect(
+      logs.any(
+        (line) =>
+            line.contains('sync_retry_scheduled reason=auth_expired'),
+      ),
+      isTrue,
+    );
+    sendCalls = 0;
+    await sync.flush();
+    expect(sendCalls, 0);
+    expect(
+      logs.any((line) => line.contains('sync_skipped reason=auth_backoff')),
+      isTrue,
+    );
+    sync.dispose();
+  });
+
+  test('HTTP 401 refresh retries once before auth backoff', () async {
+    final root = await Directory.systemTemp.createTemp('lmp134-auth-refresh-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final outbox = ActivityFileOutbox.forTesting(root);
+    await outbox.enqueue(
+      PendingActivityEvent(
+        parentId: '11111111-1111-4111-8111-111111111111',
+        eventId: '33333333-3333-4333-8333-333333333333',
+        createdAt: DateTime.utc(2026, 11, 4),
+        payload: _minimalEvent(),
+        sessionPayload: _minimalSession(),
+      ),
+    );
+    var sendCalls = 0;
+    var refreshCalls = 0;
+    const session = AuthSession(
+      accessToken: 'stale',
+      refreshToken: 'test-only',
+      sessionId: 'test-session',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      expiresInSeconds: 300,
+    );
+    const refreshed = AuthSession(
+      accessToken: 'fresh',
+      refreshToken: 'test-only',
+      sessionId: 'test-session',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      expiresInSeconds: 300,
+    );
+    final sync = ActivityOutboxSync(
+      outbox: outbox,
+      currentSession: () => sendCalls == 0 ? session : refreshed,
+      refreshSession: (_) async {
+        refreshCalls++;
+        return refreshed;
+      },
+      clock: () => DateTime.utc(2026, 11, 4),
+      send: (active, _, __) async {
+        sendCalls++;
+        if (active.accessToken == 'stale') {
+          throw const ActivityAuthExpired();
+        }
+        return {
+          'results': [
+            {
+              'event_id': '33333333-3333-4333-8333-333333333333',
+              'status': 'accepted',
+            },
+          ],
+        };
+      },
+    );
+    await sync.flush();
+    expect(refreshCalls, 1);
+    expect(sendCalls, 2);
+    expect(
+      await outbox.pending(
+        '11111111-1111-4111-8111-111111111111',
+        now: DateTime.utc(2026, 11, 5),
+      ),
+      isEmpty,
+    );
+    sync.dispose();
+  });
+
+  test('sync repairs mismatched session consent before POST', () async {
+    final root = await Directory.systemTemp.createTemp('lmp134-session-repair-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final outbox = ActivityFileOutbox.forTesting(root);
+    final event = _minimalEvent();
+    final session = _minimalSession();
+    (session['consent'] as Map)['policy_version'] = 'v1-tr-2026-10';
+    await outbox.enqueue(
+      PendingActivityEvent(
+        parentId: '11111111-1111-4111-8111-111111111111',
+        eventId: event['event_id'] as String,
+        createdAt: DateTime.utc(2026, 11, 4),
+        payload: event,
+        sessionPayload: session,
+      ),
+    );
+    List<Map<String, dynamic>>? postedSessions;
+    final sync = ActivityOutboxSync(
+      outbox: outbox,
+      currentSession: () => const AuthSession(
+        accessToken: 'test-only',
+        refreshToken: 'test-only',
+        sessionId: 'test-session',
+        parentId: '11111111-1111-4111-8111-111111111111',
+        expiresInSeconds: 300,
+      ),
+      clock: () => DateTime.utc(2026, 11, 4),
+      send: (_, __, sessions) async {
+        postedSessions = sessions;
+        return {
+          'results': [
+            {
+              'event_id': event['event_id'],
+              'status': 'accepted',
+            },
+          ],
+        };
+      },
+    );
+    await sync.flush();
+    sync.dispose();
+    expect(postedSessions, hasLength(1));
+    expect(
+      (postedSessions!.single['consent'] as Map)['policy_version'],
+      event['consent_policy_version'],
+    );
+    expect(
+      (postedSessions!.single['consent'] as Map)['purpose'],
+      'essential_play_events',
+    );
+  });
+
   test('HTTP 503 emits retry diagnostics through outbox sync', () async {
     final logs = <String>[];
     debugPrint = (String? message, {int? wrapWidth}) {
