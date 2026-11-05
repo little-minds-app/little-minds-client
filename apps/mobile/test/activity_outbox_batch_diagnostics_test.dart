@@ -249,8 +249,8 @@ void main() {
         parentId: '11111111-1111-4111-8111-111111111111',
         eventId: '33333333-3333-4333-8333-333333333333',
         createdAt: DateTime.utc(2026, 11, 4),
+        // Auth backoff path does not need a session envelope.
         payload: _minimalEvent(),
-        sessionPayload: _minimalSession(),
       ),
     );
     var sendCalls = 0;
@@ -304,7 +304,6 @@ void main() {
         eventId: '33333333-3333-4333-8333-333333333333',
         createdAt: DateTime.utc(2026, 11, 4),
         payload: _minimalEvent(),
-        sessionPayload: _minimalSession(),
       ),
     );
     var sendCalls = 0;
@@ -365,9 +364,12 @@ void main() {
       if (await root.exists()) await root.delete(recursive: true);
     });
     final outbox = ActivityFileOutbox.forTesting(root);
-    final event = _minimalEvent();
     final session = _minimalSession();
     (session['consent'] as Map)['policy_version'] = 'v1-tr-2026-10';
+    final event = {
+      ..._minimalEvent(),
+      'play_session_id': session['play_session_id'],
+    };
     await outbox.enqueue(
       PendingActivityEvent(
         parentId: '11111111-1111-4111-8111-111111111111',
