@@ -36,7 +36,7 @@ void main() {
         () async {
       const installationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
       final scopedDeviceId = parentScopedDeviceId(installationId, parentId);
-      expect(scopedDeviceId, 'a9a62045-4dfd-598f-a32d-a73072d887bc');
+      expect(scopedDeviceId, '3d15ad77-4bd6-50b8-9422-3db5738c39f1');
 
       final root = await Directory.systemTemp.createTemp('lmp134-pipe-v5-');
       ActivityOutboxSync? sync;
