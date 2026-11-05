@@ -63,17 +63,19 @@ abstract final class ShapeMatchingWirePayload {
         final band = ageMonths is int ? ageBandWire(ageMonths) : null;
         return {
           if (ageMonths is int) 'age_months': ageMonths,
-          if (band != null) 'age_band': band,
+          'age_band': ?band,
           if (p['restart'] == true) 'restart': true,
         };
       case 'activity_attempted':
         final roundIndex = p['round_index'];
+        final wireAttemptIndex = p['attempt_index'];
+        final attemptIndex = roundIndex is int
+            ? roundIndex
+            : (wireAttemptIndex is int ? wireAttemptIndex : null);
         return {
-          if (roundIndex is int) 'attempt_index': roundIndex,
-          if (eligibleFirstAttempts != null)
-            'eligible_first_attempts': eligibleFirstAttempts,
-          if (correctFirstAttempts != null)
-            'correct_first_attempts': correctFirstAttempts,
+          'attempt_index': ?attemptIndex,
+          'eligible_first_attempts': ?eligibleFirstAttempts,
+          'correct_first_attempts': ?correctFirstAttempts,
         };
       case 'activity_hint_used':
         return {'hint_level': p['hint_level']};
@@ -82,10 +84,8 @@ abstract final class ShapeMatchingWirePayload {
           'completion_status': 'completed',
           'scoring': 'neutral',
           if (hintsUsed > 0) 'hints_used': hintsUsed,
-          if (eligibleFirstAttempts != null)
-            'eligible_first_attempts': eligibleFirstAttempts,
-          if (correctFirstAttempts != null)
-            'correct_first_attempts': correctFirstAttempts,
+          'eligible_first_attempts': ?eligibleFirstAttempts,
+          'correct_first_attempts': ?correctFirstAttempts,
         };
       case 'activity_abandoned':
         return {

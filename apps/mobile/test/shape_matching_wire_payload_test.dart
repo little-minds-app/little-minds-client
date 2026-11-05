@@ -38,8 +38,18 @@ void main() {
   });
 
   test('additionalProperties negative: shape_id fails schema wire set', () {
-    const wireKeys =
+    final wireKeys =
         ShapeMatchingWirePayload.schemaWireKeysByType['activity_attempted']!;
     expect(wireKeys.contains('shape_id'), isFalse);
+  });
+
+  test('repairQueuedEvent is idempotent on canonical outbox payload', () {
+    final canonical = {
+      'content_version_id': ShapeMatchingWirePayload.productionContentVersionId,
+      'event_type': 'activity_attempted',
+      'payload': {'attempt_index': 0},
+    };
+    final repaired = ShapeMatchingWirePayload.repairQueuedEvent(canonical);
+    expect(repaired['payload'], {'attempt_index': 0});
   });
 }
