@@ -170,8 +170,12 @@ test('stale and partial freshness metadata show warnings', async () => {
 
 test('tab focus revalidates session and clears data after logout', async () => {
   let authed = true;
+  let meCalls = 0;
   globalThis.fetch = (async (url: string) => {
-    if (url === '/api/auth/me') return authed ? reply(200, { parent_id: 'parent-a' }) : reply(401, {});
+    if (url === '/api/auth/me') {
+      meCalls += 1;
+      return authed ? reply(200, { parent_id: 'parent-a' }) : reply(401, {});
+    }
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
@@ -181,8 +185,12 @@ test('tab focus revalidates session and clears data after logout', async () => {
   });
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
+  const beforeFocus = meCalls;
   authed = false;
-  fireEvent(dom.window, new dom.window.Event('focus'));
+  await act(async () => {
+    fireEvent(dom.window, new dom.window.Event('focus'));
+  });
+  await waitFor(() => assert.ok(meCalls > beforeFocus));
   await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
   assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
 });
