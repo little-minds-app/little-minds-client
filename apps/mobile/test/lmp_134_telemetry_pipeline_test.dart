@@ -247,6 +247,7 @@ void main() {
       final root = await Directory.systemTemp.createTemp('lmp134-neg-offline-');
       ActivityOutboxSync? sync;
       try {
+        final fakeClock = _MutableUtcClock(DateTime.utc(2026, 11, 4, 12));
         final outbox = ActivityFileOutbox.forTesting(
           root,
           onEventPersisted: (_) => sync!.scheduleFlush(),
@@ -255,7 +256,7 @@ void main() {
         sync = ActivityOutboxSync(
           outbox: outbox,
           currentSession: session,
-          clock: () => DateTime.utc(2026, 11, 4, 12),
+          clock: fakeClock.now,
           random: Random(0),
           send: (_, events, sessions) async {
             attempts++;
@@ -279,7 +280,7 @@ void main() {
           deviceId: deviceId,
           contentVersionId: contentId,
           consentPolicyVersion: 'privacy-notice-draft-0',
-          clock: () => DateTime.utc(2026, 11, 4, 12),
+          clock: fakeClock.now,
         );
         const playSessionId = '77777777-7777-4777-8777-777777777777';
         await emitter.emit(
@@ -310,22 +311,23 @@ void main() {
           },
         );
         await sync.flush();
-        expect(
-          await outbox.pending(
-            parentId,
-            now: DateTime.utc(2026, 11, 4, 13),
-          ),
-          hasLength(1),
+        expect(attempts, 1);
+        final queued = await outbox.pending(
+          parentId,
+          now: fakeClock.now().add(const Duration(days: 1)),
         );
+        expect(queued, hasLength(1));
+        final eventId = queued.single.eventId;
+        expect(queued.single.attempts, 1);
+        expect(queued.single.nextAttemptAt, isNotNull);
+        expect(queued.single.nextAttemptAt!.isAfter(fakeClock.now()), isTrue);
+
+        fakeClock.set(queued.single.nextAttemptAt!.add(const Duration(milliseconds: 1)));
         await sync.flush();
-        expect(
-          await outbox.pending(
-            parentId,
-            now: DateTime.utc(2026, 11, 5),
-          ),
-          isEmpty,
-        );
+
         expect(attempts, 2);
+        expect(await outbox.pending(parentId, now: fakeClock.now()), isEmpty);
+        expect(queued.single.eventId, eventId);
       } finally {
         sync?.dispose();
         if (await root.exists()) await root.delete(recursive: true);
@@ -535,6 +537,16 @@ void main() {
       }
     });
   });
+}
+
+final class _MutableUtcClock {
+  _MutableUtcClock(this._now);
+
+  DateTime _now;
+
+  DateTime now() => _now;
+
+  void set(DateTime value) => _now = value;
 }
 
 final class _GatePublicationRegistry implements PublishedContentRegistry {
