@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:little_minds_api/api.dart';
 
 import '../auth/auth_session.dart';
+import 'activity_batch_wire_codec.dart';
 import 'activity_file_outbox.dart';
 import 'activity_telemetry_diagnostics.dart';
 
@@ -46,47 +47,80 @@ class ActivityHttpBatchSender {
       sessions: typedSessions,
       events: typedEvents,
     );
-    final wire = request.toJson();
-    final wireEvents = (wire['events'] as List).cast<ActivityEventV1>();
-    wire['events'] = wireEvents.map((event) {
-      final json = event.toJson();
-      json.removeWhere(
-        (key, value) =>
-            value == null &&
-            (key == 'play_session_id' || key == 'monotonic_duration_seconds'),
-      );
-      return json;
-    }).toList();
-    final encoded = utf8.encode(jsonEncode(wire));
+    late final Map<String, dynamic> wire;
+    try {
+      wire = encodeActivityBatchWire(request);
+    } on FormatException {
+      ActivityTelemetryDiagnostics.batchSerializeFailed('model_parse');
+      rethrow;
+    } catch (_) {
+      ActivityTelemetryDiagnostics.batchSerializeFailed('wire_build');
+      throw const FormatException('batch.wire_encode');
+    }
+    late final List<int> encoded;
+    try {
+      encoded = utf8.encode(jsonEncode(wire));
+    } on JsonUnsupportedObjectError {
+      ActivityTelemetryDiagnostics.batchSerializeFailed('json_encode');
+      throw const FormatException('batch.wire_encode');
+    }
+    ActivityTelemetryDiagnostics.batchEndpoint(
+      host: _endpoint.host,
+      port: _endpoint.port,
+    );
     if (encoded.length > 256 * 1024) {
       throw const ActivityRequestTooLarge();
     }
-    final req = await _client
-        .postUrl(_endpoint)
-        .timeout(const Duration(seconds: 15));
+    late final HttpClientRequest req;
+    try {
+      req = await _client
+          .postUrl(_endpoint)
+          .timeout(const Duration(seconds: 15));
+    } on SocketException {
+      ActivityTelemetryDiagnostics.batchTransportFailed('socket');
+      rethrow;
+    } on TimeoutException {
+      ActivityTelemetryDiagnostics.batchTransportFailed('timeout');
+      rethrow;
+    }
     req.headers.contentType = ContentType.json;
     req.headers.set(
       HttpHeaders.authorizationHeader,
       'Bearer ${session.accessToken}',
     );
     req.add(encoded);
-    final response = await req.close().timeout(const Duration(seconds: 20));
+    late final HttpClientResponse response;
+    try {
+      response = await req.close().timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      ActivityTelemetryDiagnostics.batchTransportFailed('timeout');
+      rethrow;
+    } on SocketException {
+      ActivityTelemetryDiagnostics.batchTransportFailed('socket');
+      rethrow;
+    }
     final responseBody = await utf8.decoder.bind(response).join();
     if (response.statusCode == 200) {
       final body = jsonDecode(responseBody);
       if (body is! Map<String, dynamic> || body['results'] is! List) {
+        ActivityTelemetryDiagnostics.batchInvalidAck('response_shape');
         throw const FormatException('batch.invalid_response');
       }
       // Fail closed on a response that no longer conforms to the pinned
       // generated batch acknowledgment schema.
       final typedAck = IngestActivityEventBatch200Response.fromJson(body);
       if (typedAck == null) {
+        ActivityTelemetryDiagnostics.batchInvalidAck('response_schema');
         throw const FormatException('batch.invalid_response');
       }
       return body;
     }
-    if (response.statusCode == 401) throw const ActivityAuthExpired();
+    if (response.statusCode == 401) {
+      ActivityTelemetryDiagnostics.batchHttpFailed(status: 401);
+      throw const ActivityAuthExpired();
+    }
     if (response.statusCode == 429 || response.statusCode >= 500) {
+      ActivityTelemetryDiagnostics.batchHttpFailed(status: response.statusCode);
       throw ActivityRetryableHttp(
         response.statusCode,
         retryAfter: parseActivityRetryAfter(
@@ -107,6 +141,10 @@ class ActivityHttpBatchSender {
     } catch (_) {
       // Do not expose raw server response.
     }
+    ActivityTelemetryDiagnostics.batchHttpFailed(
+      status: response.statusCode,
+      errorCode: errorCode,
+    );
     throw ActivityPermanentHttp(response.statusCode, errorCode: errorCode);
   }
 }
@@ -254,6 +292,14 @@ class ActivityOutboxSync {
           if (item.sessionPayload != null) {
             final sessionId = item.sessionPayload!['play_session_id'];
             if (sessionId is! String) {
+              ActivityTelemetryDiagnostics.batchInvalidAck(
+                'session_play_session_id',
+              );
+              await _postponeBatch(
+                initial,
+                pending,
+                reason: 'invalid_session_payload',
+              );
               return;
             }
             // Prefer the terminal metadata if the same session was completed.
@@ -270,44 +316,61 @@ class ActivityOutboxSync {
         );
       } on ActivityAuthExpired {
         // No token refresh inside worker; caller must reauthenticate first.
+        ActivityTelemetryDiagnostics.syncSkipped('auth_expired');
         return;
       } on ActivityRequestTooLarge {
         // Keep the original immutable events. Avoid a tight retry loop until
         // the request-size policy is reviewed or the batch is split.
-        if (!_sameAccount(initial)) return;
-        for (final item in pending) {
-          await outbox.postpone(item, _nextRetry(item.attempts));
-        }
+        await _postponeBatch(
+          initial,
+          pending,
+          reason: 'request_too_large',
+        );
         return;
       } on ActivityRetryableHttp catch (error) {
-        if (!_sameAccount(initial)) return;
-        for (final item in pending) {
-          await outbox.postpone(
-            item,
-            error.retryAfter == null
-                ? _nextRetry(item.attempts)
-                : _clock().toUtc().add(error.retryAfter!),
-          );
-        }
+        await _postponeBatch(
+          initial,
+          pending,
+          reason: 'http_retryable_${error.status}',
+          retryAfter: error.retryAfter,
+        );
         return;
-      } on ActivityPermanentHttp {
+      } on ActivityPermanentHttp catch (error) {
         // Unknown batch-level rejection: preserve events for investigation,
         // but back off rather than retrying on every foreground tick.
-        if (!_sameAccount(initial)) return;
-        for (final item in pending) {
-          await outbox.postpone(item, _nextRetry(item.attempts));
-        }
+        await _postponeBatch(
+          initial,
+          pending,
+          reason: error.errorCode ?? 'http_permanent_${error.status}',
+        );
         return;
-      } catch (_) {
-        if (!_sameAccount(initial)) return;
-        for (final item in pending) {
-          await outbox.postpone(item, _nextRetry(item.attempts));
-        }
+      } on FormatException catch (error) {
+        ActivityTelemetryDiagnostics.batchUnexpectedFailure(
+          _sanitizeFailureKind(error.message),
+        );
+        await _postponeBatch(
+          initial,
+          pending,
+          reason: 'wire_or_response_format',
+        );
+        return;
+      } on SocketException {
+        await _postponeBatch(initial, pending, reason: 'transport_socket');
+        return;
+      } on TimeoutException {
+        await _postponeBatch(initial, pending, reason: 'transport_timeout');
+        return;
+      } catch (error) {
+        ActivityTelemetryDiagnostics.batchUnexpectedFailure(
+          _sanitizeFailureKind(error.runtimeType.toString()),
+        );
+        await _postponeBatch(initial, pending, reason: 'unexpected');
         return;
       }
       if (!_sameAccount(initial)) return;
       final rows = result['results'];
       if (rows is! List) {
+        ActivityTelemetryDiagnostics.batchInvalidAck('results_not_list');
         return;
       }
       final acked = <String, ({String status, String? reason})>{};
@@ -315,10 +378,12 @@ class ActivityOutboxSync {
         if (entry is! Map ||
             entry['event_id'] is! String ||
             entry['status'] is! String) {
+          ActivityTelemetryDiagnostics.batchInvalidAck('result_row_shape');
           return;
         }
         final id = entry['event_id'] as String;
         if (acked.containsKey(id)) {
+          ActivityTelemetryDiagnostics.batchInvalidAck('duplicate_event_id');
           return;
         }
         acked[id] = (
@@ -337,6 +402,7 @@ class ActivityOutboxSync {
               'retryable',
             }.contains(v.status),
           )) {
+        ActivityTelemetryDiagnostics.batchInvalidAck('ack_mismatch');
         return;
       }
       for (final item in pending) {
@@ -388,6 +454,42 @@ class ActivityOutboxSync {
     return active != null &&
         active.parentId == original.parentId &&
         active.sessionId == original.sessionId;
+  }
+
+  Future<void> _postponeBatch(
+    AuthSession initial,
+    List<PendingActivityEvent> pending, {
+    required String reason,
+    Duration? retryAfter,
+  }) async {
+    if (!_sameAccount(initial)) return;
+    if (pending.isEmpty) return;
+    final sample = pending.first;
+    final sampleNextAt = retryAfter == null
+        ? _nextRetry(sample.attempts)
+        : _clock().toUtc().add(retryAfter);
+    ActivityTelemetryDiagnostics.syncRetryScheduled(
+      reason: reason,
+      attempt: sample.attempts + 1,
+      backoffSeconds: max(
+        1,
+        sampleNextAt.difference(_clock().toUtc()).inSeconds,
+      ),
+    );
+    for (final item in pending) {
+      final nextAt = retryAfter == null
+          ? _nextRetry(item.attempts)
+          : _clock().toUtc().add(retryAfter);
+      await outbox.postpone(item, nextAt);
+    }
+  }
+
+  static String _sanitizeFailureKind(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return 'unknown';
+    final safe = RegExp(r'^[a-z][a-z0-9_.-]{0,100}$');
+    if (safe.hasMatch(trimmed)) return trimmed;
+    return 'sanitized';
   }
 
   DateTime _nextRetry(int attempts) {

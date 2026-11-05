@@ -49,4 +49,54 @@ abstract final class ActivityTelemetryDiagnostics {
     if (!kDebugMode) return;
     debugPrint('LMP-134 telemetry sync_skipped reason=$reason');
   }
+
+  static void batchSerializeFailed(String reason) {
+    if (!kDebugMode) return;
+    debugPrint('LMP-134 telemetry batch_serialize_failed reason=$reason');
+  }
+
+  static void batchTransportFailed(String kind) {
+    if (!kDebugMode) return;
+    debugPrint('LMP-134 telemetry batch_transport_failed kind=$kind');
+  }
+
+  static void batchHttpFailed({
+    required int status,
+    String? errorCode,
+  }) {
+    if (!kDebugMode) return;
+    final code = errorCode == null ? '' : ' error_code=$errorCode';
+    debugPrint(
+      'LMP-134 telemetry batch_http_failed status=$status$code',
+    );
+  }
+
+  static void batchInvalidAck(String reason) {
+    if (!kDebugMode) return;
+    debugPrint('LMP-134 telemetry batch_invalid_ack reason=$reason');
+  }
+
+  static void syncRetryScheduled({
+    required String reason,
+    required int attempt,
+    required int backoffSeconds,
+  }) {
+    if (!kDebugMode) return;
+    debugPrint(
+      'LMP-134 telemetry sync_retry_scheduled '
+      'reason=$reason attempt=$attempt backoff_seconds=$backoffSeconds',
+    );
+  }
+
+  static void batchEndpoint({required String host, required int port}) {
+    if (!kDebugMode) return;
+    debugPrint(
+      'LMP-134 telemetry batch_endpoint host=$host port=$port',
+    );
+  }
+
+  static void batchUnexpectedFailure(String kind) {
+    if (!kDebugMode) return;
+    debugPrint('LMP-134 telemetry batch_unexpected_failure kind=$kind');
+  }
 }
