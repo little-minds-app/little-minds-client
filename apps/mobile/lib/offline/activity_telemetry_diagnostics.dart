@@ -63,11 +63,19 @@ abstract final class ActivityTelemetryDiagnostics {
   static void batchHttpFailed({
     required int status,
     String? errorCode,
+    List<String> fieldPaths = const [],
+    List<String> validationCategories = const [],
   }) {
     if (!kDebugMode) return;
     final code = errorCode == null ? '' : ' error_code=$errorCode';
+    final paths = fieldPaths.isEmpty
+        ? ''
+        : ' field_paths=${fieldPaths.join(',')}';
+    final categories = validationCategories.isEmpty
+        ? ''
+        : ' validation_categories=${validationCategories.join(',')}';
     debugPrint(
-      'LMP-134 telemetry batch_http_failed status=$status$code',
+      'LMP-134 telemetry batch_http_failed status=$status$code$paths$categories',
     );
   }
 

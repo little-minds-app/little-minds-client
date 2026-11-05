@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:little_minds_api/api.dart';
 
 import '../auth/auth_session.dart';
+import 'activity_batch_http_error.dart';
 import 'activity_batch_wire_codec.dart';
 import 'activity_file_outbox.dart';
 import 'activity_telemetry_diagnostics.dart';
@@ -128,23 +129,17 @@ class ActivityHttpBatchSender {
         ),
       );
     }
-    String? errorCode;
-    try {
-      final decoded = jsonDecode(responseBody);
-      if (decoded is Map<String, dynamic>) {
-        final raw = decoded['message'];
-        if (raw is String &&
-            RegExp(r'^[a-z][a-z0-9_.-]{0,100}$').hasMatch(raw)) {
-          errorCode = raw;
-        }
-      }
-    } catch (_) {
-      // Do not expose raw server response.
-    }
+    final httpError = parseActivityBatchHttpError(
+      status: response.statusCode,
+      body: responseBody,
+    );
     ActivityTelemetryDiagnostics.batchHttpFailed(
       status: response.statusCode,
-      errorCode: errorCode,
+      errorCode: httpError.topLevelCode,
+      fieldPaths: httpError.fieldPaths,
+      validationCategories: httpError.validationCategories,
     );
+    final errorCode = httpError.topLevelCode;
     throw ActivityPermanentHttp(response.statusCode, errorCode: errorCode);
   }
 }

@@ -9,11 +9,11 @@ import 'package:little_minds_api/api.dart';
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **schemaVersion** | [**ActivitySchemaVersion**](ActivitySchemaVersion.md) |  | 
-**eventId** | **String** | RFC 4122 UUID with version nibble 4 or 7 | 
+**eventId** | **String** | RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7.  | 
 **eventType** | [**ActivityEventType**](ActivityEventType.md) |  | 
-**playSessionId** | **String** | RFC 4122 UUID with version nibble 4 or 7 | [optional] 
-**deviceId** | **String** | RFC 4122 UUID with version nibble 4 or 7 | 
-**contentVersionId** | **String** | RFC 4122 UUID with version nibble 4 or 7 | 
+**playSessionId** | **String** | RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7.  | [optional] 
+**deviceId** | **String** | RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7.  | 
+**contentVersionId** | **String** | RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7.  | 
 **occurredAt** | **String** | UTC ISO-8601 instant ending in Z | 
 **monotonicDurationSeconds** | **int** |  | [optional] 
 **consentScope** | [**ConsentScope**](ConsentScope.md) |  | 

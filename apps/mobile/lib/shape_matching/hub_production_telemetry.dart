@@ -316,7 +316,7 @@ class HubProductionTelemetryCoordinator {
       'play_session_id': playSessionId,
       'device_id': deviceId,
       'content_version_id': contentVersionId,
-      'started_at': startedAt.toIso8601String(),
+      'started_at': startedAt.toIso8601String().replaceFirst('+00:00', 'Z'),
       'completion_status': 'started',
       'consent': {
         'purpose': ShapeMatchingProductionConsent.purpose,

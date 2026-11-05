@@ -110,6 +110,46 @@ void main() {
     );
   });
 
+  test('HTTP 400 emits validation field paths without raw body', () async {
+    final logs = <String>[];
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) logs.add(message);
+    };
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      request.response.statusCode = HttpStatus.badRequest;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(
+        '{"message":["sessions.0.device_id must match pattern","batch.invalid_event"]}',
+      );
+      await request.response.close();
+    });
+    const session = AuthSession(
+      accessToken: 'test-only',
+      refreshToken: 'test-only',
+      sessionId: 'test-session',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      expiresInSeconds: 300,
+    );
+    final sender = ActivityHttpBatchSender(
+      apiBaseUrl: Uri.parse('http://127.0.0.1:${server.port}'),
+    );
+    await expectLater(
+      sender.send(session, [_minimalEvent()], [_minimalSession()]),
+      throwsA(isA<ActivityPermanentHttp>()),
+    );
+    expect(
+      logs.any(
+        (line) =>
+            line.contains('batch_http_failed status=400') &&
+            line.contains('error_code=batch.invalid_event') &&
+            line.contains('field_paths=sessions.0.device_id'),
+      ),
+      isTrue,
+    );
+  });
+
   test('HTTP 503 emits retry diagnostics through outbox sync', () async {
     final logs = <String>[];
     debugPrint = (String? message, {int? wrapWidth}) {
@@ -147,6 +187,26 @@ void main() {
     );
   });
 }
+
+Map<String, dynamic> _minimalSession() => <String, dynamic>{
+      'schema_version': '1.0.0',
+      'play_session_id': '55555555-5555-4555-8555-555555555555',
+      'device_id': '51100000-0000-4000-8000-000000000002',
+      'content_version_id': '51100000-0000-4000-8000-000000000007',
+      'started_at': '2026-10-28T06:00:00.000Z',
+      'completion_status': 'started',
+      'consent': {
+        'purpose': 'essential_play_events',
+        'policy_version': 'privacy-notice-draft-0',
+        'consent_scope': 'essential_play_events',
+        'decision': 'granted',
+      },
+      'provenance': {
+        'emitter': 'kids_mode_client',
+        'capture_channel': 'offline_queue',
+        'clock_trust': 'monotonic_within_boot',
+      },
+    };
 
 Map<String, dynamic> _minimalEvent() => <String, dynamic>{
       'schema_version': '1.0.0',

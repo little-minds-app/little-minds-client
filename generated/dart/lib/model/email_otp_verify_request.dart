@@ -19,7 +19,7 @@ class EmailOtpVerifyRequest {
     this.deviceId,
   });
 
-  /// RFC 4122 UUID with version nibble 4 or 7
+  /// RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7. 
   String challengeId;
 
   String code;
@@ -32,7 +32,7 @@ class EmailOtpVerifyRequest {
   ///
   String? clientSurface;
 
-  /// RFC 4122 UUID with version nibble 4 or 7
+  /// RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7. 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated

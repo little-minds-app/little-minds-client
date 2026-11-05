@@ -36,13 +36,13 @@ void main() {
       // TODO
     });
 
-    // RFC 4122 UUID with version nibble 4 or 7
+    // RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7. 
     // String sessionId
     test('to test the property `sessionId`', () async {
       // TODO
     });
 
-    // RFC 4122 UUID with version nibble 4 or 7
+    // RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7. 
     // String parentId
     test('to test the property `parentId`', () async {
       // TODO

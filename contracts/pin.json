@@ -1,9 +1,9 @@
 {
-  "$comment": "LMP-134 device active-child bind/read + binding_revision CAS (409 stale)",
+  "$comment": "LMP-134: UuidV4OrV7 pattern accepts v5 parent-scoped device_id on activity wire (ingest parity). Mirror on backend PR #37 before merge.",
   "backendRepository": "little-minds-app/little-minds-backend",
   "backendCommitSha": "4f0c592d38db7d964ed713f6b7d5f5a5f834e269",
   "artifactPath": "contracts/openapi.yaml",
-  "artifactBlobSha": "18b2fc027fb458bcfd5dbd092f29aa29143d95f4",
-  "contractVersion": "0.14.4",
+  "artifactBlobSha": "a4b47d6572d156553ac3f6e6a39fc84510fb9ee8",
+  "contractVersion": "0.14.5",
   "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/37"
 }

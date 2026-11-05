@@ -21,7 +21,7 @@ void main() {
       // TODO
     });
 
-    // RFC 4122 UUID with version nibble 4 or 7
+    // RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7. 
     // String eventId
     test('to test the property `eventId`', () async {
       // TODO
@@ -32,19 +32,19 @@ void main() {
       // TODO
     });
 
-    // RFC 4122 UUID with version nibble 4 or 7
+    // RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7. 
     // String playSessionId
     test('to test the property `playSessionId`', () async {
       // TODO
     });
 
-    // RFC 4122 UUID with version nibble 4 or 7
+    // RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7. 
     // String deviceId
     test('to test the property `deviceId`', () async {
       // TODO
     });
 
-    // RFC 4122 UUID with version nibble 4 or 7
+    // RFC 4122 UUID with version nibble 4, 5 (parent-scoped device_id digest), or 7. 
     // String contentVersionId
     test('to test the property `contentVersionId`', () async {
       // TODO
