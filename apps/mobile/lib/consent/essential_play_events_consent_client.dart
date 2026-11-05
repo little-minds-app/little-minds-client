@@ -1,6 +1,5 @@
 import 'package:little_minds_api/api.dart';
 
-import '../auth/auth_api_clients.dart';
 import '../auth/auth_session.dart';
 import '../config/app_config.dart';
 import 'essential_play_events_consent.dart';
