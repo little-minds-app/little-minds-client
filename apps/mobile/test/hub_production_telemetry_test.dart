@@ -11,7 +11,11 @@ import 'package:little_minds_mobile/shape_matching/shape_matching_activity.dart'
 import 'package:little_minds_mobile/shape_matching/shape_matching_constants.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_events.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_production_consent.dart';
+import 'package:little_minds_mobile/consent/essential_play_events_consent.dart';
+import 'package:little_minds_mobile/consent/essential_play_events_consent_service.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_production_event_buffer.dart';
+
+import 'support/fake_essential_play_events_consent_client.dart';
 
 void main() {
   const session = AuthSession(
@@ -167,6 +171,58 @@ void main() {
             as ShapeMatchingActivity?;
         expect(activity, isNotNull);
         expect(activity!.eventBuffer, isA<ShapeMatchingLocalEventBuffer>());
+      } finally {
+        if (await root.exists()) await root.delete(recursive: true);
+      }
+    });
+
+    test('blocks production buffer without server essential_play grant', () async {
+      final root = await Directory.systemTemp.createTemp('lmp134-hub-consent-');
+      try {
+        final outbox = ActivityFileOutbox.forTesting(root);
+        final client = FakeEssentialPlayEventsConsentClient(
+          initialStatus: const EssentialPlayEventsConsentStatus(
+            authorized: false,
+            effectiveStatus: 'denied',
+          ),
+        );
+        final consent = EssentialPlayEventsConsentService(
+          client: client,
+          outbox: outbox,
+        );
+        final catalog = MemoryHubAuthorizedDeviceChildCatalog();
+        await catalog.applyServerAuthorizedChild(
+          parentId: session.parentId,
+          scopedDeviceId: deviceId,
+          childId: childA,
+        );
+        final coordinator = HubProductionTelemetryCoordinator(
+          outbox: outbox,
+          contentRegistry: MapPublishedContentRegistry({
+            ShapeMatchingConstants.activityId: PublishedActivityPublication(
+              contentVersionId: contentId,
+              consentPolicyVersion: 'synthetic-policy-v1',
+            ),
+          }),
+          deviceChildCatalog: catalog,
+          consentService: consent,
+          clock: () => DateTime.utc(2026, 11, 4, 12),
+        );
+        final registry = ActivityRegistry();
+        await coordinator.reconcileHubRegistry(
+          registry: registry,
+          ageMonthsProvider: () => 30,
+          session: session,
+          selectedChildId: childA,
+          deviceId: deviceId,
+        );
+        final activity = registry.findById(ShapeMatchingConstants.activityId)!
+            as ShapeMatchingActivity;
+        expect(activity.eventBuffer, isA<ShapeMatchingLocalEventBuffer>());
+        expect(
+          coordinator.lastSnapshot?.reason,
+          HubProductionTelemetryBlockReason.essentialPlayConsentNotGranted,
+        );
       } finally {
         if (await root.exists()) await root.delete(recursive: true);
       }

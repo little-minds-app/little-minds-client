@@ -328,7 +328,7 @@ void main() {
     });
 
     test(
-      'essential_play_events quarantine is not auto-replayed after consent grant',
+      'essential_play_events quarantine replays only after explicit requeue',
       () async {
         final root =
             await Directory.systemTemp.createTemp('lmp134-consent-recover-');
@@ -417,6 +417,16 @@ void main() {
           expect(sendCalls, 1);
           expect(await outbox.pending(parentId), isEmpty);
           expect(quarantined.single.existsSync(), isTrue);
+
+          final requeued = await outbox.requeueQuarantinedConsentScope(
+            parentId,
+            'essential_play_events',
+          );
+          expect(requeued, 1);
+          expect(quarantined.single.existsSync(), isTrue);
+          await sync.flush();
+          expect(sendCalls, 2);
+          expect(await outbox.pending(parentId), isEmpty);
         } finally {
           sync?.dispose();
           if (await root.exists()) await root.delete(recursive: true);

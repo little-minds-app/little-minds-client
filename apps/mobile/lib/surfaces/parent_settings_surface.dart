@@ -27,6 +27,7 @@ class ParentSettingsSurface extends StatelessWidget {
     this.onOpenNearFarMentor,
     this.onOpenScreenTimeDebug,
     this.onOpenParentDashboard,
+    this.onOpenEssentialPlayConsent,
     this.forceShowScreenTimeDebugEntry = false,
   });
 
@@ -50,6 +51,9 @@ class ParentSettingsSurface extends StatelessWidget {
   /// Opens the session KPI parent dashboard (LMP-53).
   final VoidCallback? onOpenParentDashboard;
 
+  /// LMP-134 explicit opt-in for essential play event sync (F-033).
+  final VoidCallback? onOpenEssentialPlayConsent;
+
   /// Widget-test force for the debug entry without relying solely on [kDebugMode].
   final bool forceShowScreenTimeDebugEntry;
 
@@ -66,6 +70,8 @@ class ParentSettingsSurface extends StatelessWidget {
   static const Key scrollKey = Key('parent-settings-scroll');
   static const Key parentDashboardKey = Key('parent-settings-dashboard');
   static const Key parentDashboardHintKey = Key('parent-settings-dashboard-hint');
+  static const Key essentialPlayConsentKey =
+      Key('parent-settings-essential-play-consent');
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +109,14 @@ class ParentSettingsSurface extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
+                    if (onOpenEssentialPlayConsent != null) ...[
+                      const SizedBox(height: 16),
+                      FilledButton.tonal(
+                        key: essentialPlayConsentKey,
+                        onPressed: onOpenEssentialPlayConsent,
+                        child: const Text('Play activity sync consent'),
+                      ),
+                    ],
                     if (onOpenOptionalParentProfile != null) ...[
                       const SizedBox(height: 16),
                       FilledButton.tonal(

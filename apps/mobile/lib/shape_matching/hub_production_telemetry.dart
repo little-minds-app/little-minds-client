@@ -12,6 +12,7 @@ import 'shape_matching_activity.dart';
 import 'shape_matching_constants.dart';
 import 'shape_matching_events.dart';
 import 'shape_matching_production_consent.dart';
+import '../consent/essential_play_events_consent_service.dart';
 import 'shape_matching_production_event_buffer.dart';
 
 /// Why hub production telemetry remains on the local buffer.
@@ -25,6 +26,8 @@ enum HubProductionTelemetryBlockReason {
   selectedChildMismatch,
   noPublishedContentVersion,
   contentVersionNotUuid,
+  essentialPlayConsentNotGranted,
+  essentialPlayConsentPolicyMismatch,
 }
 
 /// Snapshot of inputs required to construct a production Shape Matching buffer.
@@ -137,6 +140,7 @@ class HubProductionTelemetryCoordinator {
     required this.outbox,
     required this.contentRegistry,
     required this.deviceChildCatalog,
+    this.consentService,
     Uuid? uuid,
     DateTime Function()? clock,
   })  : _uuid = uuid ?? const Uuid(),
@@ -145,6 +149,7 @@ class HubProductionTelemetryCoordinator {
   final ActivityFileOutbox outbox;
   final PublishedContentRegistry contentRegistry;
   final HubAuthorizedDeviceChildCatalog deviceChildCatalog;
+  final EssentialPlayEventsConsentService? consentService;
   final Uuid _uuid;
   final DateTime Function() _clock;
 
@@ -209,13 +214,34 @@ class HubProductionTelemetryCoordinator {
       );
       return _lastSnapshot!;
     }
+    final policyVersion = publication.consentPolicyVersion;
+    final consent = consentService;
+    if (consent != null) {
+      if (!consent.isAuthorizedForPolicy(policyVersion)) {
+        final mismatch = consent.hasEffectiveGrant &&
+            consent.status?.policyVersion != null &&
+            consent.status!.policyVersion != policyVersion;
+        _lastSnapshot = HubProductionTelemetrySnapshot(
+          allowed: false,
+          reason: mismatch
+              ? HubProductionTelemetryBlockReason
+                  .essentialPlayConsentPolicyMismatch
+              : HubProductionTelemetryBlockReason.essentialPlayConsentNotGranted,
+          session: session,
+          deviceId: deviceId,
+          contentVersionId: publication.contentVersionId,
+          consentPolicyVersion: policyVersion,
+        );
+        return _lastSnapshot!;
+      }
+    }
     _lastSnapshot = HubProductionTelemetryGate.evaluate(
       session: session,
       selectedChildId: selectedChildId,
       deviceId: deviceId,
       authorizedDeviceChildId: authorizedChildId,
       publishedContentVersionId: publication.contentVersionId,
-      consentPolicyVersion: publication.consentPolicyVersion,
+      consentPolicyVersion: policyVersion,
     );
     return _lastSnapshot!;
   }

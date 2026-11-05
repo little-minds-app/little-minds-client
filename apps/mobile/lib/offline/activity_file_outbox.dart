@@ -253,6 +253,62 @@ class ActivityFileOutbox {
     await file.delete();
   });
 
+  /// Re-enqueue quarantined events for a consent scope without touching
+  /// `*.json.rejected` archives (copy-then-enqueue). Skips when the same
+  /// [event_id] is already pending. Safe to call after server grant (LMP-134).
+  Future<int> requeueQuarantinedConsentScope(
+    String parentId,
+    String scope,
+  ) =>
+      _serialized(() async {
+        final dir = _partition(parentId);
+        if (!await dir.exists()) return 0;
+        final pendingIds = <String>{};
+        await for (final entity in dir.list(followLinks: false)) {
+          if (entity is! File || !entity.path.endsWith('.json')) {
+            continue;
+          }
+          final data = PendingActivityEvent.fromJson(
+            await _codec.open(parentId, await entity.readAsString()),
+          );
+          pendingIds.add(data.eventId.toLowerCase());
+        }
+        var requeued = 0;
+        await for (final entity in dir.list(followLinks: false)) {
+          if (entity is! File || !entity.path.endsWith('.json.rejected')) {
+            continue;
+          }
+          final data = PendingActivityEvent.fromJson(
+            await _codec.open(parentId, await entity.readAsString()),
+          );
+          if (data.parentId != parentId ||
+              data.payload['consent_scope'] != scope) {
+            continue;
+          }
+          final id = data.eventId.toLowerCase();
+          if (pendingIds.contains(id)) {
+            continue;
+          }
+          final destination = _entry(parentId, data.eventId);
+          if (await destination.exists()) {
+            pendingIds.add(id);
+            continue;
+          }
+          final fresh = PendingActivityEvent(
+            parentId: data.parentId,
+            eventId: data.eventId,
+            payload: data.payload,
+            sessionPayload: data.sessionPayload,
+            createdAt: data.createdAt,
+          );
+          await _atomicWrite(destination, fresh.toJson());
+          pendingIds.add(id);
+          requeued++;
+          onEventPersisted?.call(pendingIds.length);
+        }
+        return requeued;
+      });
+
   /// Purge unacknowledged optional analytics when consent is withdrawn.
   Future<int> purgeConsentScope(String parentId, String scope) =>
       _serialized(() async {
