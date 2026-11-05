@@ -77,7 +77,13 @@ void main() {
       final attempted = events.singleWhere(
         (e) => e.payload['event_type'] == 'activity_attempted',
       );
-      expect(attempted.payload['payload'], containsPair('shape_id', 'circle'));
+      expect(attempted.payload['payload'], containsPair('attempt_index', 0));
+      expect(attempted.payload['payload'].keys, isNot(contains('shape_id')));
+      final started = events.singleWhere(
+        (e) => e.payload['event_type'] == 'activity_started',
+      );
+      expect(started.payload['payload'].keys, isNot(contains('activity_variant_id')));
+      expect(started.payload['payload'], containsPair('age_band', '24_35'));
       expect(
         events.every((e) => e.payload['content_version_id'] == contentId),
         isTrue,

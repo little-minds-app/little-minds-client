@@ -8,6 +8,7 @@ import 'package:little_minds_api/api.dart';
 import '../auth/auth_session.dart';
 import 'activity_batch_http_error.dart';
 import 'activity_batch_wire_codec.dart';
+import 'activity_event_outbox_wire_repair.dart';
 import 'activity_file_outbox.dart';
 import 'activity_telemetry_diagnostics.dart';
 
@@ -39,7 +40,10 @@ class ActivityHttpBatchSender {
       if (parsed == null) throw const FormatException('batch.invalid_session');
       typedSessions.add(parsed);
     }
-    for (final json in events) {
+    for (final raw in events) {
+      final json = repairActivityEventOutboxWire(
+        Map<String, dynamic>.from(raw),
+      );
       final parsed = ActivityEventV1.fromJson(json);
       if (parsed == null) throw const FormatException('batch.invalid_event');
       typedEvents.add(parsed);

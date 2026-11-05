@@ -101,6 +101,18 @@ void main() {
           ShapeMatchingProductionBatchFixture.consentPolicyVersion,
         );
         expect(event.containsKey('play_session_id'), isTrue);
+        final payload = event['payload'] as Map<String, dynamic>;
+        switch (event['event_type']) {
+          case 'activity_started':
+            expect(payload.keys, isNot(contains('activity_variant_id')));
+            expect(payload, containsPair('age_band', '36_47'));
+          case 'activity_attempted':
+            expect(payload, containsPair('attempt_index', 0));
+            expect(payload.keys, isNot(contains('shape_id')));
+          case 'activity_completed':
+            expect(payload, containsPair('completion_status', 'completed'));
+            expect(event['monotonic_duration_seconds'], isNotNull);
+        }
       }
     } finally {
       if (await root.exists()) await root.delete(recursive: true);
