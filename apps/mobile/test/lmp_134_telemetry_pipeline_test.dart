@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/auth/auth_session.dart';
@@ -12,7 +14,6 @@ import 'package:little_minds_mobile/shape_matching/published_content_registry.da
 import 'package:little_minds_mobile/shape_matching/shape_matching_activity.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_constants.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_events.dart';
-import 'package:little_minds_mobile/shape_matching/shape_matching_local_event_buffer.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_production_event_buffer.dart';
 
 void main() {
@@ -32,8 +33,8 @@ void main() {
   group('LMP-134 play → enqueue → batch ACK', () {
     test('persist hook schedules flush and mock HTTP clears outbox', () async {
       final root = await Directory.systemTemp.createTemp('lmp134-pipe-');
+      ActivityOutboxSync? sync;
       try {
-        ActivityOutboxSync? sync;
         final outbox = ActivityFileOutbox.forTesting(
           root,
           onEventPersisted: (_) => sync!.scheduleFlush(),
@@ -43,7 +44,8 @@ void main() {
           outbox: outbox,
           currentSession: session,
           clock: () => DateTime.utc(2026, 11, 4, 12),
-          send: (_, events, __) async {
+          random: Random(0),
+          send: (_, events, sessions) async {
             batchCalls++;
             return {
               'results': [
@@ -106,6 +108,7 @@ void main() {
           isEmpty,
         );
       } finally {
+        sync?.dispose();
         if (await root.exists()) await root.delete(recursive: true);
       }
     });
@@ -114,13 +117,14 @@ void main() {
   group('LMP-134 telemetry negatives', () {
     test('child mismatch keeps local buffer — no batch send', () async {
       final root = await Directory.systemTemp.createTemp('lmp134-neg-child-');
+      ActivityOutboxSync? sync;
       try {
         var batchCalls = 0;
         final outbox = ActivityFileOutbox.forTesting(root);
-        final sync = ActivityOutboxSync(
+        sync = ActivityOutboxSync(
           outbox: outbox,
           currentSession: session,
-          send: (_, __, ___) async {
+          send: (_, events, sessions) async {
             batchCalls++;
             return {'results': []};
           },
@@ -161,14 +165,15 @@ void main() {
         expect(batchCalls, 0);
         expect(await outbox.pending(parentId), isEmpty);
       } finally {
+        sync?.dispose();
         if (await root.exists()) await root.delete(recursive: true);
       }
     });
 
     test('consent rejection quarantines persisted event', () async {
       final root = await Directory.systemTemp.createTemp('lmp134-neg-consent-');
+      ActivityOutboxSync? sync;
       try {
-        ActivityOutboxSync? sync;
         final outbox = ActivityFileOutbox.forTesting(
           root,
           onEventPersisted: (_) => sync!.scheduleFlush(),
@@ -177,7 +182,8 @@ void main() {
           outbox: outbox,
           currentSession: session,
           clock: () => DateTime.utc(2026, 11, 4, 12),
-          send: (_, events, __) async => {
+          random: Random(0),
+          send: (_, events, sessions) async => {
             'results': [
               for (final event in events)
                 {
@@ -232,14 +238,15 @@ void main() {
             .where((f) => f.path.endsWith('.json.rejected'));
         expect(rejected, hasLength(1));
       } finally {
+        sync?.dispose();
         if (await root.exists()) await root.delete(recursive: true);
       }
     });
 
     test('offline send postpones then ACK on retry', () async {
       final root = await Directory.systemTemp.createTemp('lmp134-neg-offline-');
+      ActivityOutboxSync? sync;
       try {
-        ActivityOutboxSync? sync;
         final outbox = ActivityFileOutbox.forTesting(
           root,
           onEventPersisted: (_) => sync!.scheduleFlush(),
@@ -249,7 +256,8 @@ void main() {
           outbox: outbox,
           currentSession: session,
           clock: () => DateTime.utc(2026, 11, 4, 12),
-          send: (_, events, __) async {
+          random: Random(0),
+          send: (_, events, sessions) async {
             attempts++;
             if (attempts == 1) {
               throw const SocketException('offline');
@@ -271,6 +279,7 @@ void main() {
           deviceId: deviceId,
           contentVersionId: contentId,
           consentPolicyVersion: 'privacy-notice-draft-0',
+          clock: () => DateTime.utc(2026, 11, 4, 12),
         );
         const playSessionId = '77777777-7777-4777-8777-777777777777';
         await emitter.emit(
@@ -318,6 +327,164 @@ void main() {
         );
         expect(attempts, 2);
       } finally {
+        sync?.dispose();
+        if (await root.exists()) await root.delete(recursive: true);
+      }
+    });
+
+    test('in-flight batch survives parent logout without ACK', () async {
+      final root = await Directory.systemTemp.createTemp('lmp134-logout-');
+      ActivityOutboxSync? sync;
+      try {
+        final outbox = ActivityFileOutbox.forTesting(root);
+        AuthSession? active = session();
+        final batchStarted = Completer<void>();
+        final releaseBatch = Completer<void>();
+        sync = ActivityOutboxSync(
+          outbox: outbox,
+          currentSession: () => active,
+          clock: () => DateTime.utc(2026, 11, 4, 12),
+          send: (_, events, sessions) async {
+            batchStarted.complete();
+            await releaseBatch.future;
+            return {
+              'results': [
+                for (final event in events)
+                  {
+                    'event_id': event['event_id'],
+                    'status': 'accepted',
+                  },
+              ],
+            };
+          },
+        );
+        final emitter = ActivityEventEmitter(
+          outbox: outbox,
+          session: session(),
+          deviceId: deviceId,
+          contentVersionId: contentId,
+          consentPolicyVersion: 'privacy-notice-draft-0',
+          clock: () => DateTime.utc(2026, 11, 4, 12),
+        );
+        const playSessionId = '88888888-8888-4888-8888-888888888888';
+        await emitter.emit(
+          eventType: 'activity_started',
+          consentScope: 'essential_play_events',
+          payload: {'age_months': 36},
+          source: 'instrumented',
+          emitter: 'kids_mode_client',
+          playSessionId: playSessionId,
+          sessionPayload: {
+            'schema_version': '1.0.0',
+            'play_session_id': playSessionId,
+            'device_id': deviceId,
+            'content_version_id': contentId,
+            'started_at': '2026-11-04T12:00:00Z',
+            'completion_status': 'started',
+            'consent': {
+              'purpose': 'essential_play_events',
+              'consent_scope': 'essential_play_events',
+              'policy_version': 'privacy-notice-draft-0',
+              'decision': 'granted',
+            },
+            'provenance': {
+              'emitter': 'kids_mode_client',
+              'capture_channel': 'offline_queue',
+              'clock_trust': 'wall_clock_only',
+            },
+          },
+        );
+        final flushFuture = sync.flush();
+        await batchStarted.future;
+        active = null;
+        releaseBatch.complete();
+        await flushFuture;
+        expect(await outbox.pending(parentId), hasLength(1));
+      } finally {
+        sync?.dispose();
+        if (await root.exists()) await root.delete(recursive: true);
+      }
+    });
+
+    test('awaiting flush waits for in-flight scheduleFlush batch', () async {
+      final root = await Directory.systemTemp.createTemp('lmp134-await-');
+      ActivityOutboxSync? sync;
+      try {
+        final outbox = ActivityFileOutbox.forTesting(
+          root,
+          onEventPersisted: (_) => sync!.scheduleFlush(),
+        );
+        final batchEntered = Completer<void>();
+        final releaseBatch = Completer<void>();
+        sync = ActivityOutboxSync(
+          outbox: outbox,
+          currentSession: session,
+          clock: () => DateTime.utc(2026, 11, 4, 12),
+          random: Random(0),
+          send: (_, events, sessions) async {
+            batchEntered.complete();
+            await releaseBatch.future;
+            return {
+              'results': [
+                for (final event in events)
+                  {
+                    'event_id': event['event_id'],
+                    'status': 'accepted',
+                  },
+              ],
+            };
+          },
+        );
+        final emitter = ActivityEventEmitter(
+          outbox: outbox,
+          session: session(),
+          deviceId: deviceId,
+          contentVersionId: contentId,
+          consentPolicyVersion: 'privacy-notice-draft-0',
+          clock: () => DateTime.utc(2026, 11, 4, 12),
+        );
+        const playSessionId = '99999999-9999-4999-8999-999999999999';
+        await emitter.emit(
+          eventType: 'activity_started',
+          consentScope: 'essential_play_events',
+          payload: {'age_months': 36},
+          source: 'instrumented',
+          emitter: 'kids_mode_client',
+          playSessionId: playSessionId,
+          sessionPayload: {
+            'schema_version': '1.0.0',
+            'play_session_id': playSessionId,
+            'device_id': deviceId,
+            'content_version_id': contentId,
+            'started_at': '2026-11-04T12:00:00Z',
+            'completion_status': 'started',
+            'consent': {
+              'purpose': 'essential_play_events',
+              'consent_scope': 'essential_play_events',
+              'policy_version': 'privacy-notice-draft-0',
+              'decision': 'granted',
+            },
+            'provenance': {
+              'emitter': 'kids_mode_client',
+              'capture_channel': 'offline_queue',
+              'clock_trust': 'wall_clock_only',
+            },
+          },
+        );
+        final flushFuture = sync.flush();
+        await batchEntered.future;
+        var flushCompleted = false;
+        flushFuture.then((_) => flushCompleted = true);
+        await Future<void>.delayed(Duration.zero);
+        expect(flushCompleted, isFalse);
+        releaseBatch.complete();
+        await flushFuture;
+        expect(
+          await outbox.pending(parentId, now: DateTime.utc(2026, 11, 5)),
+          isEmpty,
+        );
+      } finally {
+        sync?.dispose();
         if (await root.exists()) await root.delete(recursive: true);
       }
     });
@@ -332,8 +499,7 @@ void main() {
           scopedDeviceId: deviceId,
           childId: childId,
         );
-        final slowRegistry = _SlowPublicationRegistry(
-          delay: const Duration(milliseconds: 40),
+        final slowRegistry = _GatePublicationRegistry(
           publication: PublishedActivityPublication(
             contentVersionId: contentId,
             consentPolicyVersion: 'privacy-notice-draft-0',
@@ -359,6 +525,7 @@ void main() {
           selectedChildId: null,
           deviceId: null,
         );
+        slowRegistry.release();
         await first;
         final activity = registry.findById(ShapeMatchingConstants.activityId)!
             as ShapeMatchingActivity;
@@ -370,11 +537,17 @@ void main() {
   });
 }
 
-final class _SlowPublicationRegistry implements PublishedContentRegistry {
-  _SlowPublicationRegistry({required this.delay, required this.publication});
+final class _GatePublicationRegistry implements PublishedContentRegistry {
+  _GatePublicationRegistry({required this.publication});
 
-  final Duration delay;
   final PublishedActivityPublication publication;
+  final Completer<void> _gate = Completer<void>();
+
+  void release() {
+    if (!_gate.isCompleted) {
+      _gate.complete();
+    }
+  }
 
   @override
   void invalidate() {}
@@ -383,7 +556,7 @@ final class _SlowPublicationRegistry implements PublishedContentRegistry {
   Future<PublishedActivityPublication?> publicationForActivity(
     String activityId,
   ) async {
-    await Future<void>.delayed(delay);
+    await _gate.future;
     if (activityId != ShapeMatchingConstants.activityId) return null;
     return publication;
   }

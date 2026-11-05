@@ -169,38 +169,63 @@ class ActivityOutboxSync {
   final AuthSession? Function() currentSession;
   final DateTime Function() _clock;
   final Random _random;
-  bool _running = false;
-  bool _followUpFlush = false;
+  bool _disposed = false;
+  bool _flushRunning = false;
+  bool _followUpRequested = false;
+  Completer<void>? _whenIdle;
+
+  /// Stops scheduling new flushes (tests and app teardown).
+  void dispose() {
+    _disposed = true;
+    _followUpRequested = false;
+    final idle = _whenIdle;
+    _whenIdle = null;
+    idle?.complete();
+  }
 
   /// Schedules a bounded, non-overlapping flush (coalesces concurrent requests).
   void scheduleFlush() {
-    if (_running) {
-      _followUpFlush = true;
-      ActivityTelemetryDiagnostics.syncScheduled(coalesced: true);
-      return;
-    }
-    ActivityTelemetryDiagnostics.syncScheduled(coalesced: false);
+    if (_disposed) return;
+    final coalesced = _flushRunning || _followUpRequested;
+    ActivityTelemetryDiagnostics.syncScheduled(coalesced: coalesced);
     unawaited(flush());
   }
 
-  Future<void> flush() async {
-    if (_running) {
-      _followUpFlush = true;
-      return;
-    }
-    _running = true;
+  /// Waits until any in-flight batch and coalesced follow-ups finish.
+  Future<void> flush() {
+    if (_disposed) return Future<void>.value();
+    final idle = _whenIdle ??= Completer<void>();
+    _followUpRequested = true;
+    _kickFlush();
+    return idle.future;
+  }
+
+  void _kickFlush() {
+    if (_flushRunning || _disposed) return;
+    unawaited(_drain());
+  }
+
+  Future<void> _drain() async {
+    _flushRunning = true;
     try {
-      do {
-        _followUpFlush = false;
+      while (_followUpRequested && !_disposed) {
+        _followUpRequested = false;
         final active = currentSession();
         if (active == null) {
           ActivityTelemetryDiagnostics.syncSkipped('no_session');
           break;
         }
         await _flushOnce(active);
-      } while (_followUpFlush);
+      }
     } finally {
-      _running = false;
+      _flushRunning = false;
+      if (_followUpRequested && !_disposed) {
+        _kickFlush();
+      } else {
+        final idle = _whenIdle;
+        _whenIdle = null;
+        idle?.complete();
+      }
     }
   }
 

@@ -239,9 +239,17 @@ class ActivityFileOutbox {
       throw ArgumentError('invalid rejection reason');
     }
     final file = _entry(parentId, eventId);
-    if (await file.exists()) {
-      await file.rename('${file.path}.rejected');
+    if (!await file.exists()) return;
+    final rejected = File(
+      '${file.parent.path}/${eventId.toLowerCase()}.json.rejected',
+    );
+    if (await rejected.exists()) {
+      throw StateError('quarantine destination already exists');
     }
+    // Same-volume rename to *.json.rejected can fail with EINVAL on some
+    // platforms; copy-then-delete preserves the sealed bytes without loss.
+    await rejected.writeAsBytes(await file.readAsBytes(), flush: true);
+    await file.delete();
   });
 
   /// Purge unacknowledged optional analytics when consent is withdrawn.
