@@ -327,6 +327,103 @@ void main() {
       }
     });
 
+    test(
+      'essential_play_events quarantine is not auto-replayed after consent grant',
+      () async {
+        final root =
+            await Directory.systemTemp.createTemp('lmp134-consent-recover-');
+        ActivityOutboxSync? sync;
+        try {
+          final outbox = ActivityFileOutbox.forTesting(root);
+          var sendCalls = 0;
+          sync = ActivityOutboxSync(
+            outbox: outbox,
+            currentSession: session,
+            clock: () => DateTime.utc(2026, 11, 4, 12),
+            random: Random(0),
+            send: (_, events, sessions) async {
+              sendCalls++;
+              if (sendCalls == 1) {
+                return {
+                  'results': [
+                    for (final event in events)
+                      {
+                        'event_id': event['event_id'],
+                        'status': 'rejected',
+                        'reason_code': 'consent.not_authorized',
+                      },
+                  ],
+                };
+              }
+              return {
+                'results': [
+                  for (final event in events)
+                    {
+                      'event_id': event['event_id'],
+                      'status': 'accepted',
+                    },
+                ],
+              };
+            },
+          );
+          final emitter = ActivityEventEmitter(
+            outbox: outbox,
+            session: session(),
+            deviceId: deviceId,
+            contentVersionId: contentId,
+            consentPolicyVersion: 'privacy-notice-draft-0',
+            clock: () => DateTime.utc(2026, 11, 4, 12),
+          );
+          const playSessionId = '77777777-7777-4777-8777-777777777777';
+          await emitter.emit(
+            eventType: 'activity_started',
+            consentScope: 'essential_play_events',
+            payload: {'age_months': 36},
+            source: 'instrumented',
+            emitter: 'kids_mode_client',
+            playSessionId: playSessionId,
+            sessionPayload: {
+              'schema_version': '1.0.0',
+              'play_session_id': playSessionId,
+              'device_id': deviceId,
+              'content_version_id': contentId,
+              'started_at': '2026-11-04T12:00:00Z',
+              'completion_status': 'started',
+              'consent': {
+                'purpose': 'essential_play_events',
+                'consent_scope': 'essential_play_events',
+                'policy_version': 'privacy-notice-draft-0',
+                'decision': 'granted',
+              },
+              'provenance': {
+                'emitter': 'kids_mode_client',
+                'capture_channel': 'offline_queue',
+                'clock_trust': 'wall_clock_only',
+              },
+            },
+          );
+          await sync.flush();
+          expect(sendCalls, 1);
+          expect(await outbox.pending(parentId), isEmpty);
+          final quarantineDir = Directory('${root.path}/${parentId.toLowerCase()}');
+          final quarantined = quarantineDir
+              .listSync()
+              .whereType<File>()
+              .where((f) => f.path.endsWith('.json.rejected'))
+              .toList();
+          expect(quarantined, hasLength(1));
+
+          await sync.flush();
+          expect(sendCalls, 1);
+          expect(await outbox.pending(parentId), isEmpty);
+          expect(quarantined.single.existsSync(), isTrue);
+        } finally {
+          sync?.dispose();
+          if (await root.exists()) await root.delete(recursive: true);
+        }
+      },
+    );
+
     test('offline send postpones then ACK on retry', () async {
       final root = await Directory.systemTemp.createTemp('lmp134-neg-offline-');
       ActivityOutboxSync? sync;

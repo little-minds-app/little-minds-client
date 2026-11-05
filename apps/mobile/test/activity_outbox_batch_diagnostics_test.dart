@@ -331,7 +331,7 @@ void main() {
         return refreshed;
       },
       clock: () => DateTime.utc(2026, 11, 4),
-      send: (active, _, __) async {
+      send: (active, _, _) async {
         sendCalls++;
         if (active.accessToken == 'stale') {
           throw const ActivityAuthExpired();
@@ -388,7 +388,7 @@ void main() {
         expiresInSeconds: 300,
       ),
       clock: () => DateTime.utc(2026, 11, 4),
-      send: (_, __, sessions) async {
+      send: (_, _, sessions) async {
         postedSessions = sessions;
         return {
           'results': [
