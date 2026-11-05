@@ -74,19 +74,26 @@ void main() {
         client: client,
         outbox: outbox,
       );
+      await service.refresh(session);
+      expect(service.hasEffectiveGrant, isTrue);
+      const eventId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
       await outbox.enqueue(
         PendingActivityEvent(
           parentId: session.parentId,
-          eventId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          eventId: eventId,
           payload: {
+            'schema_version': '1.0.0',
+            'event_id': eventId,
             'consent_scope': ShapeMatchingProductionConsent.scope,
             'event_type': 'activity_started',
+            'payload': {'age_months': 48},
           },
           createdAt: DateTime.utc(2026, 11, 4),
         ),
       );
       expect(await outbox.pending(session.parentId), hasLength(1));
-      await service.withdraw(session);
+      final result = await service.withdraw(session);
+      expect(result, isA<EssentialPlayEventsConsentMutationOk>());
       expect(await outbox.pending(session.parentId), isEmpty);
       expect(service.hasEffectiveGrant, isFalse);
     } finally {

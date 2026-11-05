@@ -75,8 +75,7 @@ class EssentialPlayEventsConsentStatus {
 
   static String _wireStatus(Object status) {
     if (status is EffectiveConsentScopeStatusEnum) {
-      return EffectiveConsentScopeStatusEnumTypeTransformer()
-          .encode(status);
+      return EffectiveConsentScopeStatusEnumTypeTransformer().encode(status);
     }
     if (status is ConsentScopeMutationResponseStatusEnum) {
       return ConsentScopeMutationResponseStatusEnumTypeTransformer()

@@ -179,20 +179,27 @@ test('tab focus revalidates session and clears data after logout', async () => {
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
+  // Bind listeners + events to this file's JSDOM (avoid cross-file globalThis.window clobber).
+  bindDomGlobals();
   Object.defineProperty(dom.window.document, 'visibilityState', {
     configurable: true,
     value: 'visible',
   });
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
-  const beforeFocus = meCalls;
+  // Flush the snapshot→revalidate-listener effect before synthesizing focus.
+  await act(async () => {});
+  bindDomGlobals();
+  const meBeforeFocus = meCalls;
   authed = false;
   await act(async () => {
     fireEvent(dom.window, new dom.window.Event('focus'));
   });
-  await waitFor(() => assert.ok(meCalls > beforeFocus));
-  await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
-  assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
+  await waitFor(() => assert.ok(meCalls > meBeforeFocus));
+  await waitFor(() => {
+    assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/));
+    assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
+  });
 });
 
 test('tab focus clears dashboard when parent identity changes', async () => {
