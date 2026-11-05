@@ -178,7 +178,7 @@ void main() {
         expiresInSeconds: 300,
       ),
       clock: () => DateTime.utc(2026, 11, 4),
-      send: (_, __, ___) async => throw const ActivityRetryableHttp(503),
+      send: (_, _, _) async => throw const ActivityRetryableHttp(503),
     );
     await sync.flush();
     expect(
