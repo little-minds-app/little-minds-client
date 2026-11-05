@@ -150,6 +150,90 @@ void main() {
     );
   });
 
+  test('HTTP 200 retryable ACK emits per-event reason diagnostics', () async {
+    final logs = <String>[];
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) logs.add(message);
+    };
+    final root = await Directory.systemTemp.createTemp('lmp134-ack-retry-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final outbox = ActivityFileOutbox.forTesting(root);
+    const eventIds = [
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
+    ];
+    for (final id in eventIds) {
+      await outbox.enqueue(
+        PendingActivityEvent(
+          parentId: '11111111-1111-4111-8111-111111111111',
+          eventId: id,
+          createdAt: DateTime.utc(2026, 11, 4),
+          payload: {..._minimalEvent(), 'event_id': id},
+        ),
+      );
+    }
+    final sync = ActivityOutboxSync(
+      outbox: outbox,
+      currentSession: () => const AuthSession(
+        accessToken: 'test-only',
+        refreshToken: 'test-only',
+        sessionId: 'test-session',
+        parentId: '11111111-1111-4111-8111-111111111111',
+        expiresInSeconds: 300,
+      ),
+      clock: () => DateTime.utc(2026, 11, 4),
+      send: (_, events, __) async => {
+        'results': [
+          for (var i = 0; i < events.length; i++)
+            {
+              'event_id': events[i]['event_id'],
+              'status': 'retryable',
+              'reason_code': i == 0
+                  ? 'session.pending'
+                  : 'storage.temporarily_unavailable',
+            },
+        ],
+      },
+    );
+    await sync.flush();
+    sync.dispose();
+    expect(
+      logs.any(
+        (line) =>
+            line.contains('LMP-134 telemetry sync_ack ') &&
+            line.contains('retryable=3'),
+      ),
+      isTrue,
+    );
+    expect(
+      logs.any(
+        (line) =>
+            line.contains('sync_ack_event ordinal=1 status=retryable') &&
+            line.contains('reason=session.pending'),
+      ),
+      isTrue,
+    );
+    expect(
+      logs.any(
+        (line) =>
+            line.contains('sync_ack_event ordinal=2 status=retryable') &&
+            line.contains('reason=storage.temporarily_unavailable'),
+      ),
+      isTrue,
+    );
+    expect(logs.any((line) => line.contains(eventIds[0])), isFalse);
+    expect(
+      await outbox.pending(
+        '11111111-1111-4111-8111-111111111111',
+        now: DateTime.utc(2026, 11, 5),
+      ),
+      hasLength(3),
+    );
+  });
+
   test('HTTP 503 emits retry diagnostics through outbox sync', () async {
     final logs = <String>[];
     debugPrint = (String? message, {int? wrapWidth}) {

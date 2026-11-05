@@ -404,6 +404,15 @@ class ActivityOutboxSync {
         ActivityTelemetryDiagnostics.batchInvalidAck('ack_mismatch');
         return;
       }
+      for (var i = 0; i < pending.length; i++) {
+        final item = pending[i];
+        final ack = acked[item.eventId]!;
+        ActivityTelemetryDiagnostics.syncAckEvent(
+          ordinal: i + 1,
+          status: ack.status,
+          reasonCode: ack.reason,
+        );
+      }
       for (final item in pending) {
         if (!_sameAccount(initial)) return;
         final ack = acked[item.eventId]!;

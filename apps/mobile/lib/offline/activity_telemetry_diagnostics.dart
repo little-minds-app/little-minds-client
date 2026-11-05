@@ -45,6 +45,30 @@ abstract final class ActivityTelemetryDiagnostics {
     );
   }
 
+  /// Per-event batch ACK row (ordinal only — no event_id or payload).
+  static void syncAckEvent({
+    required int ordinal,
+    required String status,
+    String? reasonCode,
+  }) {
+    if (!kDebugMode) return;
+    final reason = reasonCode == null || reasonCode.isEmpty
+        ? ''
+        : ' reason=${_sanitizeTelemetryToken(reasonCode)}';
+    debugPrint(
+      'LMP-134 telemetry sync_ack_event '
+      'ordinal=$ordinal status=$status$reason',
+    );
+  }
+
+  static String _sanitizeTelemetryToken(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return 'unknown';
+    const safe = r'^[a-z][a-z0-9_.-]{0,100}$';
+    if (RegExp(safe).hasMatch(trimmed)) return trimmed;
+    return 'sanitized';
+  }
+
   static void syncSkipped(String reason) {
     if (!kDebugMode) return;
     debugPrint('LMP-134 telemetry sync_skipped reason=$reason');
