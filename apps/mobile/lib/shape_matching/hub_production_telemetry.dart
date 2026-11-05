@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 
+import '../core/canonical_rfc4122_uuid.dart';
 import '../auth/auth_privacy_notice.dart';
 import '../auth/auth_session.dart';
 import '../game/activity_registry.dart';
@@ -50,12 +51,7 @@ class HubProductionTelemetrySnapshot {
 
 /// Evaluates LMP-51 production gates for Kids Hub Shape Matching (LMP-134).
 abstract final class HubProductionTelemetryGate {
-  static final _uuid = RegExp(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    caseSensitive: false,
-  );
-
-  static bool isUuid(String value) => _uuid.hasMatch(value);
+  static bool isUuid(String value) => CanonicalRfc4122Uuid.isValid(value);
 
   static HubProductionTelemetrySnapshot evaluate({
     required AuthSession? session,

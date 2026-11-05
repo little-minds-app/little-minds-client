@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/canonical_rfc4122_uuid.dart';
+
 import 'activity_payload_codec.dart';
 
 /// Immutable, account-bound record. No tokens or child PII are persisted.
@@ -102,11 +104,6 @@ class ActivityFileOutbox {
   static const maxEventBytes = 16384;
   Future<void> _tail = Future<void>.value();
 
-  static final _uuid = RegExp(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    caseSensitive: false,
-  );
-
   // Serializes local read-modify-write operations within one outbox instance.
   Future<T> _serialized<T>(Future<T> Function() operation) async {
     final previous = _tail;
@@ -121,12 +118,16 @@ class ActivityFileOutbox {
   }
 
   Directory _partition(String parentId) {
-    if (!_uuid.hasMatch(parentId)) throw ArgumentError('invalid parent ID');
+    if (!CanonicalRfc4122Uuid.isValid(parentId)) {
+      throw ArgumentError('invalid parent ID');
+    }
     return Directory('${_root.path}/${parentId.toLowerCase()}');
   }
 
   File _entry(String parentId, String eventId) {
-    if (!_uuid.hasMatch(eventId)) throw ArgumentError('invalid event ID');
+    if (!CanonicalRfc4122Uuid.isValid(eventId)) {
+      throw ArgumentError('invalid event ID');
+    }
     return File('${_partition(parentId).path}/${eventId.toLowerCase()}.json');
   }
 

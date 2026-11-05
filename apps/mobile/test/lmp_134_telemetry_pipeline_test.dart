@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/auth/auth_session.dart';
+import 'package:little_minds_mobile/auth/parent_scoped_device_id.dart';
 import 'package:little_minds_mobile/game/activity_registry.dart';
 import 'package:little_minds_mobile/offline/activity_event_emitter.dart';
 import 'package:little_minds_mobile/offline/activity_file_outbox.dart';
@@ -31,6 +32,89 @@ void main() {
       );
 
   group('LMP-134 play → enqueue → batch ACK', () {
+    test('parent-scoped v5 device id wires production buffer and batch ACK',
+        () async {
+      const installationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      final scopedDeviceId = parentScopedDeviceId(installationId, parentId);
+      expect(scopedDeviceId, 'a9a62045-4dfd-598f-a32d-a73072d887bc');
+
+      final root = await Directory.systemTemp.createTemp('lmp134-pipe-v5-');
+      ActivityOutboxSync? sync;
+      try {
+        final outbox = ActivityFileOutbox.forTesting(
+          root,
+          onEventPersisted: (_) => sync!.scheduleFlush(),
+        );
+        var batchCalls = 0;
+        sync = ActivityOutboxSync(
+          outbox: outbox,
+          currentSession: session,
+          clock: () => DateTime.utc(2026, 11, 4, 12),
+          random: Random(0),
+          send: (_, events, sessions) async {
+            batchCalls++;
+            expect(events.single['device_id'], scopedDeviceId);
+            return {
+              'results': [
+                for (final event in events)
+                  {
+                    'event_id': event['event_id'],
+                    'status': 'accepted',
+                  },
+              ],
+            };
+          },
+        );
+
+        final catalog = MemoryHubAuthorizedDeviceChildCatalog();
+        await catalog.applyServerAuthorizedChild(
+          parentId: parentId,
+          scopedDeviceId: scopedDeviceId,
+          childId: childId,
+        );
+        final coordinator = HubProductionTelemetryCoordinator(
+          outbox: outbox,
+          contentRegistry: MapPublishedContentRegistry({
+            ShapeMatchingConstants.activityId: PublishedActivityPublication(
+              contentVersionId: contentId,
+              consentPolicyVersion: 'privacy-notice-draft-0',
+            ),
+          }),
+          deviceChildCatalog: catalog,
+        );
+        final registry = ActivityRegistry([]);
+        await coordinator.reconcileHubRegistry(
+          registry: registry,
+          ageMonthsProvider: () => 36,
+          session: session(),
+          selectedChildId: childId,
+          deviceId: scopedDeviceId,
+        );
+        final activity = registry.findById(ShapeMatchingConstants.activityId)!
+            as ShapeMatchingActivity;
+        expect(activity.eventBuffer, isA<ShapeMatchingProductionEventBuffer>());
+
+        final playSessionId = activity.playSessionId;
+        activity.eventBuffer.emit(
+          playSessionId: playSessionId,
+          type: ShapeMatchingEventType.activityStarted,
+          payload: {'age_months': 36},
+        );
+        await (activity.eventBuffer as ShapeMatchingProductionEventBuffer)
+            .drain();
+        await sync.flush();
+
+        expect(batchCalls, greaterThanOrEqualTo(1));
+        expect(
+          await outbox.pending(parentId, now: DateTime.utc(2026, 11, 5)),
+          isEmpty,
+        );
+      } finally {
+        sync?.dispose();
+        if (await root.exists()) await root.delete(recursive: true);
+      }
+    });
+
     test('persist hook schedules flush and mock HTTP clears outbox', () async {
       final root = await Directory.systemTemp.createTemp('lmp134-pipe-');
       ActivityOutboxSync? sync;

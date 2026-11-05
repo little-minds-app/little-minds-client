@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../core/canonical_rfc4122_uuid.dart';
 import '../offline/activity_event_emitter.dart';
 import 'near_far_constants.dart';
 import 'near_far_events.dart';
@@ -19,13 +20,11 @@ class NearFarProductionEventBuffer extends NearFarLocalEventBuffer {
     required String contentVersionId,
   }) : super(deviceId: deviceId, contentVersionId: contentVersionId) {
     // Fail closed on fixture identifiers and mismatched emitter binding.
-    final uuid = RegExp(
-      r'^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-      caseSensitive: false,
-    );
-    if (!uuid.hasMatch(deviceId) ||
-        !uuid.hasMatch(contentVersionId) ||
-        !uuid.hasMatch(sessionPayload['play_session_id']?.toString() ?? '') ||
+    if (!CanonicalRfc4122Uuid.isValid(deviceId) ||
+        !CanonicalRfc4122Uuid.isValid(contentVersionId) ||
+        !CanonicalRfc4122Uuid.isValid(
+          sessionPayload['play_session_id']?.toString() ?? '',
+        ) ||
         emitter.deviceId != deviceId ||
         emitter.contentVersionId != contentVersionId ||
         sessionPayload['consent'] is! Map ||
