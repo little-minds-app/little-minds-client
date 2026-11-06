@@ -327,7 +327,22 @@ class ActivityFileOutbox {
             sessionPayload: data.sessionPayload,
             createdAt: data.createdAt,
           );
-          await _atomicWrite(destination, fresh.toJson());
+          // Requeue is not allowed to bypass the same encrypted quota used
+          // for normal enqueue. Preserve the original quarantine on overflow.
+          final sealed = await _codec.seal(parentId, fresh.toJson());
+          var used = 0;
+          await for (final candidate in dir.list(followLinks: false)) {
+            if (candidate is File &&
+                (candidate.path.endsWith('.json') ||
+                    candidate.path.endsWith('.json.rejected'))) {
+              used += await candidate.length();
+            }
+          }
+          if (pendingIds.length >= recordLimit ||
+              used + utf8.encode(sealed).length > byteLimit) {
+            throw StateError('outbox.capacity_exceeded');
+          }
+          await _atomicWriteSealed(destination, sealed);
           pendingIds.add(id);
           requeued++;
           onEventPersisted?.call(pendingIds.length);
