@@ -1124,6 +1124,144 @@ abstract class AppLocalizations {
   /// **'Colorful Orchard'**
   String get colorSortingOrchardTitle;
 
+  /// No description provided for @animalSoundMatchingPromptListen.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen and find the animal!'**
+  String get animalSoundMatchingPromptListen;
+
+  /// No description provided for @animalSoundMatchingPromptVisual.
+  ///
+  /// In en, this message translates to:
+  /// **'Look and find the same animal!'**
+  String get animalSoundMatchingPromptVisual;
+
+  /// No description provided for @animalSoundMatchingPromptDone.
+  ///
+  /// In en, this message translates to:
+  /// **'You did it!'**
+  String get animalSoundMatchingPromptDone;
+
+  /// No description provided for @animalSoundMatchingListenCue.
+  ///
+  /// In en, this message translates to:
+  /// **'Animal sound'**
+  String get animalSoundMatchingListenCue;
+
+  /// No description provided for @animalSoundMatchingReplaySound.
+  ///
+  /// In en, this message translates to:
+  /// **'Play sound again'**
+  String get animalSoundMatchingReplaySound;
+
+  /// No description provided for @animalSoundMatchingVisualFallbackHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Sound is off — match the picture.'**
+  String get animalSoundMatchingVisualFallbackHint;
+
+  /// No description provided for @animalSoundMatchingVisualFallbackLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Find this animal: {animal}'**
+  String animalSoundMatchingVisualFallbackLabel(String animal);
+
+  /// No description provided for @animalSoundMatchingChoicesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick one'**
+  String get animalSoundMatchingChoicesLabel;
+
+  /// No description provided for @animalSoundMatchingTryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again!'**
+  String get animalSoundMatchingTryAgain;
+
+  /// No description provided for @animalSoundMatchingPlayAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Play again'**
+  String get animalSoundMatchingPlayAgain;
+
+  /// No description provided for @animalSoundMatchingHintLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'A little help: look for the matching animal ({level})'**
+  String animalSoundMatchingHintLevel(int level);
+
+  /// No description provided for @animalSoundMatchingAnimalCat.
+  ///
+  /// In en, this message translates to:
+  /// **'Cat'**
+  String get animalSoundMatchingAnimalCat;
+
+  /// No description provided for @animalSoundMatchingAnimalDog.
+  ///
+  /// In en, this message translates to:
+  /// **'Dog'**
+  String get animalSoundMatchingAnimalDog;
+
+  /// No description provided for @animalSoundMatchingAnimalCow.
+  ///
+  /// In en, this message translates to:
+  /// **'Cow'**
+  String get animalSoundMatchingAnimalCow;
+
+  /// No description provided for @animalSoundMatchingAnimalDuck.
+  ///
+  /// In en, this message translates to:
+  /// **'Duck'**
+  String get animalSoundMatchingAnimalDuck;
+
+  /// No description provided for @animalSoundMatchingAnimalBird.
+  ///
+  /// In en, this message translates to:
+  /// **'Bird'**
+  String get animalSoundMatchingAnimalBird;
+
+  /// No description provided for @animalSoundMatchingAnimalSheep.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheep'**
+  String get animalSoundMatchingAnimalSheep;
+
+  /// No description provided for @animalSoundMatchingAnimalFrog.
+  ///
+  /// In en, this message translates to:
+  /// **'Frog'**
+  String get animalSoundMatchingAnimalFrog;
+
+  /// No description provided for @animalSoundMatchingAnimalHorse.
+  ///
+  /// In en, this message translates to:
+  /// **'Horse'**
+  String get animalSoundMatchingAnimalHorse;
+
+  /// No description provided for @animalSoundMatchingPraiseGreat.
+  ///
+  /// In en, this message translates to:
+  /// **'Great job!'**
+  String get animalSoundMatchingPraiseGreat;
+
+  /// No description provided for @animalSoundMatchingPraiseNice.
+  ///
+  /// In en, this message translates to:
+  /// **'Nice match!'**
+  String get animalSoundMatchingPraiseNice;
+
+  /// No description provided for @animalSoundMatchingPraiseAwesome.
+  ///
+  /// In en, this message translates to:
+  /// **'Awesome!'**
+  String get animalSoundMatchingPraiseAwesome;
+
+  /// No description provided for @animalSoundMatchingGardenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Animal Garden'**
+  String get animalSoundMatchingGardenTitle;
+
   /// Accessible label for the Parent Dashboard child profile switcher.
   ///
   /// In en, this message translates to:

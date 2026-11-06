@@ -39,5 +39,8 @@ flutter:
     - assets/audio/shape_matching/bgm/
     - assets/audio/color_sorting/sfx/
     - assets/audio/color_sorting/bgm/
+    - assets/audio/animal_sound_matching/sfx/
+    - assets/audio/animal_sound_matching/bgm/
+    - assets/audio/animal_sound_matching/animals/
     - assets/content/mentor_cards/
     - assets/content/activity_publications/

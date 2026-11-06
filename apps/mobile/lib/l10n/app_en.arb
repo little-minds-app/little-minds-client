@@ -297,6 +297,39 @@
   "colorSortingPraiseNice": "Nice sort!",
   "colorSortingPraiseAwesome": "Awesome!",
   "colorSortingOrchardTitle": "Colorful Orchard",
+  "animalSoundMatchingPromptListen": "Listen and find the animal!",
+  "animalSoundMatchingPromptVisual": "Look and find the same animal!",
+  "animalSoundMatchingPromptDone": "You did it!",
+  "animalSoundMatchingListenCue": "Animal sound",
+  "animalSoundMatchingReplaySound": "Play sound again",
+  "animalSoundMatchingVisualFallbackHint": "Sound is off — match the picture.",
+  "animalSoundMatchingVisualFallbackLabel": "Find this animal: {animal}",
+  "@animalSoundMatchingVisualFallbackLabel": {
+    "placeholders": {
+      "animal": {"type": "String"}
+    }
+  },
+  "animalSoundMatchingChoicesLabel": "Pick one",
+  "animalSoundMatchingTryAgain": "Try again!",
+  "animalSoundMatchingPlayAgain": "Play again",
+  "animalSoundMatchingHintLevel": "A little help: look for the matching animal ({level})",
+  "@animalSoundMatchingHintLevel": {
+    "placeholders": {
+      "level": {"type": "int"}
+    }
+  },
+  "animalSoundMatchingAnimalCat": "Cat",
+  "animalSoundMatchingAnimalDog": "Dog",
+  "animalSoundMatchingAnimalCow": "Cow",
+  "animalSoundMatchingAnimalDuck": "Duck",
+  "animalSoundMatchingAnimalBird": "Bird",
+  "animalSoundMatchingAnimalSheep": "Sheep",
+  "animalSoundMatchingAnimalFrog": "Frog",
+  "animalSoundMatchingAnimalHorse": "Horse",
+  "animalSoundMatchingPraiseGreat": "Great job!",
+  "animalSoundMatchingPraiseNice": "Nice match!",
+  "animalSoundMatchingPraiseAwesome": "Awesome!",
+  "animalSoundMatchingGardenTitle": "Animal Garden",
   "parentDashboardChildSelectorLabel": "Child profile",
   "@parentDashboardChildSelectorLabel": {
     "description": "Accessible label for the Parent Dashboard child profile switcher."

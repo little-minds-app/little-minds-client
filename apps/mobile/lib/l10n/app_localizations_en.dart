@@ -557,6 +557,81 @@ class AppLocalizationsEn extends AppLocalizations {
   String get colorSortingOrchardTitle => 'Colorful Orchard';
 
   @override
+  String get animalSoundMatchingPromptListen => 'Listen and find the animal!';
+
+  @override
+  String get animalSoundMatchingPromptVisual =>
+      'Look and find the same animal!';
+
+  @override
+  String get animalSoundMatchingPromptDone => 'You did it!';
+
+  @override
+  String get animalSoundMatchingListenCue => 'Animal sound';
+
+  @override
+  String get animalSoundMatchingReplaySound => 'Play sound again';
+
+  @override
+  String get animalSoundMatchingVisualFallbackHint =>
+      'Sound is off — match the picture.';
+
+  @override
+  String animalSoundMatchingVisualFallbackLabel(String animal) {
+    return 'Find this animal: $animal';
+  }
+
+  @override
+  String get animalSoundMatchingChoicesLabel => 'Pick one';
+
+  @override
+  String get animalSoundMatchingTryAgain => 'Try again!';
+
+  @override
+  String get animalSoundMatchingPlayAgain => 'Play again';
+
+  @override
+  String animalSoundMatchingHintLevel(int level) {
+    return 'A little help: look for the matching animal ($level)';
+  }
+
+  @override
+  String get animalSoundMatchingAnimalCat => 'Cat';
+
+  @override
+  String get animalSoundMatchingAnimalDog => 'Dog';
+
+  @override
+  String get animalSoundMatchingAnimalCow => 'Cow';
+
+  @override
+  String get animalSoundMatchingAnimalDuck => 'Duck';
+
+  @override
+  String get animalSoundMatchingAnimalBird => 'Bird';
+
+  @override
+  String get animalSoundMatchingAnimalSheep => 'Sheep';
+
+  @override
+  String get animalSoundMatchingAnimalFrog => 'Frog';
+
+  @override
+  String get animalSoundMatchingAnimalHorse => 'Horse';
+
+  @override
+  String get animalSoundMatchingPraiseGreat => 'Great job!';
+
+  @override
+  String get animalSoundMatchingPraiseNice => 'Nice match!';
+
+  @override
+  String get animalSoundMatchingPraiseAwesome => 'Awesome!';
+
+  @override
+  String get animalSoundMatchingGardenTitle => 'Animal Garden';
+
+  @override
   String get parentDashboardChildSelectorLabel => 'Child profile';
 
   @override

@@ -1,5 +1,10 @@
 import 'package:uuid/uuid.dart';
 
+import '../animal_sound_matching/animal_sound_matching_activity.dart';
+import '../animal_sound_matching/animal_sound_matching_constants.dart';
+import '../animal_sound_matching/animal_sound_matching_events.dart';
+import '../animal_sound_matching/animal_sound_matching_production_consent.dart';
+import '../animal_sound_matching/animal_sound_matching_production_event_buffer.dart';
 import '../color_sorting/color_sorting_activity.dart';
 import '../color_sorting/color_sorting_constants.dart';
 import '../color_sorting/color_sorting_events.dart';
@@ -407,6 +412,22 @@ class HubProductionTelemetryCoordinator {
     if (bound != _reconcileGeneration) return;
     registry.register(colorActivity);
 
+    final animalSnapshot = await resolveAnimalSoundMatchingSnapshot(
+      session: session,
+      selectedChildId: selectedChildId,
+      deviceId: deviceId,
+      reconcileToken: bound,
+    );
+    if (bound != _reconcileGeneration) return;
+    final animalActivity = await buildAnimalSoundMatchingActivity(
+      ageMonthsProvider: ageMonthsProvider,
+      snapshot: animalSnapshot,
+      localeTag: localeTag,
+      soundOff: soundOff,
+    );
+    if (bound != _reconcileGeneration) return;
+    registry.register(animalActivity);
+
     if (snapshot.allowed) {
       ActivityTelemetryDiagnostics.bufferMode(production: true);
     } else if (snapshot.reason != null) {
@@ -472,6 +493,100 @@ class HubProductionTelemetryCoordinator {
     );
   }
 
+  Future<AnimalSoundMatchingActivity> buildAnimalSoundMatchingActivity({
+    required int? Function() ageMonthsProvider,
+    required HubProductionTelemetrySnapshot snapshot,
+    String localeTag = 'en-US',
+    bool soundOff = false,
+  }) async {
+    final buffer = _animalSoundMatchingEventBufferFor(snapshot);
+    final playSessionId = snapshot.playSessionId ??
+        'session-${_clock().toUtc().microsecondsSinceEpoch}';
+    return AnimalSoundMatchingActivity(
+      ageMonthsProvider: ageMonthsProvider,
+      eventBuffer: buffer,
+      localeTag: localeTag,
+      soundOff: soundOff,
+      playSessionId: playSessionId,
+      sessionIdFactory: () => _uuid.v4(),
+    );
+  }
+
+  /// Resolves Animal Sound Matching publication gates — fail closed without id.
+  Future<HubProductionTelemetrySnapshot> resolveAnimalSoundMatchingSnapshot({
+    required AuthSession? session,
+    required String? selectedChildId,
+    required String? deviceId,
+    required int reconcileToken,
+  }) async {
+    final bound = reconcileToken;
+    if (session == null) {
+      return HubProductionTelemetryGate.evaluate(
+        session: null,
+        selectedChildId: selectedChildId,
+        deviceId: deviceId,
+        authorizedDeviceChildId: null,
+        publishedContentVersionId: null,
+      );
+    }
+    final authorizedChildId = deviceId == null
+        ? null
+        : await deviceChildCatalog.authorizedChildId(
+            parentId: session.parentId,
+            scopedDeviceId: deviceId,
+          );
+    if (bound != _reconcileGeneration) {
+      return HubProductionTelemetryGate.evaluate(
+        session: session,
+        selectedChildId: selectedChildId,
+        deviceId: deviceId,
+        authorizedDeviceChildId: authorizedChildId,
+        publishedContentVersionId: null,
+      );
+    }
+    final publication = await contentRegistry.publicationForActivity(
+      AnimalSoundMatchingConstants.activityId,
+    );
+    if (bound != _reconcileGeneration || publication == null) {
+      // No authoritative Animal Sound Matching content_version_id — fail closed.
+      return HubProductionTelemetryGate.evaluate(
+        session: session,
+        selectedChildId: selectedChildId,
+        deviceId: deviceId,
+        authorizedDeviceChildId: authorizedChildId,
+        publishedContentVersionId: null,
+      );
+    }
+    final policyVersion = publication.consentPolicyVersion;
+    final consent = consentService;
+    if (consent != null) {
+      if (!consent.isAuthorizedForPolicy(policyVersion)) {
+        final mismatch = consent.hasEffectiveGrant &&
+            consent.status?.policyVersion != null &&
+            consent.status!.policyVersion != policyVersion;
+        return HubProductionTelemetrySnapshot(
+          allowed: false,
+          reason: mismatch
+              ? HubProductionTelemetryBlockReason
+                  .essentialPlayConsentPolicyMismatch
+              : HubProductionTelemetryBlockReason.essentialPlayConsentNotGranted,
+          session: session,
+          deviceId: deviceId,
+          contentVersionId: publication.contentVersionId,
+          consentPolicyVersion: policyVersion,
+        );
+      }
+    }
+    return HubProductionTelemetryGate.evaluate(
+      session: session,
+      selectedChildId: selectedChildId,
+      deviceId: deviceId,
+      authorizedDeviceChildId: authorizedChildId,
+      publishedContentVersionId: publication.contentVersionId,
+      consentPolicyVersion: policyVersion,
+    );
+  }
+
   ColorSortingLocalEventBuffer _colorSortingEventBufferFor(
     HubProductionTelemetrySnapshot snapshot,
   ) {
@@ -522,6 +637,63 @@ class HubProductionTelemetryCoordinator {
       },
     };
     return ColorSortingProductionEventBuffer(
+      emitter: emitter,
+      sessionPayload: sessionPayload,
+      deviceId: deviceId,
+      contentVersionId: contentVersionId,
+    );
+  }
+
+  AnimalSoundMatchingLocalEventBuffer _animalSoundMatchingEventBufferFor(
+    HubProductionTelemetrySnapshot snapshot,
+  ) {
+    if (!snapshot.allowed ||
+        snapshot.session == null ||
+        snapshot.deviceId == null ||
+        snapshot.contentVersionId == null ||
+        snapshot.playSessionId == null) {
+      return AnimalSoundMatchingLocalEventBuffer();
+    }
+    final session = snapshot.session!;
+    final deviceId = snapshot.deviceId!;
+    final contentVersionId = snapshot.contentVersionId!;
+    final playSessionId = snapshot.playSessionId!;
+    final policyVersion = snapshot.consentPolicyVersion;
+    if (policyVersion == null || policyVersion.isEmpty) {
+      ActivityTelemetryDiagnostics.gateBlocked(
+        'animalSoundMatchingMissingConsentPolicyVersion',
+      );
+      return AnimalSoundMatchingLocalEventBuffer();
+    }
+    final startedAt = _clock().toUtc();
+    final emitter = ActivityEventEmitter(
+      outbox: outbox,
+      session: session,
+      deviceId: deviceId,
+      contentVersionId: contentVersionId,
+      consentPolicyVersion: policyVersion,
+      clock: _clock,
+    );
+    final sessionPayload = <String, dynamic>{
+      'schema_version': '1.0.0',
+      'play_session_id': playSessionId,
+      'device_id': deviceId,
+      'content_version_id': contentVersionId,
+      'started_at': startedAt.toIso8601String().replaceFirst('+00:00', 'Z'),
+      'completion_status': 'started',
+      'consent': {
+        'purpose': AnimalSoundMatchingProductionConsent.purpose,
+        'consent_scope': AnimalSoundMatchingProductionConsent.scope,
+        'policy_version': policyVersion,
+        'decision': 'granted',
+      },
+      'provenance': {
+        'emitter': 'kids_mode_client',
+        'capture_channel': 'offline_queue',
+        'clock_trust': 'wall_clock_only',
+      },
+    };
+    return AnimalSoundMatchingProductionEventBuffer(
       emitter: emitter,
       sessionPayload: sessionPayload,
       deviceId: deviceId,
