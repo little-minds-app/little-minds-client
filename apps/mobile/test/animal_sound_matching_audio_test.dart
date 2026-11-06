@@ -594,4 +594,101 @@ void main() {
       expect(bgm.isPaused, isTrue);
     });
   });
+
+  group('AnimalSoundMatchingAudio animal prompt lifecycle races', () {
+    test('TC-ASM-ANIMAL-RACE-01 silence cancels held prompt without audible play',
+        () async {
+      final animal = RecordingAnimalSoundMatchingAnimalPlayer(holdPlays: true);
+      final audio = _audio(animalPlayer: animal);
+      await audio.probe('en-US');
+
+      final pending = audio.playAnimalPrompt(AnimalKind.cat);
+      for (var i = 0; i < 40; i++) {
+        if (animal.pendingPlayCount >= 1) break;
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(animal.pendingPlayCount, 1);
+
+      await audio.silence();
+      final played = await pending;
+      expect(played, isFalse);
+      expect(animal.plays, isEmpty);
+      expect(animal.isPlaying, isFalse);
+      expect(animal.stopCount, greaterThanOrEqualTo(1));
+    });
+
+    test('TC-ASM-ANIMAL-RACE-02 dispose cancels held prompt', () async {
+      final animal = RecordingAnimalSoundMatchingAnimalPlayer(holdPlays: true);
+      final audio = _audio(animalPlayer: animal);
+      await audio.probe('en-US');
+
+      final pending = audio.playAnimalPrompt(AnimalKind.dog);
+      for (var i = 0; i < 40; i++) {
+        if (animal.pendingPlayCount >= 1) break;
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      await audio.dispose();
+      final played = await pending;
+      expect(played, isFalse);
+      expect(animal.plays, isEmpty);
+      expect(animal.disposeCount, 1);
+    });
+
+    test('TC-ASM-ANIMAL-RACE-03 rapid replay supersedes prior held prompt',
+        () async {
+      final animal = RecordingAnimalSoundMatchingAnimalPlayer(holdPlays: true);
+      final audio = _audio(animalPlayer: animal);
+      await audio.probe('en-US');
+
+      final first = audio.playAnimalPrompt(AnimalKind.cat);
+      for (var i = 0; i < 40; i++) {
+        if (animal.pendingPlayCount >= 1) break;
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(animal.nextHeldKind, AnimalKind.cat);
+
+      final second = audio.playAnimalPrompt(AnimalKind.cow, forceRestart: true);
+      for (var i = 0; i < 40; i++) {
+        if (animal.pendingPlayCount >= 1 &&
+            animal.nextHeldKind == AnimalKind.cow) {
+          break;
+        }
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(await first, isFalse);
+      expect(animal.releaseNextPlay(succeedOverride: true), isTrue);
+      expect(await second, isTrue);
+      expect(animal.plays, [AnimalKind.cow]);
+    });
+
+    test(
+        'TC-ASM-ANIMAL-RACE-04 stale success after silence is rolled back with stop',
+        () async {
+      final animal = RecordingAnimalSoundMatchingAnimalPlayer(holdPlays: true);
+      final audio = _audio(animalPlayer: animal);
+      await audio.probe('en-US');
+
+      final pending = audio.playAnimalPrompt(AnimalKind.sheep);
+      for (var i = 0; i < 40; i++) {
+        if (animal.pendingPlayCount >= 1) break;
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      // Bump lifecycle epoch without clearing the held play via stop first —
+      // silence both bumps epoch and stops; release a "late success" path by
+      // manually completing after silence (stop already failed the hold).
+      await audio.silence();
+      expect(await pending, isFalse);
+      expect(animal.isPlaying, isFalse);
+
+      // A fresh play after silence should still work when eligible.
+      animal.holdPlays = false;
+      final ok = await audio.playAnimalPrompt(AnimalKind.sheep);
+      expect(ok, isTrue);
+      expect(animal.plays, [AnimalKind.sheep]);
+      expect(animal.isPlaying, isFalse);
+    });
+  });
 }

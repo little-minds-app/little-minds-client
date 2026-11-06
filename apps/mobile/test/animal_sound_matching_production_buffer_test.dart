@@ -272,6 +272,170 @@ void main() {
     }
   });
 
+  test('visual-only first attempts do not inflate sound-recognition KPIs',
+      () async {
+    final root = await Directory.systemTemp.createTemp('lmp57-visual-kpi-');
+    try {
+      final harness = await _ProductionHarness.create(root);
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityStarted,
+        payload: {'age_months': 36, 'prompt_mode': 'visual'},
+      );
+      // Three visual-only correct first attempts — must not count as sound KPI.
+      for (var round = 0; round < 3; round++) {
+        harness.bridge.emit(
+          playSessionId: harness.sessionId,
+          type: AnimalSoundMatchingEventType.activityAttempted,
+          payload: {
+            'animal_id': 'cat',
+            'choice_id': 'cat',
+            'correct': true,
+            'round_index': round,
+            'prompt_mode': 'visual',
+          },
+        );
+      }
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityCompleted,
+        payload: {'completion_status': 'completed', 'prompt_mode': 'visual'},
+      );
+      await harness.bridge.drain();
+
+      final completed = (await harness.outbox.pending(harness.parentId))
+          .singleWhere((e) => e.payload['event_type'] == 'activity_completed');
+      final payload = completed.payload['payload'] as Map;
+      expect(payload['eligible_first_attempts'], 0);
+      expect(payload['correct_first_attempts'], 0);
+      expect(payload.containsKey('prompt_mode'), isFalse);
+    } finally {
+      await root.delete(recursive: true);
+    }
+  });
+
+  test('audio first attempts still count toward sound-recognition KPIs',
+      () async {
+    final root = await Directory.systemTemp.createTemp('lmp57-audio-kpi-');
+    try {
+      final harness = await _ProductionHarness.create(root);
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityStarted,
+        payload: {'age_months': 36, 'prompt_mode': 'audio'},
+      );
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityAttempted,
+        payload: {
+          'animal_id': 'cat',
+          'choice_id': 'cat',
+          'correct': true,
+          'round_index': 0,
+          'prompt_mode': 'audio',
+        },
+      );
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityAttempted,
+        payload: {
+          'animal_id': 'dog',
+          'choice_id': 'cow',
+          'correct': false,
+          'round_index': 1,
+          'prompt_mode': 'audio',
+        },
+      );
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityAttempted,
+        payload: {
+          'animal_id': 'dog',
+          'choice_id': 'dog',
+          'correct': true,
+          'round_index': 1,
+          'prompt_mode': 'audio',
+        },
+      );
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityCompleted,
+        payload: {'completion_status': 'completed', 'prompt_mode': 'audio'},
+      );
+      await harness.bridge.drain();
+
+      final completed = (await harness.outbox.pending(harness.parentId))
+          .singleWhere((e) => e.payload['event_type'] == 'activity_completed');
+      final payload = completed.payload['payload'] as Map;
+      expect(payload['eligible_first_attempts'], 2);
+      expect(payload['correct_first_attempts'], 1);
+    } finally {
+      await root.delete(recursive: true);
+    }
+  });
+
+  test('mid-round visual switch does not inflate first-attempt KPIs', () async {
+    final root = await Directory.systemTemp.createTemp('lmp57-mid-switch-');
+    try {
+      final harness = await _ProductionHarness.create(root);
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityStarted,
+        payload: {'age_months': 40, 'prompt_mode': 'audio'},
+      );
+      // Round 0 first attempt already in visual fallback — not a sound KPI.
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityAttempted,
+        payload: {
+          'animal_id': 'cat',
+          'choice_id': 'dog',
+          'correct': false,
+          'round_index': 0,
+          'prompt_mode': 'visual',
+        },
+      );
+      // Later audio retry in same round must not become a first attempt.
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityAttempted,
+        payload: {
+          'animal_id': 'cat',
+          'choice_id': 'cat',
+          'correct': true,
+          'round_index': 0,
+          'prompt_mode': 'audio',
+        },
+      );
+      // Round 1 pure audio first attempt — counts.
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityAttempted,
+        payload: {
+          'animal_id': 'dog',
+          'choice_id': 'dog',
+          'correct': true,
+          'round_index': 1,
+          'prompt_mode': 'audio',
+        },
+      );
+      harness.bridge.emit(
+        playSessionId: harness.sessionId,
+        type: AnimalSoundMatchingEventType.activityCompleted,
+        payload: {'completion_status': 'completed'},
+      );
+      await harness.bridge.drain();
+
+      final completed = (await harness.outbox.pending(harness.parentId))
+          .singleWhere((e) => e.payload['event_type'] == 'activity_completed');
+      final payload = completed.payload['payload'] as Map;
+      expect(payload['eligible_first_attempts'], 1);
+      expect(payload['correct_first_attempts'], 1);
+    } finally {
+      await root.delete(recursive: true);
+    }
+  });
+
   test('production buffer construction fails closed on bad device id', () {
     final root = Directory.systemTemp.createTempSync('lmp57-bad-');
     try {

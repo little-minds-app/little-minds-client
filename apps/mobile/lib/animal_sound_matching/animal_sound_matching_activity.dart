@@ -50,6 +50,11 @@ class AnimalSoundMatchingActivity extends LearningActivity {
   /// UI-only monotonic success id — one tick per correct match (not telemetry).
   var _correctMatchSerial = 0;
   AnimalPromptMode _promptMode = AnimalPromptMode.audio;
+  /// Sticky visual mode after a runtime prompt/replay playback failure.
+  /// Cleared on prepare / replay when animal prompts become eligible again.
+  var _forceVisualFallback = false;
+  /// Cancels stale async prompt/replay completions after pause / advance / exit.
+  var _promptPlayGeneration = 0;
   ScoringNeutralOutcome? _lastOutcome;
   final _listeners = <VoidCallback>[];
 
@@ -119,6 +124,8 @@ class AnimalSoundMatchingActivity extends LearningActivity {
     _ageMonths = age;
     _band = band;
     await _audio.probe(localeTag);
+    _forceVisualFallback = false;
+    _invalidatePromptPlays();
     _refreshPromptMode();
     _resetProgress(emitStarted: false);
   }
@@ -137,6 +144,7 @@ class AnimalSoundMatchingActivity extends LearningActivity {
   @override
   Future<void> onPause() async {
     setInteractionsEnabled(false);
+    _invalidatePromptPlays();
     await _audio.silence();
     await _drainProduction();
   }
@@ -153,6 +161,7 @@ class AnimalSoundMatchingActivity extends LearningActivity {
   @override
   Future<void> onBackground() async {
     setInteractionsEnabled(false);
+    _invalidatePromptPlays();
     await _audio.silence();
     await _drainProduction();
   }
@@ -165,7 +174,10 @@ class AnimalSoundMatchingActivity extends LearningActivity {
 
   @override
   Future<void> onRestart() async {
+    _invalidatePromptPlays();
     await _audio.resetForReplay();
+    // Fresh session may recover from a prior sticky visual fallback.
+    _forceVisualFallback = false;
     _refreshPromptMode();
     _resetProgress(emitStarted: true);
     setInteractionsEnabled(true);
@@ -175,6 +187,7 @@ class AnimalSoundMatchingActivity extends LearningActivity {
 
   @override
   Future<void> onExit() async {
+    _invalidatePromptPlays();
     if (_lastOutcome is! ActivityCompletedOutcome &&
         _lastOutcome is! ActivityAbandonedOutcome &&
         !_abandonedEmitted) {
@@ -198,6 +211,7 @@ class AnimalSoundMatchingActivity extends LearningActivity {
 
   @override
   Future<void> disposeResources() async {
+    _invalidatePromptPlays();
     await _audio.dispose();
     final game = _game;
     if (game != null) {
@@ -212,6 +226,9 @@ class AnimalSoundMatchingActivity extends LearningActivity {
   }
 
   /// Replay the current animal prompt. No-op / visual-only when muted or missing.
+  ///
+  /// On runtime playback failure, switches to accessible visual fallback and
+  /// notifies the UI so gameplay never deadlocks waiting for sound.
   Future<bool> replayAnimalSound() async {
     if (!_interactionsEnabled) return false;
     if (_lastOutcome is ActivityCompletedOutcome) return false;
@@ -222,7 +239,14 @@ class AnimalSoundMatchingActivity extends LearningActivity {
     }
     final target = _round?.targetAnimal;
     if (target == null) return false;
-    return _audio.playAnimalPrompt(target, forceRestart: true);
+    final gen = ++_promptPlayGeneration;
+    final played = await _audio.playAnimalPrompt(target, forceRestart: true);
+    if (gen != _promptPlayGeneration) return false;
+    if (!played) {
+      _enterVisualFallback();
+      return false;
+    }
+    return true;
   }
 
   void setInteractionsEnabled(bool enabled) {
@@ -236,11 +260,22 @@ class AnimalSoundMatchingActivity extends LearningActivity {
 
   void _refreshPromptMode() {
     // Explicit accessible visual fallback — never deadlock, never pretend audio.
-    if (soundOff || !_audio.animalPromptReady) {
+    if (soundOff || !_audio.animalPromptReady || _forceVisualFallback) {
       _promptMode = AnimalPromptMode.visualFallback;
     } else {
       _promptMode = AnimalPromptMode.audio;
     }
+  }
+
+  /// Sticky visual matching after sound-off / missing assets / playback failure.
+  void _enterVisualFallback() {
+    _forceVisualFallback = true;
+    _promptMode = AnimalPromptMode.visualFallback;
+    _notify();
+  }
+
+  void _invalidatePromptPlays() {
+    _promptPlayGeneration++;
   }
 
   void _resetProgress({required bool emitStarted}) {
@@ -272,10 +307,18 @@ class AnimalSoundMatchingActivity extends LearningActivity {
 
   Future<void> _playRoundPrompt() async {
     _refreshPromptMode();
-    if (_promptMode == AnimalPromptMode.visualFallback) return;
+    if (_promptMode == AnimalPromptMode.visualFallback) {
+      _notify();
+      return;
+    }
     final target = _round?.targetAnimal;
     if (target == null) return;
-    await _audio.playAnimalPrompt(target, forceRestart: true);
+    final gen = ++_promptPlayGeneration;
+    final played = await _audio.playAnimalPrompt(target, forceRestart: true);
+    if (gen != _promptPlayGeneration) return;
+    if (!played) {
+      _enterVisualFallback();
+    }
   }
 
   void _emitStartedIfNeeded({bool restart = false}) {
@@ -367,6 +410,8 @@ class AnimalSoundMatchingActivity extends LearningActivity {
     }
     _showCelebrationPulse = false;
     _loadRound();
+    // Invalidate any in-flight prompt from the previous round.
+    _invalidatePromptPlays();
     // ignore: discarded_futures
     _playRoundPrompt();
     _notify();

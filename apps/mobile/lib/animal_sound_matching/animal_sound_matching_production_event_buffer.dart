@@ -95,15 +95,24 @@ class AnimalSoundMatchingProductionEventBuffer
     _firstAttemptRoundsCounted.clear();
   }
 
-  /// Counts at most one eligible first attempt per [round_index].
+  /// Counts at most one first attempt per [round_index] for sound-recognition KPIs.
   ///
-  /// Visual-fallback attempts still count locally but [prompt_mode] is stripped
-  /// on the wire so they are never claimed as sound-recognition performance.
+  /// Visual-fallback attempts never inflate [eligible_first_attempts] /
+  /// [correct_first_attempts]. The round is still marked consumed so a later
+  /// audio retry in the same round cannot be counted as a first attempt either.
+  /// Absent [prompt_mode] is treated as audio (instrument default).
   void _countFirstAttemptIfEligible(AnimalSoundMatchingActivityEvent event) {
     final roundIndex = event.payload['round_index'];
     if (roundIndex is! int) return;
     if (_firstAttemptRoundsCounted.contains(roundIndex)) return;
     _firstAttemptRoundsCounted.add(roundIndex);
+
+    final mode = event.payload['prompt_mode'];
+    if (mode == 'visual') {
+      // Accessible visual matching — not sound-recognition performance.
+      return;
+    }
+
     _eligibleFirstAttempts++;
     if (event.payload['correct'] == true) {
       _correctFirstAttempts++;

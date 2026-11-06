@@ -1,4 +1,6 @@
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/animal_sound_matching/animal_sound_matching_activity.dart';
 import 'package:little_minds_mobile/animal_sound_matching/animal_sound_matching_audio.dart';
@@ -7,6 +9,42 @@ import 'package:little_minds_mobile/animal_sound_matching/animal_sound_matching_
 import 'package:little_minds_mobile/animal_sound_matching/animal_sound_matching_flame_layer.dart';
 import 'package:little_minds_mobile/animal_sound_matching/animal_sound_matching_logic.dart';
 import 'package:little_minds_mobile/game/scoring_neutral_outcome.dart';
+
+class _ProbeBundle extends CachingAssetBundle {
+  _ProbeBundle({required this.presentPaths});
+
+  final Set<String> presentPaths;
+
+  @override
+  Future<ByteData> load(String key) async {
+    if (!presentPaths.contains(key)) {
+      throw FlutterError('Unable to load asset: $key');
+    }
+    return ByteData(4);
+  }
+}
+
+Set<String> _allAudioPaths() => {
+      for (final cue in AnimalSoundMatchingAudio.requiredCues) cue.assetPath,
+      AnimalSoundMatchingBgmTrack.assetPath,
+      for (final k in AnimalKind.values)
+        AnimalSoundMatchingAnimalTrack.assetPath(k),
+    };
+
+AnimalSoundMatchingAudio _testAudio({
+  bool soundOff = false,
+  RecordingAnimalSoundMatchingSfxPlayer? player,
+  RecordingAnimalSoundMatchingBgmPlayer? bgmPlayer,
+  RecordingAnimalSoundMatchingAnimalPlayer? animalPlayer,
+}) {
+  return AnimalSoundMatchingAudio(
+    soundOff: soundOff,
+    player: player ?? RecordingAnimalSoundMatchingSfxPlayer(),
+    bgmPlayer: bgmPlayer ?? RecordingAnimalSoundMatchingBgmPlayer(),
+    animalPlayer: animalPlayer ?? RecordingAnimalSoundMatchingAnimalPlayer(),
+    bundle: _ProbeBundle(presentPaths: _allAudioPaths()),
+  );
+}
 
 void main() {
   group('AnimalSoundMatchingBand', () {
@@ -286,6 +324,73 @@ void main() {
       final started = buffer.events
           .singleWhere((e) => e.eventType == 'activity_started');
       expect(started.payload['prompt_mode'], 'visual');
+    });
+
+    test('prompt playback failure switches to sticky visual fallback', () async {
+      final buffer = AnimalSoundMatchingLocalEventBuffer();
+      final animal = RecordingAnimalSoundMatchingAnimalPlayer()..succeed = false;
+      final activity = AnimalSoundMatchingActivity(
+        ageMonthsProvider: () => 36,
+        eventBuffer: buffer,
+        playSessionId: '00000000-0000-4000-8000-000000000076',
+        audio: _testAudio(animalPlayer: animal),
+      );
+      await activity.prepare();
+      expect(activity.promptMode, AnimalPromptMode.audio);
+      await activity.onEnter();
+      expect(activity.promptMode, AnimalPromptMode.visualFallback);
+      expect(activity.usesVisualFallback, isTrue);
+      // Sticky: subsequent refresh must not flip back while force flag holds.
+      activity.selectAnimal(activity.round!.targetAnimal);
+      expect(
+        buffer.events
+            .where((e) => e.eventType == 'activity_attempted')
+            .last
+            .payload['prompt_mode'],
+        'visual',
+      );
+    });
+
+    test('replay playback failure switches to visual fallback', () async {
+      final animal = RecordingAnimalSoundMatchingAnimalPlayer();
+      final activity = AnimalSoundMatchingActivity(
+        ageMonthsProvider: () => 30,
+        playSessionId: '00000000-0000-4000-8000-000000000077',
+        audio: _testAudio(animalPlayer: animal),
+      );
+      await activity.prepare();
+      await activity.onEnter();
+      expect(activity.promptMode, AnimalPromptMode.audio);
+
+      animal.succeed = false;
+      final replayed = await activity.replayAnimalSound();
+      expect(replayed, isFalse);
+      expect(activity.promptMode, AnimalPromptMode.visualFallback);
+      expect(activity.usesVisualFallback, isTrue);
+    });
+
+    test('stale prompt completion after pause does not force visual mode',
+        () async {
+      final animal = RecordingAnimalSoundMatchingAnimalPlayer(holdPlays: true);
+      final activity = AnimalSoundMatchingActivity(
+        ageMonthsProvider: () => 36,
+        playSessionId: '00000000-0000-4000-8000-000000000078',
+        audio: _testAudio(animalPlayer: animal),
+      );
+      await activity.prepare();
+      // onEnter starts a held prompt.
+      final enter = activity.onEnter();
+      for (var i = 0; i < 40; i++) {
+        if (animal.pendingPlayCount >= 1) break;
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(animal.pendingPlayCount, 1);
+      await activity.onPause();
+      // silence/stop fails the held play; generation was already invalidated.
+      await enter;
+      // Pause invalidated the prompt; no sticky visual from a cancelled play.
+      expect(activity.usesVisualFallback, isFalse);
+      expect(activity.promptMode, AnimalPromptMode.audio);
     });
 
     test('abandon emits once on exit before completion', () async {

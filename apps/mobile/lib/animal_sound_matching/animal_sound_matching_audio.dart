@@ -81,12 +81,21 @@ class UnavailableAnimalSoundMatchingAnimalPlayer
 }
 
 /// Test double that records animal prompt plays without speakers.
+///
+/// When [holdPlays] is true, each [play] parks until [releaseNextPlay] —
+/// used for deterministic lifecycle / rapid-replay race tests.
 class RecordingAnimalSoundMatchingAnimalPlayer
     implements AnimalSoundMatchingAnimalPlayer {
-  RecordingAnimalSoundMatchingAnimalPlayer({this.canPlay = true});
+  RecordingAnimalSoundMatchingAnimalPlayer({
+    this.canPlay = true,
+    this.holdPlays = false,
+  });
 
   @override
   bool canPlay;
+
+  /// When true, [play] awaits an explicit [releaseNextPlay] before recording.
+  bool holdPlays;
 
   @override
   bool isPlaying = false;
@@ -97,6 +106,35 @@ class RecordingAnimalSoundMatchingAnimalPlayer
   var stopCount = 0;
   var disposeCount = 0;
 
+  final List<_HeldAnimalPlay> _heldPlays = <_HeldAnimalPlay>[];
+
+  int get pendingPlayCount => _heldPlays.length;
+
+  AnimalKind? get nextHeldKind =>
+      _heldPlays.isEmpty ? null : _heldPlays.first.kind;
+
+  /// Completes the oldest held [play]. Returns false if none are pending.
+  bool releaseNextPlay({bool? succeedOverride}) {
+    if (_heldPlays.isEmpty) return false;
+    final held = _heldPlays.removeAt(0);
+    final ok = succeedOverride ?? (succeed && canPlay && disposeCount == 0);
+    if (ok) {
+      plays.add(held.kind);
+      volumes.add(held.volume);
+      isPlaying = true;
+    } else {
+      isPlaying = false;
+    }
+    held.completer.complete(ok);
+    return true;
+  }
+
+  void releaseAllPlays({bool? succeedOverride}) {
+    while (_heldPlays.isNotEmpty) {
+      releaseNextPlay(succeedOverride: succeedOverride);
+    }
+  }
+
   @override
   Future<bool> play(AnimalKind kind, {required double volume}) async {
     // Replay contract: stop prior before starting (no overlap).
@@ -104,19 +142,32 @@ class RecordingAnimalSoundMatchingAnimalPlayer
       stopCount++;
       isPlaying = false;
     }
-    if (!canPlay || !succeed || disposeCount > 0) return false;
-    plays.add(kind);
-    volumes.add(volume);
-    isPlaying = true;
-    // Instant complete for unit tests — production waits on player complete.
-    isPlaying = false;
-    return true;
+    // Cancel any still-held prior plays — a newer play supersedes them.
+    while (_heldPlays.isNotEmpty) {
+      releaseNextPlay(succeedOverride: false);
+    }
+    if (!holdPlays) {
+      if (!canPlay || !succeed || disposeCount > 0) return false;
+      plays.add(kind);
+      volumes.add(volume);
+      isPlaying = true;
+      // Instant complete for unit tests — production waits on player complete.
+      isPlaying = false;
+      return true;
+    }
+    final held = _HeldAnimalPlay(kind, volume);
+    _heldPlays.add(held);
+    return held.completer.future;
   }
 
   @override
   Future<void> stop() async {
     stopCount++;
     isPlaying = false;
+    // Fail held plays so in-flight prompt awaits do not hang after silence.
+    while (_heldPlays.isNotEmpty) {
+      releaseNextPlay(succeedOverride: false);
+    }
   }
 
   @override
@@ -124,7 +175,18 @@ class RecordingAnimalSoundMatchingAnimalPlayer
     disposeCount++;
     canPlay = false;
     isPlaying = false;
+    while (_heldPlays.isNotEmpty) {
+      releaseNextPlay(succeedOverride: false);
+    }
   }
+}
+
+class _HeldAnimalPlay {
+  _HeldAnimalPlay(this.kind, this.volume);
+
+  final AnimalKind kind;
+  final double volume;
+  final Completer<bool> completer = Completer<bool>();
 }
 
 /// Production single-slot animal prompt player (ambient / no exclusive focus).
@@ -991,6 +1053,10 @@ class AnimalSoundMatchingAudio {
 
   /// Plays the animal recognition prompt. Stops any in-flight prompt first
   /// (replay-safe, no overlap). Soft-fails when muted / missing / disposed.
+  ///
+  /// A stale completion after [silence] / [dispose] / a newer prompt serial
+  /// always rolls back with [AnimalSoundMatchingAnimalPlayer.stop] so no
+  /// audible leftover survives lifecycle cancellation.
   Future<bool> playAnimalPrompt(
     AnimalKind kind, {
     bool forceRestart = false,
@@ -1007,9 +1073,15 @@ class AnimalSoundMatchingAudio {
       kind,
       volume: animalPromptGain.clamp(0.0, 1.0),
     );
-    if (!played || !_animalStillValid(epoch, serial)) {
+    if (!_animalStillValid(epoch, serial)) {
+      // Late start after pause / background / dispose / superseded replay —
+      // never leave audible playback from a cancelled generation.
+      try {
+        await _animal.stop();
+      } catch (_) {}
       return false;
     }
+    if (!played) return false;
     return true;
   }
 
