@@ -60,6 +60,16 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
   const generation = useRef(0);
 
   const refresh = useCallback(() => setRetry((n) => n + 1), []);
+  // Revalidate visible dashboards without requiring a manual sync action.
+  // Polling is bounded to one request cycle per 15 seconds; server remains authoritative.
+  useEffect(() => {
+    if (!selectedChildId) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      refresh();
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [selectedChildId, refresh]);
   const invalidateProtectedData = useCallback((childId: string) => {
     generation.current += 1;
     setSnapshot(blockedSnapshot(childId));
@@ -72,7 +82,9 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
       setSnapshot(null);
       return () => abort.abort();
     }
-    setSnapshot(null);
+    // Retain the current child's numbers during routine polling to avoid
+    // blinking KPI cards; child switches still clear immediately.
+    setSnapshot((old) => old?.childId === selectedChildId ? old : null);
     const childId = selectedChildId;
     const params = new URLSearchParams(dashboardWindow());
     params.set('child_id', childId);
@@ -230,7 +242,7 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
           <h2 className="parent-dashboard__heading">Oyun ve görev özeti</h2>
           <p className="parent-dashboard__hero">Son 7 tamamlanmış gün ve bugün</p>
         </div>
-        <LmButton variant="secondary" onClick={refresh}>Özeti yenile</LmButton>
+
       </div>
 
       <LmCard title="Oturum KPI" subtitle="Sunucu oturum metrikleri">
