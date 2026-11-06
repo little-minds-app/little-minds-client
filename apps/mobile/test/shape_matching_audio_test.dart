@@ -25,32 +25,54 @@ Set<String> _allSfxPaths() => {
       for (final cue in ShapeMatchingAudio.requiredCues) cue.assetPath,
     };
 
+Set<String> _allAudioPaths() => {
+      ..._allSfxPaths(),
+      ShapeMatchingBgmTrack.assetPath,
+    };
+
 ShapeMatchingAudio _audio({
   bool soundOff = false,
   RecordingShapeMatchingSfxPlayer? player,
+  RecordingShapeMatchingBgmPlayer? bgmPlayer,
   Set<String>? present,
   Duration clapDelay = const Duration(milliseconds: 20),
   Duration twinkleDelay = const Duration(milliseconds: 40),
   Duration completionClapDelay = const Duration(milliseconds: 20),
   Duration completionTwinkleDelay = const Duration(milliseconds: 40),
+  Duration matchDuckRestore = const Duration(milliseconds: 50),
+  Duration completionDuckRestore = const Duration(milliseconds: 80),
+  double bgmGain = 0.20,
+  double sfxGain = 0.85,
+  double bgmDuckFactor = 0.25,
 }) {
   return ShapeMatchingAudio(
     soundOff: soundOff,
     player: player ?? RecordingShapeMatchingSfxPlayer(),
-    bundle: _ProbeBundle(presentPaths: present ?? _allSfxPaths()),
+    bgmPlayer: bgmPlayer ?? RecordingShapeMatchingBgmPlayer(),
+    bundle: _ProbeBundle(presentPaths: present ?? _allAudioPaths()),
     clapDelay: clapDelay,
     twinkleDelay: twinkleDelay,
     completionClapDelay: completionClapDelay,
     completionTwinkleDelay: completionTwinkleDelay,
+    matchDuckRestore: matchDuckRestore,
+    completionDuckRestore: completionDuckRestore,
+    bgmGain: bgmGain,
+    sfxGain: sfxGain,
+    bgmDuckFactor: bgmDuckFactor,
   );
 }
 
 Future<ShapeMatchingActivity> _preparedActivity({
   required RecordingShapeMatchingSfxPlayer player,
+  RecordingShapeMatchingBgmPlayer? bgmPlayer,
   bool soundOff = false,
   int ageMonths = 36,
 }) async {
-  final audio = _audio(player: player, soundOff: soundOff);
+  final audio = _audio(
+    player: player,
+    bgmPlayer: bgmPlayer,
+    soundOff: soundOff,
+  );
   final activity = ShapeMatchingActivity(
     ageMonthsProvider: () => ageMonths,
     audio: audio,
@@ -278,15 +300,21 @@ void main() {
     test('TC-SM-SFX-012 missing assets keep ready false (offline fail-safe)',
         () async {
       final player = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
       final audio = ShapeMatchingAudio(
         player: player,
+        bgmPlayer: bgm,
         bundle: _ProbeBundle(presentPaths: {}),
       );
       await audio.probe('tr-TR');
       expect(audio.assetsPresent, isFalse);
       expect(audio.ready, isFalse);
+      expect(audio.bgmAssetPresent, isFalse);
+      expect(audio.bgmReady, isFalse);
       expect(await audio.playTap(), isFalse);
+      expect(await audio.ensureBgmPlaying(), isFalse);
       expect(player.plays, isEmpty);
+      expect(bgm.startLoopCount, 0);
     });
   });
 
@@ -466,6 +494,244 @@ void main() {
         player.plays.where((c) => c == ShapeMatchingSfxCue.softClap),
         isEmpty,
       );
+    });
+  });
+
+  group('ShapeMatchingAudio Happy Garden BGM', () {
+    test('TC-SM-BGM-001 asset path is offline bgm mp3 loop', () {
+      expect(
+        ShapeMatchingBgmTrack.assetPath,
+        'assets/audio/shape_matching/bgm/happy_garden_loop.mp3',
+      );
+      expect(
+        ShapeMatchingBgmTrack.assetSourcePath,
+        'audio/shape_matching/bgm/happy_garden_loop.mp3',
+      );
+    });
+
+    test('TC-SM-BGM-002 starts one loop on enter at ~20% gain', () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final activity = await _preparedActivity(player: sfx, bgmPlayer: bgm);
+
+      expect(activity.bgmReady, isTrue);
+      expect(bgm.startLoopCount, 1);
+      expect(bgm.isPlaying, isTrue);
+      expect(bgm.volume, closeTo(0.20, 0.001));
+      expect(activity.audio.bgmIsPlaying, isTrue);
+    });
+
+    test('TC-SM-BGM-003 does not restart between rounds', () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final activity = await _preparedActivity(player: sfx, bgmPlayer: bgm);
+      expect(bgm.startLoopCount, 1);
+
+      activity.pickShape(activity.round!.target);
+      activity.pickShape(activity.round!.target);
+      await activity.audio.ensureBgmPlaying();
+
+      expect(bgm.startLoopCount, 1);
+      expect(bgm.isPlaying, isTrue);
+    });
+
+    test('TC-SM-BGM-004 replay keeps same instance (no duplicate start)',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final activity = await _preparedActivity(player: sfx, bgmPlayer: bgm);
+      expect(bgm.startLoopCount, 1);
+
+      await activity.onRestart();
+      // resetForReplay → ensureBgmPlaying while already playing → no new start.
+      expect(bgm.startLoopCount, 1);
+      expect(bgm.stopCount, 0);
+      expect(bgm.isPlaying, isTrue);
+      expect(bgm.pauseCount, 0);
+    });
+
+    test('TC-SM-BGM-005 pause pauses BGM; resume restores without new start',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final activity = await _preparedActivity(player: sfx, bgmPlayer: bgm);
+
+      await activity.onPause();
+      expect(bgm.pauseCount, greaterThanOrEqualTo(1));
+      expect(bgm.isPaused, isTrue);
+      expect(bgm.isPlaying, isFalse);
+
+      await activity.onResume();
+      expect(bgm.resumeCount, greaterThanOrEqualTo(1));
+      expect(bgm.isPlaying, isTrue);
+      expect(bgm.startLoopCount, 1);
+    });
+
+    test('TC-SM-BGM-006 background pauses; foreground resumes', () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final activity = await _preparedActivity(player: sfx, bgmPlayer: bgm);
+
+      await activity.onBackground();
+      expect(bgm.isPaused, isTrue);
+
+      await activity.onForeground();
+      expect(bgm.isPlaying, isTrue);
+      expect(bgm.startLoopCount, 1);
+    });
+
+    test('TC-SM-BGM-007 exit disposes BGM (Kids Mode leave)', () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final activity = await _preparedActivity(player: sfx, bgmPlayer: bgm);
+
+      await activity.onExit();
+      expect(bgm.stopCount, greaterThanOrEqualTo(1));
+      expect(bgm.disposeCount, 1);
+      expect(sfx.disposeCount, 1);
+      expect(activity.audio.isDisposed, isTrue);
+      expect(await activity.audio.ensureBgmPlaying(), isFalse);
+    });
+
+    test('TC-SM-BGM-008 soundOff skips BGM and SFX', () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final activity = await _preparedActivity(
+        player: sfx,
+        bgmPlayer: bgm,
+        soundOff: true,
+      );
+
+      expect(activity.bgmReady, isFalse);
+      expect(bgm.startLoopCount, 0);
+      activity.pickShape(activity.round!.target);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(sfx.plays, isEmpty);
+      expect(bgm.volumeHistory, isEmpty);
+    });
+
+    test('TC-SM-BGM-009 independent gains — SFX comfortable, BGM ~20%',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final audio = _audio(
+        player: sfx,
+        bgmPlayer: bgm,
+        sfxGain: 0.85,
+        bgmGain: 0.20,
+      );
+      await audio.probe('en-US');
+      await audio.ensureBgmPlaying();
+      await audio.playTap();
+
+      expect(bgm.volume, closeTo(0.20, 0.001));
+      expect(sfx.volumes.single, closeTo(0.85, 0.001));
+    });
+
+    test('TC-SM-BGM-010 ducks on correct then restores after celebrate',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final audio = _audio(
+        player: sfx,
+        bgmPlayer: bgm,
+        matchDuckRestore: const Duration(milliseconds: 40),
+      );
+      await audio.probe('en-US');
+      await audio.ensureBgmPlaying();
+      expect(bgm.volume, closeTo(0.20, 0.001));
+
+      await audio.playCorrectMatch(serial: 1, isCompletion: false);
+      expect(bgm.volume, closeTo(0.05, 0.001)); // 0.20 * 0.25
+
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(bgm.volume, closeTo(0.20, 0.001));
+      expect(audio.lastDuckSerial, 1);
+    });
+
+    test('TC-SM-BGM-011 longer duck on completion than mid-match', () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final audio = _audio(
+        player: sfx,
+        bgmPlayer: bgm,
+        matchDuckRestore: const Duration(milliseconds: 30),
+        completionDuckRestore: const Duration(milliseconds: 90),
+      );
+      await audio.probe('en-US');
+      await audio.ensureBgmPlaying();
+
+      await audio.playCorrectMatch(serial: 1, isCompletion: true);
+      expect(bgm.volume, closeTo(0.05, 0.001));
+
+      await Future<void>.delayed(const Duration(milliseconds: 45));
+      // Still ducked — completion window longer than mid-match 30ms.
+      expect(bgm.volume, closeTo(0.05, 0.001));
+
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(bgm.volume, closeTo(0.20, 0.001));
+    });
+
+    test('TC-SM-BGM-012 rapid matches race-safe — only latest duck restores',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final audio = _audio(
+        player: sfx,
+        bgmPlayer: bgm,
+        matchDuckRestore: const Duration(milliseconds: 40),
+      );
+      await audio.probe('en-US');
+      await audio.ensureBgmPlaying();
+
+      await audio.playCorrectMatch(serial: 1, isCompletion: false);
+      await audio.playCorrectMatch(serial: 2, isCompletion: false);
+      expect(audio.lastDuckSerial, 2);
+      expect(bgm.volume, closeTo(0.05, 0.001));
+
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(bgm.volume, closeTo(0.20, 0.001));
+      // One restore to base after the latest duck (not stacked bounce).
+      final restores = bgm.volumeHistory.where((v) => (v - 0.20).abs() < 0.001);
+      expect(restores.length, greaterThanOrEqualTo(2)); // start + restore
+    });
+
+    test('TC-SM-BGM-013 silence cancels pending duck restore', () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final audio = _audio(
+        player: sfx,
+        bgmPlayer: bgm,
+        matchDuckRestore: const Duration(milliseconds: 80),
+      );
+      await audio.probe('en-US');
+      await audio.ensureBgmPlaying();
+      await audio.playCorrectMatch(serial: 1, isCompletion: false);
+      expect(bgm.volume, closeTo(0.05, 0.001));
+
+      await audio.silence();
+      final volumesAfterSilence = List<double>.from(bgm.volumeHistory);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(bgm.volumeHistory, volumesAfterSilence);
+      expect(bgm.isPaused, isTrue);
+    });
+
+    test('TC-SM-BGM-014 missing BGM asset fails soft without blocking SFX',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final audio = _audio(
+        player: sfx,
+        bgmPlayer: bgm,
+        present: _allSfxPaths(), // SFX only
+      );
+      await audio.probe('en-US');
+      expect(audio.ready, isTrue);
+      expect(audio.bgmReady, isFalse);
+      expect(await audio.ensureBgmPlaying(), isFalse);
+      expect(await audio.playTap(), isTrue);
+      expect(sfx.plays, [ShapeMatchingSfxCue.tapPop]);
+      expect(bgm.startLoopCount, 0);
     });
   });
 }

@@ -65,6 +65,8 @@ class ShapeMatchingActivity extends LearningActivity {
   int get hintLevel => _hintLevel;
   bool get audioAssetsPresent => _audio.assetsPresent;
   bool get audioReady => _audio.ready;
+  bool get bgmAssetPresent => _audio.bgmAssetPresent;
+  bool get bgmReady => _audio.bgmReady;
 
   void addListener(VoidCallback listener) => _listeners.add(listener);
   void removeListener(VoidCallback listener) => _listeners.remove(listener);
@@ -119,6 +121,8 @@ class ShapeMatchingActivity extends LearningActivity {
   @override
   Future<void> onEnter() async {
     _emitStartedIfNeeded();
+    // Single Happy Garden BGM instance — loops for the whole play session.
+    await _audio.ensureBgmPlaying();
     final game = _game;
     if (game != null) {
       await mountFlameLayer(game);
@@ -128,7 +132,7 @@ class ShapeMatchingActivity extends LearningActivity {
   @override
   Future<void> onPause() async {
     setInteractionsEnabled(false);
-    // Screen-time / pause — stop SFX immediately (no gameplay delay on resume).
+    // Screen-time / pause — stop SFX + pause BGM (resume restores loop).
     await _audio.silence();
     await _drainProduction();
   }
@@ -138,6 +142,7 @@ class ShapeMatchingActivity extends LearningActivity {
     if (_lastOutcome is! ActivityCompletedOutcome) {
       setInteractionsEnabled(true);
     }
+    await _audio.resumeBgm();
   }
 
   @override
@@ -148,10 +153,13 @@ class ShapeMatchingActivity extends LearningActivity {
   }
 
   @override
-  Future<void> onForeground() async {}
+  Future<void> onForeground() async {
+    await _audio.resumeBgm();
+  }
 
   @override
   Future<void> onRestart() async {
+    // Replay keeps the same BGM instance (no duplicate startLoop).
     await _audio.resetForReplay();
     _resetProgress(emitStarted: true);
     setInteractionsEnabled(true);
@@ -170,6 +178,7 @@ class ShapeMatchingActivity extends LearningActivity {
         payload: const {'completion_status': 'abandoned'},
       );
     }
+    // Kids Mode / activity exit — stop + dispose BGM and SFX.
     await _audio.dispose();
     await _drainProduction();
     final game = _game;

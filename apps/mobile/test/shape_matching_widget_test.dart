@@ -66,7 +66,10 @@ ShapeMatchingActivity _activityForAge(int ageMonths) {
   return ShapeMatchingActivity(
     ageMonthsProvider: () => ageMonths,
     playSessionId: '00000000-0000-4000-8000-000000000055',
-    audio: ShapeMatchingAudio(player: RecordingShapeMatchingSfxPlayer()),
+    audio: ShapeMatchingAudio(
+      player: RecordingShapeMatchingSfxPlayer(),
+      bgmPlayer: RecordingShapeMatchingBgmPlayer(),
+    ),
   );
 }
 

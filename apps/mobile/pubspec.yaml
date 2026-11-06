@@ -36,5 +36,6 @@ flutter:
     - assets/audio/hub/
     - assets/audio/near_far/
     - assets/audio/shape_matching/sfx/
+    - assets/audio/shape_matching/bgm/
     - assets/content/mentor_cards/
     - assets/content/activity_publications/
