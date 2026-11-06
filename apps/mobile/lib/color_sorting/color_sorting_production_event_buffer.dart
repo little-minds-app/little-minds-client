@@ -49,6 +49,9 @@ class ColorSortingProductionEventBuffer extends ColorSortingLocalEventBuffer {
   int _eligibleFirstAttempts = 0;
   int _correctFirstAttempts = 0;
 
+  /// Round indexes whose first attempt has already been counted this session.
+  final Set<int> _firstAttemptRoundsCounted = <int>{};
+
   @override
   ColorSortingActivityEvent emit({
     required String playSessionId,
@@ -65,20 +68,46 @@ class ColorSortingProductionEventBuffer extends ColorSortingLocalEventBuffer {
       payload: payload,
       monotonicDurationSeconds: monotonicDurationSeconds,
     );
-    if (type == ColorSortingEventType.activityStarted && !_duration.isRunning) {
-      _duration.start();
+    if (type == ColorSortingEventType.activityStarted) {
+      if (!_duration.isRunning) {
+        _duration.start();
+      }
+      // Replay / session restart — clear first-attempt tallies for a clean
+      // scoring-neutral session boundary (wire schema unchanged).
+      if (event.payload['restart'] == true) {
+        _resetSessionTallies();
+      }
     }
     if (type == ColorSortingEventType.activityHintUsed) {
       _hintsUsed++;
     }
     if (type == ColorSortingEventType.activityAttempted) {
-      final correct = event.payload['correct'] == true;
-      _eligibleFirstAttempts++;
-      if (correct) _correctFirstAttempts++;
+      _countFirstAttemptIfEligible(event);
     }
     _pending.add(event);
     unawaited(drain().catchError((Object _) {}));
     return event;
+  }
+
+  void _resetSessionTallies() {
+    _hintsUsed = 0;
+    _eligibleFirstAttempts = 0;
+    _correctFirstAttempts = 0;
+    _firstAttemptRoundsCounted.clear();
+  }
+
+  /// Counts at most one eligible first attempt per [round_index].
+  ///
+  /// [correct_first_attempts] increments only when that first attempt succeeds.
+  void _countFirstAttemptIfEligible(ColorSortingActivityEvent event) {
+    final roundIndex = event.payload['round_index'];
+    if (roundIndex is! int) return;
+    if (_firstAttemptRoundsCounted.contains(roundIndex)) return;
+    _firstAttemptRoundsCounted.add(roundIndex);
+    _eligibleFirstAttempts++;
+    if (event.payload['correct'] == true) {
+      _correctFirstAttempts++;
+    }
   }
 
   Future<void> drain() async {

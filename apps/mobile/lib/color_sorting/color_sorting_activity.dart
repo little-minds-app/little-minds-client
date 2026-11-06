@@ -374,32 +374,139 @@ class ColorSortingActivity extends LearningActivity {
 
   @override
   Future<void> restorePlayState(Map<String, Object?> state) async {
-    _roundIndex = state['round_index'] as int? ?? _roundIndex;
-    _hintLevel = state['hint_level'] as int? ?? _hintLevel;
-    _wrongAttemptsThisRound =
-        state['wrong_attempts'] as int? ?? _wrongAttemptsThisRound;
-    _showCelebrationPulse =
-        state['celebration'] as bool? ?? _showCelebrationPulse;
-    final colorName = state['object_color'] as String?;
-    final formName = state['object_form'] as String?;
-    final binNames = state['bins'];
-    if (colorName != null && formName != null && binNames is List) {
-      _round = ColorSortingRound(
-        roundIndex: _roundIndex,
-        objectColor:
-            ColorToken.values.firstWhere((c) => c.name == colorName),
-        objectForm:
-            SortObjectForm.values.firstWhere((f) => f.name == formName),
-        bins: binNames
-            .whereType<String>()
-            .map(
-              (name) => ColorToken.values.firstWhere((c) => c.name == name),
-            )
-            .toList(growable: false),
-      );
-    } else {
+    final restored = _tryParsePlayState(state);
+    if (restored == null) {
+      // Malformed / stale / cross-band state — fail closed into a valid
+      // deterministic round for the current age band (no crash, no leakage).
+      _hintLevel = 0;
+      _wrongAttemptsThisRound = 0;
+      _showCelebrationPulse = false;
+      final candidateRound = state['round_index'];
+      if (candidateRound is int &&
+          candidateRound >= 0 &&
+          candidateRound < ColorSortingConstants.roundsPerSession) {
+        _roundIndex = candidateRound;
+      } else if (_roundIndex < 0 ||
+          _roundIndex >= ColorSortingConstants.roundsPerSession) {
+        _roundIndex = 0;
+      }
       _loadRound();
+      _notify();
+      return;
     }
+
+    _roundIndex = restored.roundIndex;
+    _hintLevel = restored.hintLevel;
+    _wrongAttemptsThisRound = restored.wrongAttempts;
+    _showCelebrationPulse = restored.celebration;
+    _round = restored.round;
     _notify();
   }
+
+  /// Validates captured play state against the active age band.
+  ///
+  /// Returns null when any field is missing, typed wrong, out of range,
+  /// unknown enum, duplicated bins, or bin-count mismatched to the band.
+  _RestoredPlayState? _tryParsePlayState(Map<String, Object?> state) {
+    final band = _band;
+    if (band == null) return null;
+
+    final roundIndex = state['round_index'];
+    if (roundIndex is! int ||
+        roundIndex < 0 ||
+        roundIndex >= ColorSortingConstants.roundsPerSession) {
+      return null;
+    }
+
+    final hintLevel = state['hint_level'];
+    if (hintLevel is! int || hintLevel < 0 || hintLevel > 2) {
+      return null;
+    }
+
+    final wrongAttempts = state['wrong_attempts'];
+    if (wrongAttempts is! int || wrongAttempts < 0) {
+      return null;
+    }
+
+    final celebration = state['celebration'];
+    if (celebration is! bool) {
+      return null;
+    }
+
+    final colorName = state['object_color'];
+    final formName = state['object_form'];
+    final binNames = state['bins'];
+    if (colorName is! String || formName is! String || binNames is! List) {
+      return null;
+    }
+
+    final objectColor = _colorTokenNamed(colorName);
+    final objectForm = _formNamed(formName);
+    if (objectColor == null || objectForm == null) {
+      return null;
+    }
+
+    if (binNames.length != band.binCount) {
+      return null;
+    }
+
+    final bins = <ColorToken>[];
+    final seen = <ColorToken>{};
+    for (final name in binNames) {
+      if (name is! String) return null;
+      final token = _colorTokenNamed(name);
+      if (token == null || !seen.add(token)) {
+        return null;
+      }
+      bins.add(token);
+    }
+
+    // Object color must be one of the destination bins for this round.
+    if (!seen.contains(objectColor)) {
+      return null;
+    }
+
+    return _RestoredPlayState(
+      roundIndex: roundIndex,
+      hintLevel: hintLevel,
+      wrongAttempts: wrongAttempts,
+      celebration: celebration,
+      round: ColorSortingRound(
+        roundIndex: roundIndex,
+        objectColor: objectColor,
+        objectForm: objectForm,
+        bins: List.unmodifiable(bins),
+      ),
+    );
+  }
+
+  static ColorToken? _colorTokenNamed(String name) {
+    for (final token in ColorToken.values) {
+      if (token.name == name) return token;
+    }
+    return null;
+  }
+
+  static SortObjectForm? _formNamed(String name) {
+    for (final form in SortObjectForm.values) {
+      if (form.name == name) return form;
+    }
+    return null;
+  }
+}
+
+final class _RestoredPlayState {
+  const _RestoredPlayState({
+    required this.roundIndex,
+    required this.hintLevel,
+    required this.wrongAttempts,
+    required this.celebration,
+    required this.round,
+  });
+
+  final int roundIndex;
+  final int hintLevel;
+  final int wrongAttempts;
+  final bool celebration;
+  final ColorSortingRound round;
 }

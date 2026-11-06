@@ -222,6 +222,85 @@ void main() {
       expect(activity.round?.bins.map((b) => b.name).toList(), snap['bins']);
     });
 
+    test('restorePlayState rejects unknown color enum without crashing',
+        () async {
+      final activity = ColorSortingActivity(
+        ageMonthsProvider: () => 30,
+        playSessionId: '00000000-0000-4000-8000-000000000033',
+      );
+      await activity.prepare();
+      final before = activity.capturePlayState();
+      await activity.restorePlayState({
+        ...before,
+        'object_color': 'not_a_color',
+      });
+      expect(activity.round, isNotNull);
+      expect(activity.round!.bins.length, 2);
+      expect(
+        ColorToken.values.map((c) => c.name),
+        contains(activity.round!.objectColor.name),
+      );
+    });
+
+    test('restorePlayState rejects wrong bin count for age band', () async {
+      final activity = ColorSortingActivity(
+        ageMonthsProvider: () => 30, // band expects 2 bins
+        playSessionId: '00000000-0000-4000-8000-000000000032',
+      );
+      await activity.prepare();
+      await activity.restorePlayState({
+        'round_index': 1,
+        'hint_level': 0,
+        'wrong_attempts': 0,
+        'celebration': false,
+        'object_color': 'red',
+        'object_form': 'ball',
+        // Stale 4-bin layout from older band — must not leak in.
+        'bins': ['red', 'yellow', 'blue', 'green'],
+      });
+      expect(activity.roundIndex, 1);
+      expect(activity.round!.bins.length, 2);
+      expect(activity.round!.bins.toSet().length, 2);
+    });
+
+    test('restorePlayState rejects duplicate bins and out-of-range round',
+        () async {
+      final activity = ColorSortingActivity(
+        ageMonthsProvider: () => 40,
+        playSessionId: '00000000-0000-4000-8000-000000000031',
+      );
+      await activity.prepare();
+      await activity.restorePlayState({
+        'round_index': 99,
+        'hint_level': 0,
+        'wrong_attempts': 0,
+        'celebration': false,
+        'object_color': 'red',
+        'object_form': 'block',
+        'bins': ['red', 'red', 'blue'],
+      });
+      expect(activity.roundIndex, 0);
+      expect(activity.round, isNotNull);
+      expect(activity.round!.bins.length, 3);
+      expect(activity.round!.bins.toSet().length, 3);
+    });
+
+    test('restorePlayState rejects object color absent from bins', () async {
+      final activity = ColorSortingActivity(
+        ageMonthsProvider: () => 40,
+        playSessionId: '00000000-0000-4000-8000-000000000030',
+      );
+      await activity.prepare();
+      final safe = activity.capturePlayState();
+      await activity.restorePlayState({
+        ...safe,
+        'object_color': 'green', // not in toddler/preschool 3-bin pool
+        'bins': ['red', 'yellow', 'blue'],
+      });
+      expect(activity.round!.bins.length, 3);
+      expect(activity.round!.bins.contains(activity.round!.objectColor), isTrue);
+    });
+
     test('flame layer mounts and unmounts', () async {
       final activity = ColorSortingActivity(ageMonthsProvider: () => 36);
       await activity.prepare();
