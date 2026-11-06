@@ -34,6 +34,7 @@ class ShapeMatchingPlayField extends StatefulWidget {
   static const Key choicesZoneKey = Key('shape-matching-choices-zone');
   static const Key feedbackZoneKey = Key('shape-matching-feedback-zone');
   static const Key targetKey = Key('shape-matching-target');
+  static const Key targetLabelKey = Key('shape-matching-target-label');
   static const Key promptKey = Key('shape-matching-prompt');
   static const Key completionKey = Key('shape-matching-completion');
   static const Key replayKey = Key('shape-matching-replay');
@@ -226,17 +227,14 @@ class _ShapeMatchingPlayFieldState extends State<ShapeMatchingPlayField> {
                       flex: 38,
                       child: KeyedSubtree(
                         key: ShapeMatchingPlayField.targetZoneKey,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                        // Stack keeps the target on the screen's horizontal
+                        // center; bunny overlays left without shifting that axis
+                        // (critical on iPhone landscape).
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.center,
                           children: [
-                            ShapeMatchingBunnyMascot(
-                              profile: profile,
-                              mood: _mascotMood,
-                              reduceMotion: reduceMotion,
-                              size: math.min(viewport.shortestSide * 0.22, 110) *
-                                  profile.mascotScale,
-                            ),
-                            Expanded(
+                            Positioned.fill(
                               child: _TargetZone(
                                 round: round,
                                 activity: activity,
@@ -245,6 +243,21 @@ class _ShapeMatchingPlayFieldState extends State<ShapeMatchingPlayField> {
                                 reduceMotion: reduceMotion,
                                 profile: profile,
                                 onAccept: _handlePick,
+                              ),
+                            ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: IgnorePointer(
+                                child: ShapeMatchingBunnyMascot(
+                                  profile: profile,
+                                  mood: _mascotMood,
+                                  reduceMotion: reduceMotion,
+                                  size: math.min(
+                                        viewport.shortestSide * 0.22,
+                                        110,
+                                      ) *
+                                      profile.mascotScale,
+                                ),
                               ),
                             ),
                           ],
@@ -394,9 +407,12 @@ class _TargetZone extends StatelessWidget {
         final side = math.min(scaled, maxByHeight).clamp(72.0, 128.0);
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
+              key: ShapeMatchingPlayField.targetLabelKey,
               l10n.shapeMatchingTargetLabel,
+              textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(

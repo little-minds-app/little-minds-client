@@ -690,4 +690,55 @@ void main() {
     expect(activity.roundIndex, 1);
     expect(activity.correctMatchSerial, 1);
   });
+
+  testWidgets(
+      'TC-SM-W29 target card and label stay screen-centered with bunny overlay '
+      'on iPhone landscape', (tester) async {
+    final activity = _activityForAge(36);
+    await activity.prepare();
+    // Compact phone landscape (iPhone-class) — bunny must not shift target.
+    const width = ScaffoldingViewports.compactPhoneHeight;
+    const height = ScaffoldingViewports.compactPhoneWidth;
+    await _setLandscape(tester, width: width, height: height);
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+
+    expect(find.byKey(ShapeMatchingBunnyMascot.mascotKey), findsOneWidget);
+    expect(find.byKey(ShapeMatchingPlayField.targetKey), findsOneWidget);
+    expect(find.byKey(ShapeMatchingPlayField.targetLabelKey), findsOneWidget);
+
+    final screenCenterX = width / 2;
+    final targetBox =
+        tester.getRect(find.byKey(ShapeMatchingPlayField.targetKey));
+    final labelBox =
+        tester.getRect(find.byKey(ShapeMatchingPlayField.targetLabelKey));
+    final mascotBox =
+        tester.getRect(find.byKey(ShapeMatchingBunnyMascot.mascotKey));
+
+    expect(
+      (targetBox.center.dx - screenCenterX).abs(),
+      lessThan(8),
+      reason: 'target card must be horizontally centered on screen',
+    );
+    expect(
+      (labelBox.center.dx - targetBox.center.dx).abs(),
+      lessThan(8),
+      reason: 'label must sit centered above the target card',
+    );
+    expect(
+      mascotBox.center.dx,
+      lessThan(targetBox.center.dx),
+      reason: 'bunny remains visible to the left without owning the axis',
+    );
+
+    // Drag/drop still works with overlay bunny (IgnorePointer).
+    final target = activity.round!.target;
+    final choice = find.byKey(ShapeMatchingPlayField.choiceKey(target));
+    final drop = find.byKey(ShapeMatchingPlayField.targetKey);
+    final gesture = await tester.startGesture(tester.getCenter(choice));
+    await gesture.moveTo(tester.getCenter(drop));
+    await gesture.up();
+    await _pumpFrames(tester);
+    expect(activity.roundIndex, 1);
+  });
 }
