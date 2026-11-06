@@ -25,6 +25,7 @@ class ActivityPlayHost extends StatefulWidget {
     required this.game,
     required this.activity,
     required this.onClose,
+    this.newActivityForRestart,
     this.showEnvBadge = false,
     this.controller,
   });
@@ -32,6 +33,8 @@ class ActivityPlayHost extends StatefulWidget {
   final StubLearningGame game;
   final LearningActivity activity;
   final VoidCallback onClose;
+  /// Replaces session identity and outbox buffer when restarting a play.
+  final Future<LearningActivity?> Function()? newActivityForRestart;
   final bool showEnvBadge;
 
   /// Optional injected controller (tests). When null, a private one is created.
@@ -55,6 +58,7 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
     with WidgetsBindingObserver {
   late final ActivitySessionController _controller;
   late final bool _ownsController;
+  late LearningActivity _playActivity;
   ActivitySessionSnapshot? _orientationSnapshot;
   Size? _lastViewport;
   var _enterStarted = false;
@@ -64,6 +68,7 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _ownsController = widget.controller == null;
+    _playActivity = widget.activity;
     _controller = widget.controller ?? ActivitySessionController();
     _controller.attachGame(widget.game);
     _controller.addListener(_onControllerChanged);
@@ -75,10 +80,10 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
       return;
     }
     _enterStarted = true;
-    if (widget.activity is ShapeMatchingActivity) {
-      (widget.activity as ShapeMatchingActivity).bindFlameGame(widget.game);
+    if (_playActivity is ShapeMatchingActivity) {
+      (_playActivity as ShapeMatchingActivity).bindFlameGame(widget.game);
     }
-    final ok = await _controller.enter(widget.activity);
+    final ok = await _controller.enter(_playActivity);
     if (!mounted || _controller.isDisposed) {
       return;
     }
@@ -119,7 +124,8 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
     if (oldWidget.game != widget.game) {
       _controller.attachGame(widget.game);
     }
-    if (oldWidget.activity.id != widget.activity.id) {
+    if (!identical(oldWidget.activity, widget.activity)) {
+      _playActivity = widget.activity;
       _enterStarted = false;
       _ensureEntered();
     }
@@ -154,10 +160,25 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
 
   Future<void> _onRestart() async {
     final screenTime = ScreenTimeScope.maybeOf(context);
-    if (screenTime != null && !screenTime.allowsChildPlay) {
+    if (screenTime != null && !screenTime.allowsChildPlay) return;
+    final createFresh = widget.newActivityForRestart;
+    if (createFresh == null) {
+      await _controller.restart();
       return;
     }
-    await _controller.restart();
+    await _controller.exit(); // Persist terminal event before replacing session.
+    if (!mounted) return;
+    final fresh = await createFresh();
+    if (!mounted) return;
+    if (fresh == null || identical(fresh, _playActivity)) {
+      widget.onClose();
+      return;
+    }
+    _playActivity = fresh;
+    if (fresh is ShapeMatchingActivity) fresh.bindFlameGame(widget.game);
+    final entered = await _controller.enter(fresh);
+    if (!mounted) return;
+    if (!entered) widget.onClose();
   }
 
   Future<void> _handleViewport(Size viewport) async {
@@ -230,13 +251,13 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
                         absorbing: blockInput,
                         child: GameWidget(game: widget.game),
                       ),
-                      if (widget.activity is ShapeMatchingActivity &&
+                      if (_playActivity is ShapeMatchingActivity &&
                           phase != GameLifecyclePhase.preparing &&
                           phase != GameLifecyclePhase.idle)
                         AbsorbPointer(
                           absorbing: blockInput,
                           child: ShapeMatchingPlayField(
-                            activity: widget.activity as ShapeMatchingActivity,
+                            activity: _playActivity as ShapeMatchingActivity,
                             controller: _controller,
                             reduceMotion: MediaQuery.maybeOf(context)
                                     ?.disableAnimations ??
