@@ -970,5 +970,73 @@ void main() {
       expect(player.activeGeneration, 0);
       expect(player.audibleAsset, isNull);
     });
+
+    for (final failingOp in <String>['stop', 'session', 'configure', 'play']) {
+      test(
+          'TC-ASM-NATIVE-07 $failingOp failure returns false and clears owner only',
+          () async {
+        final engine = ControllableAnimalSoundMatchingNativeEngine()
+          ..failOperationType = failingOp;
+        final player =
+            AudioplayersAnimalSoundMatchingAnimalPlayer(engine: engine);
+
+        expect(
+          await player.play(AnimalKind.cat, volume: 1, generation: 1),
+          isFalse,
+        );
+        expect(player.isPlaying, isFalse);
+        expect(player.activeGeneration, 0);
+        expect(player.audibleAsset, isNull);
+        expect(engine.playCompletions, isEmpty);
+
+        // Recovery: clear the fault and a newer generation can play.
+        engine.failOperationType = null;
+        expect(
+          await player.play(AnimalKind.dog, volume: 1, generation: 2),
+          isTrue,
+        );
+        expect(player.isPlaying, isTrue);
+        expect(player.activeGeneration, 2);
+        expect(player.audibleAsset, dogPath);
+      });
+    }
+
+    test(
+        'TC-ASM-NATIVE-08 mid-flight configure failure does not clear newer owner',
+        () async {
+      final engine = ControllableAnimalSoundMatchingNativeEngine(
+        holdOperations: true,
+      );
+      final player = AudioplayersAnimalSoundMatchingAnimalPlayer(engine: engine);
+
+      final first = player.play(
+        AnimalKind.cat,
+        volume: 1,
+        generation: 1,
+      );
+      await waitForHeld(engine);
+
+      // Newer claim wins the bus while gen1 is still parked.
+      final second = player.play(
+        AnimalKind.dog,
+        volume: 1,
+        generation: 2,
+      );
+
+      // Fail whatever gen1 is currently awaiting (stop/configure/play).
+      expect(engine.releaseNextOperation(fail: true), isTrue);
+      for (var i = 0; i < 40; i++) {
+        if (engine.pendingOperationCount > 0) {
+          engine.releaseNextOperation();
+        }
+        await pump();
+      }
+
+      expect(await first, isFalse);
+      expect(await second, isTrue);
+      expect(player.activeGeneration, 2);
+      expect(player.isPlaying, isTrue);
+      expect(player.audibleAsset, dogPath);
+    });
   });
 }

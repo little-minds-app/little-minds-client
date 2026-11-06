@@ -35,7 +35,7 @@ AnimalSoundMatchingAudio _testAudio({
   bool soundOff = false,
   RecordingAnimalSoundMatchingSfxPlayer? player,
   RecordingAnimalSoundMatchingBgmPlayer? bgmPlayer,
-  RecordingAnimalSoundMatchingAnimalPlayer? animalPlayer,
+  AnimalSoundMatchingAnimalPlayer? animalPlayer,
 }) {
   return AnimalSoundMatchingAudio(
     soundOff: soundOff,
@@ -403,6 +403,49 @@ void main() {
       expect(animal.plays.length, playsAfterEnter + 2);
       expect(activity.promptMode, AnimalPromptMode.audio);
     });
+
+    const nativeFailSessions = <String, String>{
+      'stop': '00000000-0000-4000-8000-000000000080',
+      'session': '00000000-0000-4000-8000-000000000081',
+      'configure': '00000000-0000-4000-8000-000000000082',
+      'play': '00000000-0000-4000-8000-000000000083',
+    };
+    for (final entry in nativeFailSessions.entries) {
+      final failingOp = entry.key;
+      test(
+          'native $failingOp failure activates sticky visual fallback; recovers on restart',
+          () async {
+        final engine = ControllableAnimalSoundMatchingNativeEngine()
+          ..failOperationType = failingOp;
+        final animal =
+            AudioplayersAnimalSoundMatchingAnimalPlayer(engine: engine);
+        final activity = AnimalSoundMatchingActivity(
+          ageMonthsProvider: () => 36,
+          playSessionId: entry.value,
+          audio: _testAudio(animalPlayer: animal),
+        );
+        await activity.prepare();
+        expect(activity.promptMode, AnimalPromptMode.audio);
+
+        await activity.onEnter();
+        expect(activity.usesVisualFallback, isTrue);
+        expect(activity.promptMode, AnimalPromptMode.visualFallback);
+        expect(animal.isPlaying, isFalse);
+        expect(animal.activeGeneration, 0);
+
+        // Sticky while fault remains: replay must not escape visual mode.
+        engine.failOperationType = null;
+        expect(await activity.replayAnimalSound(), isFalse);
+        expect(activity.usesVisualFallback, isTrue);
+
+        await activity.onRestart();
+        expect(activity.usesVisualFallback, isFalse);
+        expect(activity.promptMode, AnimalPromptMode.audio);
+        expect(animal.isPlaying, isTrue);
+        expect(animal.activeGeneration, greaterThan(0));
+        expect(await activity.replayAnimalSound(), isTrue);
+      });
+    }
 
     test('stale prompt completion after pause does not force visual mode',
         () async {

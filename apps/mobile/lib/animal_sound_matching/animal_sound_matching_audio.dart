@@ -397,6 +397,11 @@ class ControllableAnimalSoundMatchingNativeEngine
   ControllableAnimalSoundMatchingNativeEngine({this.holdOperations = false});
 
   bool holdOperations;
+
+  /// When set to `stop` / `session` / `configure` / `play`, that op throws
+  /// until cleared — used for parameterized native failure tests.
+  String? failOperationType;
+
   var ensureSessionCount = 0;
   var stopCount = 0;
   var configureCount = 0;
@@ -479,7 +484,14 @@ class ControllableAnimalSoundMatchingNativeEngine
     return false;
   }
 
+  void _throwIfFailing(String type) {
+    if (failOperationType == type) {
+      throw StateError('forced $type failure');
+    }
+  }
+
   Future<void> _enqueue(String type, {String? asset}) {
+    _throwIfFailing(type);
     if (!holdOperations) {
       switch (type) {
         case 'stop':
@@ -511,6 +523,7 @@ class ControllableAnimalSoundMatchingNativeEngine
   @override
   Future<void> ensureSession() async {
     ensureSessionCount++;
+    _throwIfFailing('session');
   }
 
   @override
@@ -598,6 +611,13 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
     return done.future;
   }
 
+  void _clearOwnershipIfCurrent(int generation) {
+    if (_owns(generation)) {
+      _playing = false;
+      _activeGeneration = 0;
+    }
+  }
+
   @override
   Future<bool> play(
     AnimalKind kind, {
@@ -608,48 +628,52 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
     // Claim ownership before awaiting so older stop/play cannot win the bus.
     _activeGeneration = generation;
     final path = AnimalSoundMatchingAnimalTrack.assetSourcePath(kind);
-    return _runOnEngine(() async {
-      if (!_owns(generation)) return false;
-      _playing = false;
-      await _engine.stop();
-      if (!_owns(generation)) return false;
-      await _engine.ensureSession();
-      if (!_owns(generation)) return false;
-      await _engine.configure(volume: volume.clamp(0.0, 1.0));
-      if (!_owns(generation)) return false;
-      try {
-        await _engine.play(path);
-      } catch (_) {
-        if (_owns(generation)) {
-          _playing = false;
-          _activeGeneration = 0;
+    try {
+      return await _runOnEngine(() async {
+        if (!_owns(generation)) return false;
+        _playing = false;
+        try {
+          await _engine.stop();
+          if (!_owns(generation)) return false;
+          await _engine.ensureSession();
+          if (!_owns(generation)) return false;
+          await _engine.configure(volume: volume.clamp(0.0, 1.0));
+          if (!_owns(generation)) return false;
+          await _engine.play(path);
+        } catch (_) {
+          // Any native stop/session/configure/play failure: soft-fail so the
+          // activity can enter sticky visual fallback. Never clear a newer owner.
+          _clearOwnershipIfCurrent(generation);
+          return false;
         }
-        return false;
-      }
-      if (!_owns(generation)) {
-        // Superseded or disposed after a late native start — never reclaim the
-        // bus, and never stop a newer owner.
-        return false;
-      }
-      _playing = true;
-      final ownedGeneration = generation;
-      unawaited(
-        _engine.onComplete.first
-            .timeout(const Duration(seconds: 4))
-            .then((_) {
-          if (!_disposed && _activeGeneration == ownedGeneration) {
-            _playing = false;
-            _activeGeneration = 0;
-          }
-        }).catchError((_) {
-          if (!_disposed && _activeGeneration == ownedGeneration) {
-            _playing = false;
-            _activeGeneration = 0;
-          }
-        }),
-      );
-      return true;
-    });
+        if (!_owns(generation)) {
+          // Superseded or disposed after a late native start — never reclaim the
+          // bus, and never stop a newer owner.
+          return false;
+        }
+        _playing = true;
+        final ownedGeneration = generation;
+        unawaited(
+          _engine.onComplete.first
+              .timeout(const Duration(seconds: 4))
+              .then((_) {
+            if (!_disposed && _activeGeneration == ownedGeneration) {
+              _playing = false;
+              _activeGeneration = 0;
+            }
+          }).catchError((_) {
+            if (!_disposed && _activeGeneration == ownedGeneration) {
+              _playing = false;
+              _activeGeneration = 0;
+            }
+          }),
+        );
+        return true;
+      });
+    } catch (_) {
+      _clearOwnershipIfCurrent(generation);
+      return false;
+    }
   }
 
   @override
