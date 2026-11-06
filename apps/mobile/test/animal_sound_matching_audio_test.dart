@@ -754,4 +754,221 @@ void main() {
       expect(animal.activeGeneration, 0);
     });
   });
+
+  group('AudioplayersAnimalSoundMatchingAnimalPlayer native engine races', () {
+    final catPath =
+        AnimalSoundMatchingAnimalTrack.assetSourcePath(AnimalKind.cat);
+    final dogPath =
+        AnimalSoundMatchingAnimalTrack.assetSourcePath(AnimalKind.dog);
+
+    Future<void> pump() => Future<void>.delayed(Duration.zero);
+
+    Future<void> waitForHeld(
+      ControllableAnimalSoundMatchingNativeEngine engine, {
+      int minPending = 1,
+    }) async {
+      for (var i = 0; i < 80; i++) {
+        if (engine.pendingOperationCount >= minPending) return;
+        await pump();
+      }
+      fail('expected >= $minPending held native ops');
+    }
+
+    test(
+        'TC-ASM-NATIVE-01 reverse engine play completions override without serialization',
+        () async {
+      // Documents the shared-bus hazard the production player must prevent:
+      // a late-completing older play() applies old audio after a newer play.
+      final engine = ControllableAnimalSoundMatchingNativeEngine(
+        holdOperations: true,
+      );
+      final older = engine.play(catPath);
+      final newer = engine.play(dogPath);
+      expect(engine.pendingOperationCount, 2);
+      expect(engine.maxInFlightPlays, 2);
+
+      expect(engine.releaseNewestHeldPlay(), isTrue); // dog completes first
+      await newer;
+      expect(engine.audibleAsset, dogPath);
+
+      expect(engine.releaseNewestHeldPlay(), isTrue); // cat completes later
+      await older;
+      expect(engine.audibleAsset, catPath); // stale native result wins — bad
+      expect(engine.playCompletions, [dogPath, catPath]);
+    });
+
+    test(
+        'TC-ASM-NATIVE-02 serialized player keeps one in-flight play; newer wins',
+        () async {
+      final engine = ControllableAnimalSoundMatchingNativeEngine(
+        holdOperations: true,
+      );
+      final player = AudioplayersAnimalSoundMatchingAnimalPlayer(engine: engine);
+
+      final first = player.play(
+        AnimalKind.cat,
+        volume: 1,
+        generation: 1,
+      );
+      await waitForHeld(engine);
+      // Supersede while the first exclusive chain is parked on a native op.
+      final second = player.play(
+        AnimalKind.dog,
+        volume: 1,
+        generation: 2,
+      );
+
+      // Drain every held native op; ownership checks drop the stale chain.
+      for (var i = 0; i < 40; i++) {
+        if (engine.pendingOperationCount > 0) {
+          engine.releaseNextOperation();
+        }
+        await pump();
+      }
+
+      expect(await first, isFalse);
+      expect(await second, isTrue);
+      expect(player.isPlaying, isTrue);
+      expect(player.activeGeneration, 2);
+      expect(player.audibleAsset, dogPath);
+      // Serialization: never two native play() calls overlapping.
+      expect(engine.maxInFlightPlays, lessThanOrEqualTo(1));
+      expect(engine.playCompletions, [dogPath]);
+    });
+
+    test(
+        'TC-ASM-NATIVE-03 reverse-order play releases cannot revive superseded audio',
+        () async {
+      final engine = ControllableAnimalSoundMatchingNativeEngine(
+        holdOperations: true,
+      );
+      final player = AudioplayersAnimalSoundMatchingAnimalPlayer(engine: engine);
+
+      final first = player.play(
+        AnimalKind.cat,
+        volume: 1,
+        generation: 1,
+      );
+      await waitForHeld(engine);
+
+      final second = player.play(
+        AnimalKind.dog,
+        volume: 1,
+        generation: 2,
+      );
+
+      // Prefer releasing any held play newest-first whenever present, otherwise
+      // FIFO — exercises reverse completion pressure on the shared bus.
+      for (var i = 0; i < 50; i++) {
+        if (engine.pendingOperationCount == 0) {
+          await pump();
+          continue;
+        }
+        if (!engine.releaseNewestHeldPlay()) {
+          engine.releaseNextOperation();
+        }
+        await pump();
+      }
+
+      expect(await first, isFalse);
+      expect(await second, isTrue);
+      expect(player.audibleAsset, dogPath);
+      expect(player.isPlaying, isTrue);
+      expect(player.activeGeneration, 2);
+      expect(engine.maxInFlightPlays, lessThanOrEqualTo(1));
+      expect(engine.playCompletions, isNot(contains(catPath)));
+    });
+
+    test(
+        'TC-ASM-NATIVE-04 stale generation stop does not silence newer prompt',
+        () async {
+      final engine = ControllableAnimalSoundMatchingNativeEngine();
+      final player = AudioplayersAnimalSoundMatchingAnimalPlayer(engine: engine);
+
+      expect(
+        await player.play(AnimalKind.cat, volume: 1, generation: 1),
+        isTrue,
+      );
+      expect(
+        await player.play(AnimalKind.dog, volume: 1, generation: 2),
+        isTrue,
+      );
+      expect(player.audibleAsset, dogPath);
+      expect(engine.stopCount, greaterThanOrEqualTo(1));
+
+      final stopsBefore = engine.stopCount;
+      await player.stop(generation: 1); // stale owner
+      expect(engine.stopCount, stopsBefore);
+      expect(player.isPlaying, isTrue);
+      expect(player.activeGeneration, 2);
+      expect(player.audibleAsset, dogPath);
+
+      await player.stop(generation: 2);
+      expect(player.isPlaying, isFalse);
+      expect(player.activeGeneration, 0);
+      expect(player.audibleAsset, isNull);
+    });
+
+    test(
+        'TC-ASM-NATIVE-05 dispose during delayed play leaves no ghost audio',
+        () async {
+      final engine = ControllableAnimalSoundMatchingNativeEngine(
+        holdOperations: true,
+      );
+      final player = AudioplayersAnimalSoundMatchingAnimalPlayer(engine: engine);
+
+      final pending = player.play(
+        AnimalKind.sheep,
+        volume: 1,
+        generation: 1,
+      );
+      await waitForHeld(engine);
+
+      final disposing = player.dispose();
+      for (var i = 0; i < 40; i++) {
+        if (engine.pendingOperationCount > 0) {
+          engine.releaseNextOperation();
+        }
+        await pump();
+      }
+
+      expect(await pending, isFalse);
+      await disposing;
+      expect(player.isPlaying, isFalse);
+      expect(player.activeGeneration, 0);
+      expect(player.audibleAsset, isNull);
+      expect(player.canPlay, isFalse);
+      expect(engine.playCompletions, isEmpty);
+    });
+
+    test(
+        'TC-ASM-NATIVE-06 unconditional stop during delayed play cancels safely',
+        () async {
+      final engine = ControllableAnimalSoundMatchingNativeEngine(
+        holdOperations: true,
+      );
+      final player = AudioplayersAnimalSoundMatchingAnimalPlayer(engine: engine);
+
+      final pending = player.play(
+        AnimalKind.cow,
+        volume: 1,
+        generation: 1,
+      );
+      await waitForHeld(engine);
+
+      final stopping = player.stop(); // pause / background
+      for (var i = 0; i < 40; i++) {
+        if (engine.pendingOperationCount > 0) {
+          engine.releaseNextOperation();
+        }
+        await pump();
+      }
+
+      expect(await pending, isFalse);
+      await stopping;
+      expect(player.isPlaying, isFalse);
+      expect(player.activeGeneration, 0);
+      expect(player.audibleAsset, isNull);
+    });
+  });
 }

@@ -263,33 +263,52 @@ class _HeldAnimalPlay {
   final Completer<bool> completer = Completer<bool>();
 }
 
-/// Production single-slot animal prompt player (ambient / no exclusive focus).
+/// Native animal-prompt engine port — stop / configure / play / dispose.
 ///
-/// Generation ownership lives here so overlapping stop/play and
-/// pause/dispose cancellation cannot silence a newer valid prompt.
-class AudioplayersAnimalSoundMatchingAnimalPlayer
-    implements AnimalSoundMatchingAnimalPlayer {
-  AudioplayersAnimalSoundMatchingAnimalPlayer();
+/// Production uses [AudioplayersAnimalSoundMatchingNativeEngine]. Tests inject
+/// [ControllableAnimalSoundMatchingNativeEngine] so delayed engine ops can
+/// complete in reverse order without a real AudioPlayer.
+abstract class AnimalSoundMatchingNativeEngine {
+  /// Asset path currently applied on the shared native bus, if any.
+  String? get audibleAsset;
 
+  Future<void> ensureSession();
+
+  Future<void> stop();
+
+  Future<void> configure({required double volume});
+
+  Future<void> play(String assetSourcePath);
+
+  /// Emits when the current native play finishes naturally.
+  Stream<void> get onComplete;
+
+  Future<void> dispose();
+}
+
+/// Production [audioplayers] engine — single shared [AudioPlayer] bus.
+class AudioplayersAnimalSoundMatchingNativeEngine
+    implements AnimalSoundMatchingNativeEngine {
   AudioPlayer? _player;
-  var _disposed = false;
   var _sessionConfigured = false;
-  var _playing = false;
-  var _activeGeneration = 0;
+  var _disposed = false;
+  String? _audibleAsset;
 
   static const _opTimeout = Duration(milliseconds: 400);
 
   @override
-  bool get canPlay => !_disposed;
+  String? get audibleAsset => _audibleAsset;
 
   @override
-  bool get isPlaying => _playing && !_disposed;
+  Stream<void> get onComplete {
+    final player = _player;
+    if (player == null) return const Stream<void>.empty();
+    return player.onPlayerComplete;
+  }
 
   @override
-  int get activeGeneration => _activeGeneration;
-
-  Future<void> _ensureSession() async {
-    if (_sessionConfigured) return;
+  Future<void> ensureSession() async {
+    if (_disposed || _sessionConfigured) return;
     _sessionConfigured = true;
     try {
       await AudioPlayer.global.setAudioContext(
@@ -308,13 +327,275 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
     } catch (_) {}
   }
 
-  Future<void> _haltEngine() async {
-    _playing = false;
+  Future<AudioPlayer> _bus() async {
+    final existing = _player;
+    if (existing != null) return existing;
+    final created = AudioPlayer();
+    _player = created;
+    return created;
+  }
+
+  @override
+  Future<void> stop() async {
+    _audibleAsset = null;
     final player = _player;
+    if (player == null || _disposed) return;
+    try {
+      await player.stop().timeout(_opTimeout);
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> configure({required double volume}) async {
+    if (_disposed) return;
+    final player = await _bus();
+    if (_disposed) return;
+    await player.setReleaseMode(ReleaseMode.release).timeout(_opTimeout);
+    if (_disposed) return;
+    await player.setPlayerMode(PlayerMode.lowLatency).timeout(_opTimeout);
+    if (_disposed) return;
+    await player.setVolume(volume.clamp(0.0, 1.0)).timeout(_opTimeout);
+  }
+
+  @override
+  Future<void> play(String assetSourcePath) async {
+    if (_disposed) return;
+    final player = await _bus();
+    if (_disposed) return;
+    await player.play(AssetSource(assetSourcePath)).timeout(_opTimeout);
+    if (_disposed) {
+      _audibleAsset = null;
+      return;
+    }
+    _audibleAsset = assetSourcePath;
+  }
+
+  @override
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    _audibleAsset = null;
+    final player = _player;
+    _player = null;
     if (player == null) return;
     try {
       await player.stop().timeout(_opTimeout);
     } catch (_) {}
+    try {
+      await player.dispose().timeout(_opTimeout);
+    } catch (_) {}
+  }
+}
+
+/// Controllable native engine for deterministic reverse-completion race tests.
+///
+/// When [holdOperations] is true, each stop/configure/play parks until
+/// [releaseNextOperation]. Completing a held [play] applies [audibleAsset]
+/// (simulating a late native `AudioPlayer.play` result on a shared bus).
+class ControllableAnimalSoundMatchingNativeEngine
+    implements AnimalSoundMatchingNativeEngine {
+  ControllableAnimalSoundMatchingNativeEngine({this.holdOperations = false});
+
+  bool holdOperations;
+  var ensureSessionCount = 0;
+  var stopCount = 0;
+  var configureCount = 0;
+  var playCount = 0;
+  var disposeCount = 0;
+  var maxInFlightPlays = 0;
+  var _inFlightPlays = 0;
+
+  String? _audibleAsset;
+  final List<String> playCompletions = <String>[];
+  final List<_HeldNativeOp> _held = <_HeldNativeOp>[];
+  final StreamController<void> _completeController =
+      StreamController<void>.broadcast();
+
+  @override
+  String? get audibleAsset => _audibleAsset;
+
+  @override
+  Stream<void> get onComplete => _completeController.stream;
+
+  int get pendingOperationCount => _held.length;
+
+  String? get nextHeldType => _held.isEmpty ? null : _held.first.type;
+
+  String? get nextHeldPlayAsset =>
+      _held.where((op) => op.type == 'play').map((op) => op.asset).firstOrNull;
+
+  /// Completes the oldest held op. Returns false when none are pending.
+  bool releaseNextOperation({bool fail = false}) {
+    if (_held.isEmpty) return false;
+    final held = _held.removeAt(0);
+    if (fail) {
+      if (held.type == 'play') {
+        _inFlightPlays = (_inFlightPlays - 1).clamp(0, 1 << 30);
+      }
+      held.completer.completeError(StateError('forced engine failure'));
+      return true;
+    }
+    switch (held.type) {
+      case 'stop':
+        _audibleAsset = null;
+        stopCount++;
+      case 'configure':
+        configureCount++;
+      case 'play':
+        _audibleAsset = held.asset;
+        playCompletions.add(held.asset!);
+        playCount++;
+        _inFlightPlays = (_inFlightPlays - 1).clamp(0, 1 << 30);
+      case 'dispose':
+        _audibleAsset = null;
+        disposeCount++;
+        if (!_completeController.isClosed) {
+          // ignore: discarded_futures
+          _completeController.close();
+        }
+    }
+    held.completer.complete();
+    return true;
+  }
+
+  void releaseAllOperations() {
+    while (_held.isNotEmpty) {
+      releaseNextOperation();
+    }
+  }
+
+  /// Completes the newest held play first (reverse completion order).
+  bool releaseNewestHeldPlay() {
+    for (var i = _held.length - 1; i >= 0; i--) {
+      if (_held[i].type != 'play') continue;
+      final held = _held.removeAt(i);
+      _audibleAsset = held.asset;
+      playCompletions.add(held.asset!);
+      playCount++;
+      _inFlightPlays = (_inFlightPlays - 1).clamp(0, 1 << 30);
+      held.completer.complete();
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _enqueue(String type, {String? asset}) {
+    if (!holdOperations) {
+      switch (type) {
+        case 'stop':
+          _audibleAsset = null;
+          stopCount++;
+        case 'configure':
+          configureCount++;
+        case 'play':
+          _audibleAsset = asset;
+          playCompletions.add(asset!);
+          playCount++;
+        case 'dispose':
+          _audibleAsset = null;
+          disposeCount++;
+      }
+      return Future<void>.value();
+    }
+    final held = _HeldNativeOp(type, asset);
+    if (type == 'play') {
+      _inFlightPlays++;
+      if (_inFlightPlays > maxInFlightPlays) {
+        maxInFlightPlays = _inFlightPlays;
+      }
+    }
+    _held.add(held);
+    return held.completer.future;
+  }
+
+  @override
+  Future<void> ensureSession() async {
+    ensureSessionCount++;
+  }
+
+  @override
+  Future<void> stop() => _enqueue('stop');
+
+  @override
+  Future<void> configure({required double volume}) => _enqueue('configure');
+
+  @override
+  Future<void> play(String assetSourcePath) =>
+      _enqueue('play', asset: assetSourcePath);
+
+  @override
+  Future<void> dispose() async {
+    if (holdOperations) {
+      await _enqueue('dispose');
+      return;
+    }
+    _audibleAsset = null;
+    disposeCount++;
+    if (!_completeController.isClosed) {
+      await _completeController.close();
+    }
+  }
+
+  void emitNaturalComplete() {
+    if (!_completeController.isClosed) {
+      _completeController.add(null);
+    }
+  }
+}
+
+class _HeldNativeOp {
+  _HeldNativeOp(this.type, this.asset);
+
+  final String type;
+  final String? asset;
+  final Completer<void> completer = Completer<void>();
+}
+
+/// Production single-slot animal prompt player (ambient / no exclusive focus).
+///
+/// Native stop/configure/play/dispose ops are serialized on one engine bus so a
+/// stale `play(old)` cannot complete after `play(new)` and override it.
+/// Generation ownership still gates every async boundary: stale stop cannot
+/// silence a newer owner; pause/dispose invalidate pending playback safely.
+class AudioplayersAnimalSoundMatchingAnimalPlayer
+    implements AnimalSoundMatchingAnimalPlayer {
+  AudioplayersAnimalSoundMatchingAnimalPlayer({
+    AnimalSoundMatchingNativeEngine? engine,
+  }) : _engine = engine ?? AudioplayersAnimalSoundMatchingNativeEngine();
+
+  final AnimalSoundMatchingNativeEngine _engine;
+  var _disposed = false;
+  var _playing = false;
+  var _activeGeneration = 0;
+
+  /// Serializes native engine mutations (last enqueued owner wins after checks).
+  Future<void> _engineChain = Future<void>.value();
+
+  @override
+  bool get canPlay => !_disposed;
+
+  @override
+  bool get isPlaying => _playing && !_disposed;
+
+  @override
+  int get activeGeneration => _activeGeneration;
+
+  /// Asset currently applied on the native bus (test / diagnostics).
+  String? get audibleAsset => _engine.audibleAsset;
+
+  bool _owns(int generation) =>
+      !_disposed && _activeGeneration == generation;
+
+  Future<T> _runOnEngine<T>(Future<T> Function() body) {
+    final done = Completer<T>();
+    _engineChain = _engineChain.catchError((_) {}).then((_) async {
+      try {
+        done.complete(await body());
+      } catch (error, stack) {
+        done.completeError(error, stack);
+      }
+    });
+    return done.future;
   }
 
   @override
@@ -326,37 +607,34 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
     if (_disposed) return false;
     // Claim ownership before awaiting so older stop/play cannot win the bus.
     _activeGeneration = generation;
-    await _haltEngine();
-    if (_disposed || _activeGeneration != generation) return false;
-    await _ensureSession();
-    if (_disposed || _activeGeneration != generation) return false;
-    try {
-      final player = _player ?? AudioPlayer();
-      if (_disposed || _activeGeneration != generation) return false;
-      _player = player;
-      await player.setReleaseMode(ReleaseMode.release).timeout(_opTimeout);
-      if (_disposed || _activeGeneration != generation) return false;
-      await player.setPlayerMode(PlayerMode.lowLatency).timeout(_opTimeout);
-      if (_disposed || _activeGeneration != generation) return false;
-      await player.setVolume(volume.clamp(0.0, 1.0)).timeout(_opTimeout);
-      if (_disposed || _activeGeneration != generation) return false;
-      await player
-          .play(
-            AssetSource(AnimalSoundMatchingAnimalTrack.assetSourcePath(kind)),
-          )
-          .timeout(_opTimeout);
-      if (_disposed || _activeGeneration != generation) {
-        // Stale after a late start — halt only while we still own the bus.
-        if (_activeGeneration == generation) {
-          await _haltEngine();
+    final path = AnimalSoundMatchingAnimalTrack.assetSourcePath(kind);
+    return _runOnEngine(() async {
+      if (!_owns(generation)) return false;
+      _playing = false;
+      await _engine.stop();
+      if (!_owns(generation)) return false;
+      await _engine.ensureSession();
+      if (!_owns(generation)) return false;
+      await _engine.configure(volume: volume.clamp(0.0, 1.0));
+      if (!_owns(generation)) return false;
+      try {
+        await _engine.play(path);
+      } catch (_) {
+        if (_owns(generation)) {
+          _playing = false;
           _activeGeneration = 0;
         }
+        return false;
+      }
+      if (!_owns(generation)) {
+        // Superseded or disposed after a late native start — never reclaim the
+        // bus, and never stop a newer owner.
         return false;
       }
       _playing = true;
       final ownedGeneration = generation;
       unawaited(
-        player.onPlayerComplete.first
+        _engine.onComplete.first
             .timeout(const Duration(seconds: 4))
             .then((_) {
           if (!_disposed && _activeGeneration == ownedGeneration) {
@@ -371,13 +649,7 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
         }),
       );
       return true;
-    } catch (_) {
-      if (_activeGeneration == generation) {
-        _playing = false;
-        _activeGeneration = 0;
-      }
-      return false;
-    }
+    });
   }
 
   @override
@@ -385,8 +657,14 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
     if (generation != null && _activeGeneration != generation) {
       return;
     }
+    // Invalidate immediately so in-flight play awaits fail ownership checks.
     _activeGeneration = 0;
-    await _haltEngine();
+    _playing = false;
+    await _runOnEngine(() async {
+      // A newer play may have claimed the bus while we waited on the chain.
+      if (_disposed || _activeGeneration != 0) return;
+      await _engine.stop();
+    });
   }
 
   @override
@@ -395,15 +673,9 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
     _disposed = true;
     _playing = false;
     _activeGeneration = 0;
-    final player = _player;
-    _player = null;
-    if (player == null) return;
-    try {
-      await player.stop().timeout(_opTimeout);
-    } catch (_) {}
-    try {
-      await player.dispose().timeout(_opTimeout);
-    } catch (_) {}
+    await _runOnEngine(() async {
+      await _engine.dispose();
+    });
   }
 }
 
