@@ -68,6 +68,46 @@ void main() {
       expect(a.roundIndex, 0);
       expect(b.roundIndex, 1);
     });
+
+    test('band pools expose colors and forms for validation', () {
+      const toddler =
+          ColorSortingBand(minMonths: 24, maxMonths: 35, binCount: 2);
+      expect(
+        ColorSortingLogic.colorPoolForBand(toddler),
+        [ColorToken.red, ColorToken.yellow],
+      );
+      expect(
+        ColorSortingLogic.formsForBand(toddler),
+        [SortObjectForm.ball, SortObjectForm.block],
+      );
+      expect(
+        ColorSortingLogic.isValidRestoredLayout(
+          band: toddler,
+          objectColor: ColorToken.red,
+          objectForm: SortObjectForm.ball,
+          bins: [ColorToken.yellow, ColorToken.red],
+        ),
+        isTrue,
+      );
+      expect(
+        ColorSortingLogic.isValidRestoredLayout(
+          band: toddler,
+          objectColor: ColorToken.blue,
+          objectForm: SortObjectForm.ball,
+          bins: [ColorToken.blue, ColorToken.green],
+        ),
+        isFalse,
+      );
+      expect(
+        ColorSortingLogic.isValidRestoredLayout(
+          band: toddler,
+          objectColor: ColorToken.red,
+          objectForm: SortObjectForm.apple,
+          bins: [ColorToken.red, ColorToken.yellow],
+        ),
+        isFalse,
+      );
+    });
   });
 
   group('ColorSorting eligibility', () {
@@ -299,6 +339,106 @@ void main() {
       });
       expect(activity.round!.bins.length, 3);
       expect(activity.round!.bins.contains(activity.round!.objectColor), isTrue);
+    });
+
+    test('restorePlayState rejects valid-length out-of-band bins', () async {
+      final activity = ColorSortingActivity(
+        ageMonthsProvider: () => 28, // toddler pool: red/yellow
+        playSessionId: '00000000-0000-4000-8000-000000000029',
+      );
+      await activity.prepare();
+      final beforeBins = activity.round!.bins.toList(growable: false);
+      await activity.restorePlayState({
+        'round_index': 0,
+        'hint_level': 0,
+        'wrong_attempts': 0,
+        'celebration': false,
+        'object_color': 'blue',
+        'object_form': 'ball',
+        // Correct length + unique, but outside toddler pool.
+        'bins': ['blue', 'green'],
+      });
+      expect(activity.round!.bins.length, 2);
+      expect(
+        activity.round!.bins.toSet(),
+        ColorSortingLogic.colorPoolForBand(activity.band!).toSet(),
+      );
+      // Fail-closed reload — may reshuffle order but stays in-band.
+      expect(
+        beforeBins.toSet(),
+        activity.round!.bins.toSet(),
+      );
+    });
+
+    test('restorePlayState rejects out-of-band object form', () async {
+      final activity = ColorSortingActivity(
+        ageMonthsProvider: () => 30, // forms: ball/block only
+        playSessionId: '00000000-0000-4000-8000-000000000028',
+      );
+      await activity.prepare();
+      await activity.restorePlayState({
+        'round_index': 0,
+        'hint_level': 0,
+        'wrong_attempts': 0,
+        'celebration': false,
+        'object_color': 'red',
+        'object_form': 'apple', // early-band form only
+        'bins': ['red', 'yellow'],
+      });
+      expect(
+        ColorSortingLogic.isFormAllowedForBand(
+          activity.band!,
+          activity.round!.objectForm,
+        ),
+        isTrue,
+      );
+      expect(activity.round!.objectForm, isNot(SortObjectForm.apple));
+    });
+
+    test('restorePlayState accepts valid in-band roundtrip', () async {
+      final activity = ColorSortingActivity(
+        ageMonthsProvider: () => 50,
+        playSessionId: '00000000-0000-4000-8000-000000000027',
+      );
+      await activity.prepare();
+      // Force a known valid layout for the early band (4 colors / all forms).
+      const layout = {
+        'round_index': 1,
+        'hint_level': 1,
+        'wrong_attempts': 2,
+        'celebration': false,
+        'object_color': 'green',
+        'object_form': 'apple',
+        'bins': ['green', 'red', 'blue', 'yellow'],
+      };
+      expect(
+        ColorSortingLogic.isValidRestoredLayout(
+          band: activity.band!,
+          objectColor: ColorToken.green,
+          objectForm: SortObjectForm.apple,
+          bins: const [
+            ColorToken.green,
+            ColorToken.red,
+            ColorToken.blue,
+            ColorToken.yellow,
+          ],
+        ),
+        isTrue,
+      );
+      await activity.restorePlayState(layout);
+      expect(activity.roundIndex, 1);
+      expect(activity.hintLevel, 1);
+      expect(activity.round!.objectColor, ColorToken.green);
+      expect(activity.round!.objectForm, SortObjectForm.apple);
+      expect(
+        activity.round!.bins.map((b) => b.name).toList(),
+        ['green', 'red', 'blue', 'yellow'],
+      );
+      final snap = activity.capturePlayState();
+      await activity.restorePlayState(snap);
+      expect(activity.round!.objectColor.name, snap['object_color']);
+      expect(activity.round!.objectForm.name, snap['object_form']);
+      expect(activity.round!.bins.map((b) => b.name).toList(), snap['bins']);
     });
 
     test('flame layer mounts and unmounts', () async {

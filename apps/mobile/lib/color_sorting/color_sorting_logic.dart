@@ -82,12 +82,13 @@ abstract final class ColorSortingLogic {
   }
 
   /// Color pool for the band — youngest gets the highest-contrast pair first.
-  static List<ColorToken> _poolForBand(ColorSortingBand band) {
+  static List<ColorToken> colorPoolForBand(ColorSortingBand band) {
     const all = ColorToken.values;
     return all.take(band.binCount).toList(growable: false);
   }
 
-  static List<SortObjectForm> _formsForBand(ColorSortingBand band) {
+  /// Object forms allowed for the band (younger bands stay simpler).
+  static List<SortObjectForm> formsForBand(ColorSortingBand band) {
     if (band.binCount <= 2) {
       return const [SortObjectForm.ball, SortObjectForm.block];
     }
@@ -101,15 +102,47 @@ abstract final class ColorSortingLogic {
     return SortObjectForm.values;
   }
 
+  /// True when [color] belongs to the band's destination pool.
+  static bool isColorAllowedForBand(ColorSortingBand band, ColorToken color) {
+    return colorPoolForBand(band).contains(color);
+  }
+
+  /// True when [form] belongs to the band's object-form pool.
+  static bool isFormAllowedForBand(ColorSortingBand band, SortObjectForm form) {
+    return formsForBand(band).contains(form);
+  }
+
+  /// Shared restore / layout gate — bins must be exactly the band color pool
+  /// (any order), object color in that pool and among bins, form in-band.
+  static bool isValidRestoredLayout({
+    required ColorSortingBand band,
+    required ColorToken objectColor,
+    required SortObjectForm objectForm,
+    required List<ColorToken> bins,
+  }) {
+    if (bins.length != band.binCount) return false;
+    if (bins.toSet().length != bins.length) return false;
+    if (!isFormAllowedForBand(band, objectForm)) return false;
+    if (!isColorAllowedForBand(band, objectColor)) return false;
+
+    final poolSet = colorPoolForBand(band).toSet();
+    if (bins.length != poolSet.length) return false;
+    for (final bin in bins) {
+      if (!poolSet.contains(bin)) return false;
+    }
+    if (!bins.contains(objectColor)) return false;
+    return true;
+  }
+
   static ColorSortingRound buildRound({
     required String playSessionId,
     required int roundIndex,
     required ColorSortingBand band,
   }) {
     final rng = _rng(playSessionId, roundIndex);
-    final pool = _poolForBand(band);
+    final pool = colorPoolForBand(band);
     final objectColor = pool[rng.nextInt(pool.length)];
-    final forms = _formsForBand(band);
+    final forms = formsForBand(band);
     final objectForm = forms[rng.nextInt(forms.length)];
 
     final bins = List<ColorToken>.from(pool)..shuffle(rng);

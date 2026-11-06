@@ -446,23 +446,21 @@ class ColorSortingActivity extends LearningActivity {
       return null;
     }
 
-    if (binNames.length != band.binCount) {
-      return null;
-    }
-
     final bins = <ColorToken>[];
-    final seen = <ColorToken>{};
     for (final name in binNames) {
       if (name is! String) return null;
       final token = _colorTokenNamed(name);
-      if (token == null || !seen.add(token)) {
-        return null;
-      }
+      if (token == null) return null;
       bins.add(token);
     }
 
-    // Object color must be one of the destination bins for this round.
-    if (!seen.contains(objectColor)) {
+    // Length, uniqueness, in-band color/form pools, object∈bins — one gate.
+    if (!ColorSortingLogic.isValidRestoredLayout(
+      band: band,
+      objectColor: objectColor,
+      objectForm: objectForm,
+      bins: bins,
+    )) {
       return null;
     }
 
