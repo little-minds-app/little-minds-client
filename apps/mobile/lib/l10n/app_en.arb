@@ -275,6 +275,28 @@
   "shapeMatchingPraiseNice": "Nice match!",
   "shapeMatchingPraiseAwesome": "Awesome!",
   "shapeMatchingGardenTitle": "Playful Learning Garden",
+  "colorSortingPromptSort": "Put it in the matching basket!",
+  "colorSortingPromptDone": "You did it!",
+  "colorSortingTapOrDragHint": "Tap a basket or drag the toy.",
+  "colorSortingObjectLabel": "Toy to sort",
+  "colorSortingBinLabel": "Basket",
+  "colorSortingBinsLabel": "Baskets",
+  "colorSortingTryAgain": "Try again!",
+  "colorSortingPlayAgain": "Play again",
+  "colorSortingHintLevel": "A little help: look for the same color ({level})",
+  "@colorSortingHintLevel": {
+    "placeholders": {
+      "level": {"type": "int"}
+    }
+  },
+  "colorSortingColorRed": "Red",
+  "colorSortingColorYellow": "Yellow",
+  "colorSortingColorBlue": "Blue",
+  "colorSortingColorGreen": "Green",
+  "colorSortingPraiseGreat": "Great job!",
+  "colorSortingPraiseNice": "Nice sort!",
+  "colorSortingPraiseAwesome": "Awesome!",
+  "colorSortingOrchardTitle": "Colorful Orchard",
   "parentDashboardChildSelectorLabel": "Child profile",
   "@parentDashboardChildSelectorLabel": {
     "description": "Accessible label for the Parent Dashboard child profile switcher."

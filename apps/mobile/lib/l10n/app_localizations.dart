@@ -1022,6 +1022,108 @@ abstract class AppLocalizations {
   /// **'Playful Learning Garden'**
   String get shapeMatchingGardenTitle;
 
+  /// No description provided for @colorSortingPromptSort.
+  ///
+  /// In en, this message translates to:
+  /// **'Put it in the matching basket!'**
+  String get colorSortingPromptSort;
+
+  /// No description provided for @colorSortingPromptDone.
+  ///
+  /// In en, this message translates to:
+  /// **'You did it!'**
+  String get colorSortingPromptDone;
+
+  /// No description provided for @colorSortingTapOrDragHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a basket or drag the toy.'**
+  String get colorSortingTapOrDragHint;
+
+  /// No description provided for @colorSortingObjectLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Toy to sort'**
+  String get colorSortingObjectLabel;
+
+  /// No description provided for @colorSortingBinLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Basket'**
+  String get colorSortingBinLabel;
+
+  /// No description provided for @colorSortingBinsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Baskets'**
+  String get colorSortingBinsLabel;
+
+  /// No description provided for @colorSortingTryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again!'**
+  String get colorSortingTryAgain;
+
+  /// No description provided for @colorSortingPlayAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Play again'**
+  String get colorSortingPlayAgain;
+
+  /// No description provided for @colorSortingHintLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'A little help: look for the same color ({level})'**
+  String colorSortingHintLevel(int level);
+
+  /// No description provided for @colorSortingColorRed.
+  ///
+  /// In en, this message translates to:
+  /// **'Red'**
+  String get colorSortingColorRed;
+
+  /// No description provided for @colorSortingColorYellow.
+  ///
+  /// In en, this message translates to:
+  /// **'Yellow'**
+  String get colorSortingColorYellow;
+
+  /// No description provided for @colorSortingColorBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Blue'**
+  String get colorSortingColorBlue;
+
+  /// No description provided for @colorSortingColorGreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Green'**
+  String get colorSortingColorGreen;
+
+  /// No description provided for @colorSortingPraiseGreat.
+  ///
+  /// In en, this message translates to:
+  /// **'Great job!'**
+  String get colorSortingPraiseGreat;
+
+  /// No description provided for @colorSortingPraiseNice.
+  ///
+  /// In en, this message translates to:
+  /// **'Nice sort!'**
+  String get colorSortingPraiseNice;
+
+  /// No description provided for @colorSortingPraiseAwesome.
+  ///
+  /// In en, this message translates to:
+  /// **'Awesome!'**
+  String get colorSortingPraiseAwesome;
+
+  /// No description provided for @colorSortingOrchardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Colorful Orchard'**
+  String get colorSortingOrchardTitle;
+
   /// Accessible label for the Parent Dashboard child profile switcher.
   ///
   /// In en, this message translates to:

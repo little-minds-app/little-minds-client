@@ -10,6 +10,8 @@ import 'activity_session_controller.dart';
 import 'activity_session_snapshot.dart';
 import 'flame_host.dart';
 import 'game_lifecycle_phase.dart';
+import '../color_sorting/color_sorting_activity.dart';
+import '../color_sorting/color_sorting_play_field.dart';
 import '../shape_matching/shape_matching_activity.dart';
 import '../shape_matching/shape_matching_play_field.dart';
 import 'learning_activity.dart';
@@ -82,6 +84,8 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
     _enterStarted = true;
     if (_playActivity is ShapeMatchingActivity) {
       (_playActivity as ShapeMatchingActivity).bindFlameGame(widget.game);
+    } else if (_playActivity is ColorSortingActivity) {
+      (_playActivity as ColorSortingActivity).bindFlameGame(widget.game);
     }
     final ok = await _controller.enter(_playActivity);
     if (!mounted || _controller.isDisposed) {
@@ -175,7 +179,11 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
       return;
     }
     _playActivity = fresh;
-    if (fresh is ShapeMatchingActivity) fresh.bindFlameGame(widget.game);
+    if (fresh is ShapeMatchingActivity) {
+      fresh.bindFlameGame(widget.game);
+    } else if (fresh is ColorSortingActivity) {
+      fresh.bindFlameGame(widget.game);
+    }
     final entered = await _controller.enter(fresh);
     if (!mounted) return;
     if (!entered) widget.onClose();
@@ -258,6 +266,19 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
                           absorbing: blockInput,
                           child: ShapeMatchingPlayField(
                             activity: _playActivity as ShapeMatchingActivity,
+                            controller: _controller,
+                            reduceMotion: MediaQuery.maybeOf(context)
+                                    ?.disableAnimations ??
+                                false,
+                          ),
+                        ),
+                      if (_playActivity is ColorSortingActivity &&
+                          phase != GameLifecyclePhase.preparing &&
+                          phase != GameLifecyclePhase.idle)
+                        AbsorbPointer(
+                          absorbing: blockInput,
+                          child: ColorSortingPlayField(
+                            activity: _playActivity as ColorSortingActivity,
                             controller: _controller,
                             reduceMotion: MediaQuery.maybeOf(context)
                                     ?.disableAnimations ??

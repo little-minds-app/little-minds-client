@@ -1,5 +1,10 @@
 import 'package:uuid/uuid.dart';
 
+import '../color_sorting/color_sorting_activity.dart';
+import '../color_sorting/color_sorting_constants.dart';
+import '../color_sorting/color_sorting_events.dart';
+import '../color_sorting/color_sorting_production_consent.dart';
+import '../color_sorting/color_sorting_production_event_buffer.dart';
 import '../core/canonical_rfc4122_uuid.dart';
 import '../auth/auth_session.dart';
 import '../game/activity_registry.dart';
@@ -265,7 +270,101 @@ class HubProductionTelemetryCoordinator {
     );
   }
 
-  /// Refreshes the registry entry for Shape Matching when gates or child scope change.
+  Future<ColorSortingActivity> buildColorSortingActivity({
+    required int? Function() ageMonthsProvider,
+    required HubProductionTelemetrySnapshot snapshot,
+    String localeTag = 'en-US',
+    bool soundOff = false,
+  }) async {
+    final buffer = _colorSortingEventBufferFor(snapshot);
+    final playSessionId = snapshot.playSessionId ??
+        'session-${_clock().toUtc().microsecondsSinceEpoch}';
+    return ColorSortingActivity(
+      ageMonthsProvider: ageMonthsProvider,
+      eventBuffer: buffer,
+      localeTag: localeTag,
+      soundOff: soundOff,
+      playSessionId: playSessionId,
+      sessionIdFactory: () => _uuid.v4(),
+    );
+  }
+
+  /// Resolves Color Sorting publication gates — fail closed without authoritative id.
+  Future<HubProductionTelemetrySnapshot> resolveColorSortingSnapshot({
+    required AuthSession? session,
+    required String? selectedChildId,
+    required String? deviceId,
+    required int reconcileToken,
+  }) async {
+    final bound = reconcileToken;
+    if (session == null) {
+      return HubProductionTelemetryGate.evaluate(
+        session: null,
+        selectedChildId: selectedChildId,
+        deviceId: deviceId,
+        authorizedDeviceChildId: null,
+        publishedContentVersionId: null,
+      );
+    }
+    final authorizedChildId = deviceId == null
+        ? null
+        : await deviceChildCatalog.authorizedChildId(
+            parentId: session.parentId,
+            scopedDeviceId: deviceId,
+          );
+    if (bound != _reconcileGeneration) {
+      return HubProductionTelemetryGate.evaluate(
+        session: session,
+        selectedChildId: selectedChildId,
+        deviceId: deviceId,
+        authorizedDeviceChildId: authorizedChildId,
+        publishedContentVersionId: null,
+      );
+    }
+    final publication = await contentRegistry.publicationForActivity(
+      ColorSortingConstants.activityId,
+    );
+    if (bound != _reconcileGeneration || publication == null) {
+      // No authoritative Color Sorting content_version_id — fail closed.
+      return HubProductionTelemetryGate.evaluate(
+        session: session,
+        selectedChildId: selectedChildId,
+        deviceId: deviceId,
+        authorizedDeviceChildId: authorizedChildId,
+        publishedContentVersionId: null,
+      );
+    }
+    final policyVersion = publication.consentPolicyVersion;
+    final consent = consentService;
+    if (consent != null) {
+      if (!consent.isAuthorizedForPolicy(policyVersion)) {
+        final mismatch = consent.hasEffectiveGrant &&
+            consent.status?.policyVersion != null &&
+            consent.status!.policyVersion != policyVersion;
+        return HubProductionTelemetrySnapshot(
+          allowed: false,
+          reason: mismatch
+              ? HubProductionTelemetryBlockReason
+                  .essentialPlayConsentPolicyMismatch
+              : HubProductionTelemetryBlockReason.essentialPlayConsentNotGranted,
+          session: session,
+          deviceId: deviceId,
+          contentVersionId: publication.contentVersionId,
+          consentPolicyVersion: policyVersion,
+        );
+      }
+    }
+    return HubProductionTelemetryGate.evaluate(
+      session: session,
+      selectedChildId: selectedChildId,
+      deviceId: deviceId,
+      authorizedDeviceChildId: authorizedChildId,
+      publishedContentVersionId: publication.contentVersionId,
+      consentPolicyVersion: policyVersion,
+    );
+  }
+
+  /// Refreshes hub registry entries when gates or child scope change.
   Future<void> reconcileHubRegistry({
     required ActivityRegistry registry,
     required int? Function() ageMonthsProvider,
@@ -291,6 +390,23 @@ class HubProductionTelemetryCoordinator {
     );
     if (bound != _reconcileGeneration) return;
     registry.register(activity);
+
+    final colorSnapshot = await resolveColorSortingSnapshot(
+      session: session,
+      selectedChildId: selectedChildId,
+      deviceId: deviceId,
+      reconcileToken: bound,
+    );
+    if (bound != _reconcileGeneration) return;
+    final colorActivity = await buildColorSortingActivity(
+      ageMonthsProvider: ageMonthsProvider,
+      snapshot: colorSnapshot,
+      localeTag: localeTag,
+      soundOff: soundOff,
+    );
+    if (bound != _reconcileGeneration) return;
+    registry.register(colorActivity);
+
     if (snapshot.allowed) {
       ActivityTelemetryDiagnostics.bufferMode(production: true);
     } else if (snapshot.reason != null) {
@@ -349,6 +465,63 @@ class HubProductionTelemetryCoordinator {
       },
     };
     return ShapeMatchingProductionEventBuffer(
+      emitter: emitter,
+      sessionPayload: sessionPayload,
+      deviceId: deviceId,
+      contentVersionId: contentVersionId,
+    );
+  }
+
+  ColorSortingLocalEventBuffer _colorSortingEventBufferFor(
+    HubProductionTelemetrySnapshot snapshot,
+  ) {
+    if (!snapshot.allowed ||
+        snapshot.session == null ||
+        snapshot.deviceId == null ||
+        snapshot.contentVersionId == null ||
+        snapshot.playSessionId == null) {
+      return ColorSortingLocalEventBuffer();
+    }
+    final session = snapshot.session!;
+    final deviceId = snapshot.deviceId!;
+    final contentVersionId = snapshot.contentVersionId!;
+    final playSessionId = snapshot.playSessionId!;
+    final policyVersion = snapshot.consentPolicyVersion;
+    if (policyVersion == null || policyVersion.isEmpty) {
+      ActivityTelemetryDiagnostics.gateBlocked(
+        'colorSortingMissingConsentPolicyVersion',
+      );
+      return ColorSortingLocalEventBuffer();
+    }
+    final startedAt = _clock().toUtc();
+    final emitter = ActivityEventEmitter(
+      outbox: outbox,
+      session: session,
+      deviceId: deviceId,
+      contentVersionId: contentVersionId,
+      consentPolicyVersion: policyVersion,
+      clock: _clock,
+    );
+    final sessionPayload = <String, dynamic>{
+      'schema_version': '1.0.0',
+      'play_session_id': playSessionId,
+      'device_id': deviceId,
+      'content_version_id': contentVersionId,
+      'started_at': startedAt.toIso8601String().replaceFirst('+00:00', 'Z'),
+      'completion_status': 'started',
+      'consent': {
+        'purpose': ColorSortingProductionConsent.purpose,
+        'consent_scope': ColorSortingProductionConsent.scope,
+        'policy_version': policyVersion,
+        'decision': 'granted',
+      },
+      'provenance': {
+        'emitter': 'kids_mode_client',
+        'capture_channel': 'offline_queue',
+        'clock_trust': 'wall_clock_only',
+      },
+    };
+    return ColorSortingProductionEventBuffer(
       emitter: emitter,
       sessionPayload: sessionPayload,
       deviceId: deviceId,

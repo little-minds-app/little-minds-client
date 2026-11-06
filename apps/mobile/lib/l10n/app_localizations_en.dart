@@ -504,6 +504,59 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shapeMatchingGardenTitle => 'Playful Learning Garden';
 
   @override
+  String get colorSortingPromptSort => 'Put it in the matching basket!';
+
+  @override
+  String get colorSortingPromptDone => 'You did it!';
+
+  @override
+  String get colorSortingTapOrDragHint => 'Tap a basket or drag the toy.';
+
+  @override
+  String get colorSortingObjectLabel => 'Toy to sort';
+
+  @override
+  String get colorSortingBinLabel => 'Basket';
+
+  @override
+  String get colorSortingBinsLabel => 'Baskets';
+
+  @override
+  String get colorSortingTryAgain => 'Try again!';
+
+  @override
+  String get colorSortingPlayAgain => 'Play again';
+
+  @override
+  String colorSortingHintLevel(int level) {
+    return 'A little help: look for the same color ($level)';
+  }
+
+  @override
+  String get colorSortingColorRed => 'Red';
+
+  @override
+  String get colorSortingColorYellow => 'Yellow';
+
+  @override
+  String get colorSortingColorBlue => 'Blue';
+
+  @override
+  String get colorSortingColorGreen => 'Green';
+
+  @override
+  String get colorSortingPraiseGreat => 'Great job!';
+
+  @override
+  String get colorSortingPraiseNice => 'Nice sort!';
+
+  @override
+  String get colorSortingPraiseAwesome => 'Awesome!';
+
+  @override
+  String get colorSortingOrchardTitle => 'Colorful Orchard';
+
+  @override
   String get parentDashboardChildSelectorLabel => 'Child profile';
 
   @override
