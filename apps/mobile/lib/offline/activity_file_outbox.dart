@@ -398,14 +398,14 @@ class ActivityFileOutbox {
       used += await file.length();
     }
     if (active.length < recordLimit &&
-        used + incomingBytes <= byteLimit) return;
+        used + incomingBytes <= byteLimit) { return; }
 
     // Old quarantined records have no retry path until explicit user action.
     // Remove them before risking unsent telemetry, keeping storage bounded.
     quarantine.sort((a, b) => a.statSync().modified.compareTo(b.statSync().modified));
     for (final file in quarantine) {
       if (active.length < recordLimit &&
-          used + incomingBytes <= byteLimit) break;
+          used + incomingBytes <= byteLimit) { break; }
       final size = await file.length();
       await file.delete();
       used -= size;
@@ -437,7 +437,7 @@ class ActivityFileOutbox {
     var remaining = active.length;
     for (final group in candidates) {
       if (remaining < recordLimit &&
-          used + incomingBytes <= byteLimit) break;
+          used + incomingBytes <= byteLimit) { break; }
       for (final row in group.value) {
         await row.file.delete();
         used -= row.size;
