@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,10 +8,14 @@ import '../game/hitbox_scaler.dart';
 import '../game/scoring_neutral_outcome.dart';
 import '../l10n/app_localizations.dart';
 import 'shape_matching_activity.dart';
+import 'shape_matching_bunny_mascot.dart';
 import 'shape_matching_constants.dart';
+import 'shape_matching_garden_scene.dart';
 import 'shape_matching_logic.dart';
+import 'shape_matching_shape_character.dart';
+import 'shape_matching_visual_profile.dart';
 
-/// Landscape play surface — drag-drop plus tap alternative (F-034 / ≥44dp).
+/// Landscape play surface — Playful Learning Garden with drag-drop + tap (F-034).
 class ShapeMatchingPlayField extends StatefulWidget {
   const ShapeMatchingPlayField({
     super.key,
@@ -29,11 +34,13 @@ class ShapeMatchingPlayField extends StatefulWidget {
   static const Key choicesZoneKey = Key('shape-matching-choices-zone');
   static const Key feedbackZoneKey = Key('shape-matching-feedback-zone');
   static const Key targetKey = Key('shape-matching-target');
+  static const Key targetLabelKey = Key('shape-matching-target-label');
   static const Key promptKey = Key('shape-matching-prompt');
   static const Key completionKey = Key('shape-matching-completion');
   static const Key replayKey = Key('shape-matching-replay');
   static const Key hintKey = Key('shape-matching-hint');
   static const Key tryAgainKey = Key('shape-matching-try-again');
+  static const Key praiseKey = Key('shape-matching-praise');
 
   static Key choiceKey(ShapeToken token) =>
       Key('shape-matching-choice-${token.name}');
@@ -47,9 +54,19 @@ class _ShapeMatchingPlayFieldState extends State<ShapeMatchingPlayField> {
   ActivitySessionController get controller => widget.controller;
   bool get reduceMotion => widget.reduceMotion;
 
+  BunnyMascotMood _mascotMood = BunnyMascotMood.idle;
+  Timer? _moodTimer;
+  /// Bumped on reset / activity replace so stale timers never mutate UI.
+  var _moodEpoch = 0;
+  var _praiseVisible = false;
+  var _praiseIndex = 0;
+  /// Last [ShapeMatchingActivity.correctMatchSerial] that triggered celebrate.
+  var _celebratedMatchSerial = 0;
+
   @override
   void initState() {
     super.initState();
+    _celebratedMatchSerial = activity.correctMatchSerial;
     activity.addListener(_onActivityChanged);
   }
 
@@ -58,18 +75,111 @@ class _ShapeMatchingPlayFieldState extends State<ShapeMatchingPlayField> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.activity != activity) {
       oldWidget.activity.removeListener(_onActivityChanged);
+      _resetVisualFeedback();
       activity.addListener(_onActivityChanged);
+      // Sync fields without setState — parent rebuild already schedules paint.
+      _syncMoodFromOutcome(notify: false);
     }
   }
 
   @override
   void dispose() {
+    _cancelMoodTimer();
+    _moodEpoch++;
     activity.removeListener(_onActivityChanged);
     super.dispose();
   }
 
+  void _cancelMoodTimer() {
+    _moodTimer?.cancel();
+    _moodTimer = null;
+  }
+
+  /// Clears praise / mood / timers (replay, activity replace, child switch).
+  void _resetVisualFeedback() {
+    _cancelMoodTimer();
+    _moodEpoch++;
+    _mascotMood = BunnyMascotMood.idle;
+    _praiseVisible = false;
+    _praiseIndex = 0;
+    _celebratedMatchSerial = activity.correctMatchSerial;
+  }
+
   void _onActivityChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    _syncMoodFromOutcome(notify: true);
+  }
+
+  void _syncMoodFromOutcome({required bool notify}) {
+    final outcome = activity.lastOutcome;
+
+    // Replay / progress reset — drop stale celebration before next round.
+    if (outcome == null) {
+      _resetVisualFeedback();
+      if (notify) setState(() {});
+      return;
+    }
+
+    if (outcome is ActivityCompletedOutcome) {
+      _setMood(
+        BunnyMascotMood.complete,
+        hold: const Duration(seconds: 4),
+        notify: notify,
+      );
+      _praiseVisible = true;
+      if (notify) setState(() {});
+      return;
+    }
+    if (outcome is EncouragementOutcome) {
+      if (outcome.cueKey == 'shape_match') {
+        // Deterministic: one celebration per correctMatchSerial, not UI mood.
+        // Survives rapid next-round picks and the duplicate notify from advance.
+        final serial = activity.correctMatchSerial;
+        if (serial > _celebratedMatchSerial) {
+          _celebratedMatchSerial = serial;
+          _praiseIndex++;
+          _praiseVisible = true;
+          _setMood(
+            BunnyMascotMood.celebrate,
+            hold: const Duration(milliseconds: 1200),
+            notify: notify,
+          );
+        }
+        return;
+      }
+      if (outcome.cueKey == 'try_again') {
+        _praiseVisible = false;
+        _setMood(
+          BunnyMascotMood.encourage,
+          hold: const Duration(milliseconds: 900),
+          notify: notify,
+        );
+        return;
+      }
+    }
+    if (notify) setState(() {});
+  }
+
+  void _setMood(
+    BunnyMascotMood mood, {
+    required Duration hold,
+    bool notify = true,
+  }) {
+    _cancelMoodTimer();
+    final epoch = _moodEpoch;
+    _mascotMood = mood;
+    if (notify) setState(() {});
+    if (mood == BunnyMascotMood.complete) return;
+    _moodTimer = Timer(hold, () {
+      if (!mounted || epoch != _moodEpoch) return;
+      setState(() {
+        _mascotMood = BunnyMascotMood.idle;
+        if (_praiseVisible &&
+            activity.lastOutcome is! ActivityCompletedOutcome) {
+          _praiseVisible = false;
+        }
+      });
+    });
   }
 
   @override
@@ -79,89 +189,127 @@ class _ShapeMatchingPlayFieldState extends State<ShapeMatchingPlayField> {
     final completed = activity.lastOutcome is ActivityCompletedOutcome;
     final mq = MediaQuery.of(context);
     final bottomInset = mq.padding.bottom;
+    final profile = ShapeMatchingVisualProfile.forAgeMonths(
+      activity.ageMonths > 0 ? activity.ageMonths : 36,
+    );
 
     return LayoutBuilder(
       key: ShapeMatchingPlayField.fieldKey,
       builder: (context, constraints) {
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
 
-        if (completed) {
-          return _CompletionPanel(
-            l10n: l10n,
-            viewport: viewport,
-            reduceMotion: reduceMotion,
-            onReplay: () {
-              // ignore: discarded_futures
-              controller.restart();
-            },
-          );
-        }
-
-        return DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFFF9C4),
-                Color(0xFFE1F5FE),
-                Color(0xFFC8E6C9),
-              ],
-            ),
-          ),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(12, 4, 12, 8 + bottomInset),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                KeyedSubtree(
-                  key: ShapeMatchingPlayField.instructionZoneKey,
-                  child: _InstructionZone(l10n: l10n),
-                ),
-                Expanded(
-                  flex: 38,
-                  child: KeyedSubtree(
-                    key: ShapeMatchingPlayField.targetZoneKey,
-                    child: _TargetZone(
-                      round: round,
-                      activity: activity,
-                      l10n: l10n,
-                      viewport: viewport,
-                      reduceMotion: reduceMotion,
-                      onAccept: _handlePick,
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            ShapeMatchingGardenScene(profile: profile),
+            if (completed)
+              _CompletionPanel(
+                l10n: l10n,
+                viewport: viewport,
+                reduceMotion: reduceMotion,
+                profile: profile,
+                onReplay: () {
+                  // ignore: discarded_futures
+                  controller.restart();
+                },
+              )
+            else
+              Padding(
+                padding: EdgeInsets.fromLTRB(12, 4, 12, 8 + bottomInset),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    KeyedSubtree(
+                      key: ShapeMatchingPlayField.instructionZoneKey,
+                      child: _InstructionZone(l10n: l10n, profile: profile),
                     ),
-                  ),
-                ),
-                Expanded(
-                  flex: 42,
-                  child: KeyedSubtree(
-                    key: ShapeMatchingPlayField.choicesZoneKey,
-                    child: _ChoicesZone(
-                      round: round,
-                      activity: activity,
-                      l10n: l10n,
-                      viewport: viewport,
-                      reduceMotion: reduceMotion,
-                      onPick: _handlePick,
+                    Expanded(
+                      flex: 38,
+                      child: KeyedSubtree(
+                        key: ShapeMatchingPlayField.targetZoneKey,
+                        // Stack keeps the target on the screen's horizontal
+                        // center; bunny overlays left without shifting that axis
+                        // (critical on iPhone landscape).
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.center,
+                          children: [
+                            Positioned.fill(
+                              child: _TargetZone(
+                                round: round,
+                                activity: activity,
+                                l10n: l10n,
+                                viewport: viewport,
+                                reduceMotion: reduceMotion,
+                                profile: profile,
+                                onAccept: _handlePick,
+                              ),
+                            ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: IgnorePointer(
+                                child: ShapeMatchingBunnyMascot(
+                                  profile: profile,
+                                  mood: _mascotMood,
+                                  reduceMotion: reduceMotion,
+                                  size: math.min(
+                                        viewport.shortestSide * 0.22,
+                                        110,
+                                      ) *
+                                      profile.mascotScale,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                    Expanded(
+                      flex: 42,
+                      child: KeyedSubtree(
+                        key: ShapeMatchingPlayField.choicesZoneKey,
+                        child: _ChoicesZone(
+                          round: round,
+                          activity: activity,
+                          l10n: l10n,
+                          viewport: viewport,
+                          reduceMotion: reduceMotion,
+                          profile: profile,
+                          onPick: _handlePick,
+                          onTap: _handleTap,
+                          onDragStart: _handleDragStart,
+                        ),
+                      ),
+                    ),
+                    KeyedSubtree(
+                      key: ShapeMatchingPlayField.feedbackZoneKey,
+                      child: _FeedbackZone(
+                        l10n: l10n,
+                        hintLevel: activity.hintLevel,
+                        showTryAgain: activity.lastOutcome is EncouragementOutcome &&
+                            (activity.lastOutcome as EncouragementOutcome)
+                                    .cueKey ==
+                                'try_again',
+                        showPraise: _praiseVisible,
+                        praiseIndex: _praiseIndex,
+                      ),
+                    ),
+                  ],
                 ),
-                KeyedSubtree(
-                  key: ShapeMatchingPlayField.feedbackZoneKey,
-                  child: _FeedbackZone(
-                    l10n: l10n,
-                    hintLevel: activity.hintLevel,
-                    showTryAgain: activity.lastOutcome is EncouragementOutcome &&
-                        (activity.lastOutcome as EncouragementOutcome).cueKey ==
-                            'try_again',
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+          ],
         );
       },
     );
+  }
+
+  void _handleTap(ShapeToken token) {
+    activity.notifyChoiceTap();
+    _handlePick(token);
+  }
+
+  void _handleDragStart() {
+    activity.notifyChoiceDragStart();
   }
 
   void _handlePick(ShapeToken token) {
@@ -178,12 +326,14 @@ class _ShapeMatchingPlayFieldState extends State<ShapeMatchingPlayField> {
 }
 
 class _InstructionZone extends StatelessWidget {
-  const _InstructionZone({required this.l10n});
+  const _InstructionZone({required this.l10n, required this.profile});
 
   final AppLocalizations l10n;
+  final ShapeMatchingVisualProfile profile;
 
   @override
   Widget build(BuildContext context) {
+    final toddler = profile.band == ShapeMatchingVisualBand.toddler;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
@@ -195,8 +345,16 @@ class _InstructionZone extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
+                  fontSize: toddler ? 26 : 22,
                   color: const Color(0xFF1B5E20),
+                  shadows: const [
+                    Shadow(
+                      color: Color(0x66FFFFFF),
+                      blurRadius: 6,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
                 ),
           ),
           const SizedBox(height: 2),
@@ -205,6 +363,7 @@ class _InstructionZone extends StatelessWidget {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: const Color(0xFF455A64),
+                  fontWeight: FontWeight.w600,
                 ),
           ),
         ],
@@ -220,6 +379,7 @@ class _TargetZone extends StatelessWidget {
     required this.l10n,
     required this.viewport,
     required this.reduceMotion,
+    required this.profile,
     required this.onAccept,
   });
 
@@ -228,6 +388,7 @@ class _TargetZone extends StatelessWidget {
   final AppLocalizations l10n;
   final Size viewport;
   final bool reduceMotion;
+  final ShapeMatchingVisualProfile profile;
   final void Function(ShapeToken) onAccept;
 
   @override
@@ -246,13 +407,16 @@ class _TargetZone extends StatelessWidget {
         final side = math.min(scaled, maxByHeight).clamp(72.0, 128.0);
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
+              key: ShapeMatchingPlayField.targetLabelKey,
               l10n.shapeMatchingTargetLabel,
+              textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: const Color(0xFF6A1B9A),
                   ),
             ),
@@ -266,16 +430,16 @@ class _TargetZone extends StatelessWidget {
                     onWillAcceptWithDetails: (_) => activity.interactionsEnabled,
                     onAcceptWithDetails: (details) => onAccept(details.data),
                     builder: (context, candidate, rejected) {
-                      return _ShapeCard(
+                      final highlighted =
+                          activity.hintLevel >= 1 || candidate.isNotEmpty;
+                      return _TargetSilhouette(
                         key: ShapeMatchingPlayField.targetKey,
                         token: round!.target,
                         label: _shapeLabel(l10n, round!.target),
                         size: side,
-                        isTarget: true,
-                        highlighted:
-                            activity.hintLevel >= 1 || candidate.isNotEmpty,
+                        highlighted: highlighted,
                         reduceMotion: reduceMotion,
-                        enabled: false,
+                        profile: profile,
                       );
                     },
                   ),
@@ -289,6 +453,67 @@ class _TargetZone extends StatelessWidget {
   }
 }
 
+class _TargetSilhouette extends StatelessWidget {
+  const _TargetSilhouette({
+    super.key,
+    required this.token,
+    required this.label,
+    required this.size,
+    required this.highlighted,
+    required this.reduceMotion,
+    required this.profile,
+  });
+
+  final ShapeToken token;
+  final String label;
+  final double size;
+  final bool highlighted;
+  final bool reduceMotion;
+  final ShapeMatchingVisualProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget child = DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        color: Colors.white.withValues(alpha: 0.55 + profile.targetGlow * 0.15),
+        boxShadow: [
+          BoxShadow(
+            color: (highlighted ? const Color(0xFFFFB300) : const Color(0xFF90CAF9))
+                .withValues(alpha: 0.35 + profile.targetGlow * 0.2),
+            blurRadius: highlighted ? 16 : 10,
+            spreadRadius: highlighted ? 2 : 0,
+          ),
+        ],
+      ),
+      child: ShapeMatchingShapeCharacter(
+        token: token,
+        size: size,
+        profile: profile,
+        mood: ShapeCharacterMood.silhouette,
+        highlighted: highlighted,
+        showFace: profile.band != ShapeMatchingVisualBand.toddler,
+      ),
+    );
+
+    if (!reduceMotion && highlighted) {
+      child = TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.97, end: 1.04),
+        duration: const Duration(milliseconds: 900),
+        curve: Curves.easeInOut,
+        builder: (context, scale, c) => Transform.scale(scale: scale, child: c),
+        child: child,
+      );
+    }
+
+    return Semantics(
+      label: label,
+      button: false,
+      child: child,
+    );
+  }
+}
+
 class _ChoicesZone extends StatelessWidget {
   const _ChoicesZone({
     required this.round,
@@ -296,7 +521,10 @@ class _ChoicesZone extends StatelessWidget {
     required this.l10n,
     required this.viewport,
     required this.reduceMotion,
+    required this.profile,
     required this.onPick,
+    required this.onTap,
+    required this.onDragStart,
   });
 
   final ShapeMatchingRound? round;
@@ -304,7 +532,10 @@ class _ChoicesZone extends StatelessWidget {
   final AppLocalizations l10n;
   final Size viewport;
   final bool reduceMotion;
+  final ShapeMatchingVisualProfile profile;
   final void Function(ShapeToken) onPick;
+  final void Function(ShapeToken) onTap;
+  final VoidCallback onDragStart;
 
   @override
   Widget build(BuildContext context) {
@@ -320,16 +551,23 @@ class _ChoicesZone extends StatelessWidget {
         );
         final count = round!.choices.length;
         final widthBudget = (constraints.maxWidth - 8 * (count + 1)) / count;
-        final heightBudget = constraints.maxHeight - 28;
+        // Reserve vertical room for the zone caption and optional per-choice labels
+        // so the character tile never overflows the Row (F-034 short landscape).
+        const zoneCaption = 24.0;
+        final choiceCaption = profile.showChoiceLabels ? 18.0 : 0.0;
+        final availableHeight =
+            (constraints.maxHeight - zoneCaption).clamp(0.0, 400.0);
+        final heightBudget =
+            (availableHeight - choiceCaption).clamp(32.0, 200.0);
         final choiceSide = math
             .min(scaled, math.min(widthBudget, heightBudget))
-            .clamp(52.0, 120.0);
+            .clamp(32.0, 120.0);
         return Column(
           children: [
             Text(
               l10n.shapeMatchingChoicesLabel,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: const Color(0xFF0277BD),
                   ),
             ),
@@ -346,10 +584,14 @@ class _ChoicesZone extends StatelessWidget {
                       label: _shapeLabel(l10n, token),
                       size: choiceSide,
                       reduceMotion: reduceMotion,
+                      profile: profile,
                       enabled: activity.interactionsEnabled,
                       highlighted:
                           activity.hintLevel >= 2 && token == round!.target,
+                      showLabel: profile.showChoiceLabels,
                       onPick: () => onPick(token),
+                      onTap: () => onTap(token),
+                      onDragStart: onDragStart,
                     ),
                 ],
               ),
@@ -366,11 +608,26 @@ class _FeedbackZone extends StatelessWidget {
     required this.l10n,
     required this.hintLevel,
     required this.showTryAgain,
+    required this.showPraise,
+    required this.praiseIndex,
   });
 
   final AppLocalizations l10n;
   final int hintLevel;
   final bool showTryAgain;
+  final bool showPraise;
+  final int praiseIndex;
+
+  String get _praise {
+    switch (praiseIndex % 3) {
+      case 1:
+        return l10n.shapeMatchingPraiseGreat;
+      case 2:
+        return l10n.shapeMatchingPraiseNice;
+      default:
+        return l10n.shapeMatchingPraiseAwesome;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -386,7 +643,7 @@ class _FeedbackZone extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: const Color(0xFF1565C0),
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                 )
               : showTryAgain
@@ -396,10 +653,20 @@ class _FeedbackZone extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             color: const Color(0xFFEF6C00),
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                           ),
                     )
-                  : const SizedBox.shrink(),
+                  : showPraise
+                      ? Text(
+                          key: ShapeMatchingPlayField.praiseKey,
+                          _praise,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                color: const Color(0xFF2E7D32),
+                                fontWeight: FontWeight.w800,
+                              ),
+                        )
+                      : const SizedBox.shrink(),
         ),
       ),
     );
@@ -411,23 +678,22 @@ class _CompletionPanel extends StatelessWidget {
     required this.l10n,
     required this.viewport,
     required this.reduceMotion,
+    required this.profile,
     required this.onReplay,
   });
 
   final AppLocalizations l10n;
   final Size viewport;
   final bool reduceMotion;
+  final ShapeMatchingVisualProfile profile;
   final VoidCallback onReplay;
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = HitboxScaler.scaleLength(88, viewport: viewport, minLogical: 64);
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFE8F5E9), Color(0xFFFFFDE7)],
-        ),
-      ),
+    final mascotSize =
+        HitboxScaler.scaleLength(120, viewport: viewport, minLogical: 88);
+    return ColoredBox(
+      color: Colors.white.withValues(alpha: 0.28),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -435,13 +701,11 @@ class _CompletionPanel extends StatelessWidget {
             Semantics(
               key: ShapeMatchingPlayField.completionKey,
               label: l10n.shapeMatchingPromptDone,
-              child: Icon(
-                Icons.emoji_events_rounded,
-                size: iconSize,
-                color: const Color(0xFFFFB300),
-                shadows: const [
-                  Shadow(color: Color(0x40000000), blurRadius: 8, offset: Offset(0, 3)),
-                ],
+              child: ShapeMatchingBunnyMascot(
+                profile: profile,
+                mood: BunnyMascotMood.complete,
+                reduceMotion: reduceMotion,
+                size: mascotSize,
               ),
             ),
             const SizedBox(height: 12),
@@ -451,6 +715,18 @@ class _CompletionPanel extends StatelessWidget {
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                     color: const Color(0xFF2E7D32),
+                    shadows: const [
+                      Shadow(color: Color(0x99FFFFFF), blurRadius: 8),
+                    ],
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.shapeMatchingPraiseAwesome,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF6A1B9A),
+                    fontWeight: FontWeight.w700,
                   ),
             ),
             const SizedBox(height: 20),
@@ -460,7 +736,8 @@ class _CompletionPanel extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF43A047),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                 textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -475,77 +752,6 @@ class _CompletionPanel extends StatelessWidget {
   }
 }
 
-class _ShapeCard extends StatelessWidget {
-  const _ShapeCard({
-    super.key,
-    required this.token,
-    required this.label,
-    required this.size,
-    required this.isTarget,
-    required this.highlighted,
-    required this.reduceMotion,
-    required this.enabled,
-  });
-
-  final ShapeToken token;
-  final String label;
-  final double size;
-  final bool isTarget;
-  final bool highlighted;
-  final bool reduceMotion;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget card = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        color: Colors.white.withValues(alpha: 0.85),
-        border: Border.all(
-          color: isTarget
-              ? const Color(0xFFFFB300)
-              : highlighted
-                  ? const Color(0xFF66BB6A)
-                  : const Color(0xFF90CAF9),
-          width: isTarget ? 4 : 2.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isTarget ? 0.18 : 0.12),
-            blurRadius: isTarget ? 14 : 8,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: CustomPaint(
-        painter: _ShapePainterDelegate(
-          token: token,
-          highlighted: highlighted || isTarget,
-        ),
-        child: Semantics(
-          label: label,
-          button: enabled,
-          enabled: enabled,
-          child: const SizedBox.expand(),
-        ),
-      ),
-    );
-
-    if (!reduceMotion && (highlighted || isTarget)) {
-      card = TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.97, end: 1.03),
-        duration: const Duration(milliseconds: 900),
-        curve: Curves.easeInOut,
-        builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
-        child: card,
-      );
-    }
-    return card;
-  }
-}
-
 class _DraggableShapeChoice extends StatelessWidget {
   const _DraggableShapeChoice({
     super.key,
@@ -553,57 +759,154 @@ class _DraggableShapeChoice extends StatelessWidget {
     required this.label,
     required this.size,
     required this.onPick,
+    required this.onTap,
+    required this.onDragStart,
     required this.enabled,
     required this.highlighted,
     required this.reduceMotion,
+    required this.profile,
+    required this.showLabel,
   });
 
   final ShapeToken token;
   final String label;
   final double size;
   final VoidCallback onPick;
+  final VoidCallback onTap;
+  final VoidCallback onDragStart;
   final bool enabled;
   final bool highlighted;
   final bool reduceMotion;
+  final ShapeMatchingVisualProfile profile;
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
-    final card = _ShapeCard(
+    final card = _ChoiceCard(
       token: token,
       label: label,
       size: size,
-      isTarget: false,
       highlighted: highlighted,
       reduceMotion: reduceMotion,
+      profile: profile,
       enabled: enabled,
+      showLabel: showLabel,
+      lifted: false,
     );
 
     return Semantics(
       button: true,
       enabled: enabled,
-      label: '$label. ${AppLocalizations.of(context).shapeMatchingTapOrDragHint}',
+      label:
+          '$label. ${AppLocalizations.of(context).shapeMatchingTapOrDragHint}',
       child: Draggable<ShapeToken>(
         data: token,
         maxSimultaneousDrags: enabled ? 1 : 0,
+        onDragStarted: enabled ? onDragStart : null,
         feedback: Material(
           color: Colors.transparent,
-          elevation: 8,
-          borderRadius: BorderRadius.circular(22),
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: CustomPaint(
-              painter: _ShapePainterDelegate(token: token, highlighted: true),
-            ),
+          child: ShapeMatchingShapeCharacter(
+            token: token,
+            size: size,
+            profile: profile,
+            mood: ShapeCharacterMood.excited,
+            highlighted: true,
+            lifted: true,
           ),
         ),
-        childWhenDragging: Opacity(opacity: 0.35, child: card),
+        childWhenDragging: Opacity(
+          opacity: 0.28,
+          child: ShapeMatchingShapeCharacter(
+            token: token,
+            size: size,
+            profile: profile,
+            mood: ShapeCharacterMood.silhouette,
+            showFace: false,
+          ),
+        ),
         child: GestureDetector(
-          onTap: enabled ? onPick : null,
+          onTap: enabled ? onTap : null,
           behavior: HitTestBehavior.opaque,
           child: card,
         ),
       ),
+    );
+  }
+}
+
+class _ChoiceCard extends StatelessWidget {
+  const _ChoiceCard({
+    required this.token,
+    required this.label,
+    required this.size,
+    required this.highlighted,
+    required this.reduceMotion,
+    required this.profile,
+    required this.enabled,
+    required this.showLabel,
+    required this.lifted,
+  });
+
+  final ShapeToken token;
+  final String label;
+  final double size;
+  final bool highlighted;
+  final bool reduceMotion;
+  final ShapeMatchingVisualProfile profile;
+  final bool enabled;
+  final bool showLabel;
+  final bool lifted;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final labelReserve = showLabel ? 18.0 : 0.0;
+        final side = math
+            .min(size, math.max(24.0, constraints.maxHeight - labelReserve))
+            .clamp(24.0, size);
+        Widget character = ShapeMatchingShapeCharacter(
+          token: token,
+          size: side,
+          profile: profile,
+          mood: highlighted ? ShapeCharacterMood.happy : ShapeCharacterMood.idle,
+          highlighted: highlighted,
+          lifted: lifted,
+        );
+
+        if (!reduceMotion && highlighted) {
+          character = TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.97, end: 1.05),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeInOut,
+            builder: (context, scale, child) =>
+                Transform.scale(scale: scale, child: child),
+            child: character,
+          );
+        }
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(width: side, height: side, child: character),
+            if (showLabel) ...[
+              const SizedBox(height: 2),
+              SizedBox(
+                height: 16,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF37474F),
+                      ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -620,93 +923,5 @@ String _shapeLabel(AppLocalizations l10n, ShapeToken token) {
       return l10n.shapeMatchingShapeStar;
     case ShapeToken.hexagon:
       return l10n.shapeMatchingShapeHexagon;
-  }
-}
-
-class _ShapePainterDelegate extends CustomPainter {
-  _ShapePainterDelegate({required this.token, required this.highlighted});
-
-  final ShapeToken token;
-  final bool highlighted;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final fill = Paint()
-      ..color = highlighted ? const Color(0xFF81C784) : const Color(0xFF64B5F6)
-      ..style = PaintingStyle.fill;
-    final stroke = Paint()
-      ..color = const Color(0xFF1A237E)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5;
-    final rect = Rect.fromLTWH(10, 10, size.width - 20, size.height - 20);
-    final center = rect.center;
-    switch (token) {
-      case ShapeToken.circle:
-        canvas.drawOval(rect.deflate(4), fill);
-        canvas.drawOval(rect.deflate(4), stroke);
-      case ShapeToken.square:
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rect.deflate(4), const Radius.circular(10)),
-          fill,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(rect.deflate(4), const Radius.circular(10)),
-          stroke,
-        );
-      case ShapeToken.triangle:
-        final path = Path()
-          ..moveTo(center.dx, rect.top + 4)
-          ..lineTo(rect.right - 4, rect.bottom - 4)
-          ..lineTo(rect.left + 4, rect.bottom - 4)
-          ..close();
-        canvas.drawPath(path, fill);
-        canvas.drawPath(path, stroke);
-      case ShapeToken.star:
-        _drawStar(canvas, center, rect.shortestSide / 2 - 4, fill, stroke);
-      case ShapeToken.hexagon:
-        _drawHex(canvas, center, rect.shortestSide / 2 - 4, fill, stroke);
-    }
-  }
-
-  void _drawStar(Canvas canvas, Offset center, double radius, Paint fill, Paint stroke) {
-    const points = 5;
-    final path = Path();
-    for (var i = 0; i < points * 2; i++) {
-      final r = i.isEven ? radius : radius * 0.45;
-      final angle = (i * math.pi / points) - math.pi / 2;
-      final pt = Offset(center.dx + r * math.cos(angle), center.dy + r * math.sin(angle));
-      if (i == 0) {
-        path.moveTo(pt.dx, pt.dy);
-      } else {
-        path.lineTo(pt.dx, pt.dy);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, fill);
-    canvas.drawPath(path, stroke);
-  }
-
-  void _drawHex(Canvas canvas, Offset center, double radius, Paint fill, Paint stroke) {
-    final path = Path();
-    for (var i = 0; i < 6; i++) {
-      final angle = i * math.pi / 3;
-      final pt = Offset(
-        center.dx + radius * math.cos(angle),
-        center.dy + radius * math.sin(angle),
-      );
-      if (i == 0) {
-        path.moveTo(pt.dx, pt.dy);
-      } else {
-        path.lineTo(pt.dx, pt.dy);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, fill);
-    canvas.drawPath(path, stroke);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ShapePainterDelegate oldDelegate) {
-    return oldDelegate.token != token || oldDelegate.highlighted != highlighted;
   }
 }

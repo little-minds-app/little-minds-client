@@ -920,36 +920,118 @@ abstract class AppLocalizations {
   /// **'Persisted current checkpoint.'**
   String get screenTimeDebugStatusPersist;
 
+  /// No description provided for @shapeMatchingPromptMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Find the same shape!'**
   String get shapeMatchingPromptMatch;
 
+  /// No description provided for @shapeMatchingPromptDone.
+  ///
+  /// In en, this message translates to:
+  /// **'You did it!'**
   String get shapeMatchingPromptDone;
 
+  /// No description provided for @shapeMatchingTapOrDragHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap or drag your shape.'**
   String get shapeMatchingTapOrDragHint;
 
+  /// No description provided for @shapeMatchingTargetLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Match this one'**
   String get shapeMatchingTargetLabel;
 
+  /// No description provided for @shapeMatchingChoicesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick one'**
   String get shapeMatchingChoicesLabel;
 
+  /// No description provided for @shapeMatchingTryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again!'**
   String get shapeMatchingTryAgain;
 
+  /// No description provided for @shapeMatchingPlayAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Play again'**
   String get shapeMatchingPlayAgain;
 
+  /// No description provided for @shapeMatchingHintLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'A little help: look for the same shape ({level})'**
   String shapeMatchingHintLevel(int level);
 
+  /// No description provided for @shapeMatchingShapeCircle.
+  ///
+  /// In en, this message translates to:
+  /// **'Circle'**
   String get shapeMatchingShapeCircle;
 
+  /// No description provided for @shapeMatchingShapeSquare.
+  ///
+  /// In en, this message translates to:
+  /// **'Square'**
   String get shapeMatchingShapeSquare;
 
+  /// No description provided for @shapeMatchingShapeTriangle.
+  ///
+  /// In en, this message translates to:
+  /// **'Triangle'**
   String get shapeMatchingShapeTriangle;
 
+  /// No description provided for @shapeMatchingShapeStar.
+  ///
+  /// In en, this message translates to:
+  /// **'Star'**
   String get shapeMatchingShapeStar;
 
+  /// No description provided for @shapeMatchingShapeHexagon.
+  ///
+  /// In en, this message translates to:
+  /// **'Hexagon'**
   String get shapeMatchingShapeHexagon;
 
+  /// No description provided for @shapeMatchingPraiseGreat.
+  ///
+  /// In en, this message translates to:
+  /// **'Great job!'**
+  String get shapeMatchingPraiseGreat;
+
+  /// No description provided for @shapeMatchingPraiseNice.
+  ///
+  /// In en, this message translates to:
+  /// **'Nice match!'**
+  String get shapeMatchingPraiseNice;
+
+  /// No description provided for @shapeMatchingPraiseAwesome.
+  ///
+  /// In en, this message translates to:
+  /// **'Awesome!'**
+  String get shapeMatchingPraiseAwesome;
+
+  /// No description provided for @shapeMatchingGardenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playful Learning Garden'**
+  String get shapeMatchingGardenTitle;
+
   /// Accessible label for the Parent Dashboard child profile switcher.
+  ///
+  /// In en, this message translates to:
+  /// **'Child profile'**
   String get parentDashboardChildSelectorLabel;
 
   /// Accessibility hint for the dashboard child profile dropdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which child\'s overview and mission status to show.'**
   String get parentDashboardChildSelectorHint;
 }
 

@@ -21,7 +21,7 @@ class ShapeMatchingActivity extends LearningActivity {
     String? playSessionId,
     String Function()? sessionIdFactory,
   })  : eventBuffer = eventBuffer ?? ShapeMatchingLocalEventBuffer(),
-        _audio = audio ?? ShapeMatchingAudio(),
+        _audio = audio ?? ShapeMatchingAudio(soundOff: soundOff),
         playSessionId = playSessionId ??
             (sessionIdFactory?.call() ??
                 'session-${DateTime.now().toUtc().microsecondsSinceEpoch}');
@@ -32,6 +32,9 @@ class ShapeMatchingActivity extends LearningActivity {
   final String localeTag;
   final bool soundOff;
   final String playSessionId;
+
+  /// Exposed for play-field tap/drag SFX and tests — single shared audio system.
+  ShapeMatchingAudio get audio => _audio;
 
   FlameGame? _game;
   var _ageMonths = -1;
@@ -44,11 +47,16 @@ class ShapeMatchingActivity extends LearningActivity {
   var _hintLevel = 0;
   var _wrongAttemptsThisRound = 0;
   var _showCelebrationPulse = false;
+  /// UI-only monotonic success id — one tick per correct match (not telemetry).
+  var _correctMatchSerial = 0;
   ScoringNeutralOutcome? _lastOutcome;
   final _listeners = <VoidCallback>[];
 
   bool get interactionsEnabled => _interactionsEnabled;
   bool get showCelebrationPulse => _showCelebrationPulse;
+  /// Increments once per correct pick; play-field uses this for one celebration
+  /// per match under rapid / duplicate notifications (not a wire payload field).
+  int get correctMatchSerial => _correctMatchSerial;
   int get ageMonths => _ageMonths;
   ShapeMatchingBand? get band => _band;
   int get roundIndex => _roundIndex;
@@ -57,6 +65,8 @@ class ShapeMatchingActivity extends LearningActivity {
   int get hintLevel => _hintLevel;
   bool get audioAssetsPresent => _audio.assetsPresent;
   bool get audioReady => _audio.ready;
+  bool get bgmAssetPresent => _audio.bgmAssetPresent;
+  bool get bgmReady => _audio.bgmReady;
 
   void addListener(VoidCallback listener) => _listeners.add(listener);
   void removeListener(VoidCallback listener) => _listeners.remove(listener);
@@ -111,6 +121,8 @@ class ShapeMatchingActivity extends LearningActivity {
   @override
   Future<void> onEnter() async {
     _emitStartedIfNeeded();
+    // Single Happy Garden BGM instance — loops for the whole play session.
+    await _audio.ensureBgmPlaying();
     final game = _game;
     if (game != null) {
       await mountFlameLayer(game);
@@ -120,6 +132,8 @@ class ShapeMatchingActivity extends LearningActivity {
   @override
   Future<void> onPause() async {
     setInteractionsEnabled(false);
+    // Screen-time / pause — stop SFX + pause BGM (resume restores loop).
+    await _audio.silence();
     await _drainProduction();
   }
 
@@ -128,19 +142,30 @@ class ShapeMatchingActivity extends LearningActivity {
     if (_lastOutcome is! ActivityCompletedOutcome) {
       setInteractionsEnabled(true);
     }
+    // No BGM while gameplay remains blocked (screen-time / pause / complete).
+    if (!_interactionsEnabled) return;
+    await _audio.resumeBgm();
   }
 
   @override
   Future<void> onBackground() async {
     setInteractionsEnabled(false);
+    await _audio.silence();
     await _drainProduction();
   }
 
   @override
-  Future<void> onForeground() async {}
+  Future<void> onForeground() async {
+    // Foreground alone must not restart BGM while pause / screen-time still
+    // blocks play (_pausedBeforeBackground → onForeground without onResume).
+    if (!_interactionsEnabled) return;
+    await _audio.resumeBgm();
+  }
 
   @override
   Future<void> onRestart() async {
+    // Replay keeps the same BGM instance (no duplicate startLoop).
+    await _audio.resetForReplay();
     _resetProgress(emitStarted: true);
     setInteractionsEnabled(true);
     _notify();
@@ -158,6 +183,8 @@ class ShapeMatchingActivity extends LearningActivity {
         payload: const {'completion_status': 'abandoned'},
       );
     }
+    // Kids Mode / activity exit — stop + dispose BGM and SFX.
+    await _audio.dispose();
     await _drainProduction();
     final game = _game;
     if (game != null) {
@@ -167,11 +194,24 @@ class ShapeMatchingActivity extends LearningActivity {
 
   @override
   Future<void> disposeResources() async {
+    await _audio.dispose();
     final game = _game;
     if (game != null) {
       await unmountFlameLayer(game);
     }
     _game = null;
+  }
+
+  /// Choice tap affordance SFX (non-blocking).
+  void notifyChoiceTap() {
+    // ignore: discarded_futures
+    _audio.playTap();
+  }
+
+  /// Drag-start bounce SFX (non-blocking).
+  void notifyChoiceDragStart() {
+    // ignore: discarded_futures
+    _audio.playDragBounce();
   }
 
   void setInteractionsEnabled(bool enabled) {
@@ -185,6 +225,7 @@ class ShapeMatchingActivity extends LearningActivity {
     _hintLevel = 0;
     _wrongAttemptsThisRound = 0;
     _showCelebrationPulse = false;
+    _correctMatchSerial = 0;
     _lastOutcome = null;
     _startedEmitted = false;
     _abandonedEmitted = false;
@@ -244,9 +285,16 @@ class ShapeMatchingActivity extends LearningActivity {
     );
 
     if (correct) {
+      _correctMatchSerial++;
       _showCelebrationPulse = true;
+      final willComplete =
+          _roundIndex + 1 >= ShapeMatchingConstants.roundsPerSession;
+      // Celebrate SFX is non-blocking — never delays round advance / completion.
       // ignore: discarded_futures
-      _audio.playCorrect();
+      _audio.playCorrectMatch(
+        serial: _correctMatchSerial,
+        isCompletion: willComplete,
+      );
       _lastOutcome = const EncouragementOutcome(cueKey: 'shape_match');
       _notify();
       _advanceAfterCorrect();
@@ -254,6 +302,8 @@ class ShapeMatchingActivity extends LearningActivity {
     }
 
     _wrongAttemptsThisRound++;
+    // ignore: discarded_futures
+    _audio.playWrong();
     _lastOutcome = const EncouragementOutcome(cueKey: 'try_again');
     if (_wrongAttemptsThisRound >= 2) {
       offerHint();

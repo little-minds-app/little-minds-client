@@ -492,6 +492,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shapeMatchingShapeHexagon => 'Hexagon';
 
   @override
+  String get shapeMatchingPraiseGreat => 'Great job!';
+
+  @override
+  String get shapeMatchingPraiseNice => 'Nice match!';
+
+  @override
+  String get shapeMatchingPraiseAwesome => 'Awesome!';
+
+  @override
+  String get shapeMatchingGardenTitle => 'Playful Learning Garden';
+
+  @override
   String get parentDashboardChildSelectorLabel => 'Child profile';
 
   @override
