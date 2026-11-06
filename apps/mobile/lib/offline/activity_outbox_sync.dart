@@ -288,11 +288,13 @@ class ActivityOutboxSync {
         initial.parentId,
         now: _clock().toUtc(),
         limit: 12,
+        reserve: true,
       );
       if (pending.isEmpty) {
         ActivityTelemetryDiagnostics.syncSkipped('outbox_empty');
         return;
       }
+      try {
       if (!_sameAccount(initial)) {
         ActivityTelemetryDiagnostics.syncSkipped('session_changed');
         return;
@@ -486,6 +488,9 @@ class ActivityOutboxSync {
         rejected: rejected,
         retryable: retryable,
       );
+      } finally {
+        await outbox.releaseReserved(pending);
+      }
   }
 
   Future<Map<String, dynamic>> _sendWithAuthRefresh(
