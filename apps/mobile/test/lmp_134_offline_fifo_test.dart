@@ -118,7 +118,7 @@ void main() {
       for (var i = 0; i < 8; i++) {
         final id = uuid.v4();
         await outbox.enqueue(makeEvent(
-          id, 'activity_completed', i, padding: 'p' * 450));
+          id, 'activity_completed', i, padding: List.filled(450, 'p').join()));
       }
       final dir = Directory('${root.path}/$parentId');
       final files = (await dir.list().toList()).whereType<File>().toList();
