@@ -5,6 +5,7 @@ import 'package:little_minds_api/api.dart';
 
 import 'auth_error.dart';
 import 'auth_session.dart';
+import 'parent_scoped_device_id.dart';
 import 'openapi_enum_int.dart';
 import 'parent_auth_repository.dart';
 
@@ -40,6 +41,19 @@ class ParentAuthController extends ChangeNotifier {
   String? get challengeId => _challengeId;
   int get resendAfterSeconds => _resendAfterSeconds;
   ParentAuthFailure? get lastError => _lastError;
+
+  /// Raw installation UUID sent on OTP verify (not the parent-scoped device row id).
+  Future<String> resolveInstallationId() => _repository.deviceId();
+
+  /// Parent-scoped device row id used on activity envelopes after sign-in.
+  Future<String> resolveScopedDeviceId() async {
+    final installationId = await _repository.deviceId();
+    final parentId = _session?.parentId;
+    if (parentId == null) return installationId;
+    return parentScopedDeviceId(installationId, parentId);
+  }
+
+  Future<String> resolveDeviceId() => resolveScopedDeviceId();
 
   Future<void> bootstrap() async {
     _lastError = null;

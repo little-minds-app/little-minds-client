@@ -8,7 +8,14 @@ import 'auth/parent_auth_repository.dart';
 import 'config/app_config.dart';
 import 'offline/activity_file_outbox.dart';
 import 'offline/activity_outbox_sync.dart';
+import 'offline/activity_telemetry_diagnostics.dart';
 import 'screen_time/screen_time.dart';
+import 'shape_matching/hub_authorized_device_child.dart';
+import 'consent/essential_play_events_consent_client.dart';
+import 'consent/essential_play_events_consent_service.dart';
+import 'shape_matching/hub_bootstrap.dart';
+import 'shape_matching/hub_device_child_binding.dart';
+import 'shape_matching/hub_production_telemetry.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +47,39 @@ Future<void> main() async {
   final offlineSync = ActivityOutboxSync(
     outbox: offlineOutbox,
     currentSession: () => parentAuth.session,
+    refreshSession: (session) async {
+      final access = await parentAuth.refreshForChildProfiles();
+      if (access == null) return null;
+      final active = parentAuth.session;
+      if (active == null ||
+          active.parentId != session.parentId ||
+          active.sessionId != session.sessionId) {
+        return null;
+      }
+      return active;
+    },
     send: ActivityHttpBatchSender(apiBaseUrl: config.apiBaseUrl).send,
+  );
+  offlineOutbox.onEventPersisted = (pendingHint) {
+    ActivityTelemetryDiagnostics.outboxEnqueued(pendingHint: pendingHint);
+    offlineSync.scheduleFlush();
+  };
+  final publishedContent = publishedContentRegistryFor(config);
+  final deviceChildCatalog = MemoryHubAuthorizedDeviceChildCatalog();
+  final hubDeviceChildBinding = HubDeviceChildBindingService(
+    catalog: deviceChildCatalog,
+    client: hubDeviceChildBindingClientFor(config),
+  );
+  final essentialPlayConsent = EssentialPlayEventsConsentService(
+    client: essentialPlayEventsConsentClientFor(config),
+    outbox: offlineOutbox,
+    offlineSync: offlineSync,
+  );
+  final hubTelemetry = HubProductionTelemetryCoordinator(
+    outbox: offlineOutbox,
+    contentRegistry: publishedContent,
+    deviceChildCatalog: deviceChildCatalog,
+    consentService: essentialPlayConsent,
   );
 
   runApp(
@@ -49,6 +88,9 @@ Future<void> main() async {
       screenTime: screenTime,
       parentAuthController: parentAuth,
       offlineSync: offlineSync,
+      hubTelemetry: hubTelemetry,
+      hubDeviceChildBinding: hubDeviceChildBinding,
+      essentialPlayConsent: essentialPlayConsent,
     ),
   );
 }

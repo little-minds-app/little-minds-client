@@ -30,6 +30,7 @@ class ChildHubSurface extends StatefulWidget {
     this.onOpenParentGate,
     this.forceShowEnvBadge = false,
     this.audioGuidance,
+    this.resolveActivityForPlay,
     this.soundOff = false,
   });
 
@@ -41,6 +42,8 @@ class ChildHubSurface extends StatefulWidget {
   final bool forceShowEnvBadge;
 
   final HubAudioGuidance? audioGuidance;
+  /// Resolve a brand new play session/buffer for each Hub entry and restart.
+  final Future<LearningActivity?> Function(String activityId)? resolveActivityForPlay;
   final bool soundOff;
 
   static const Key surfaceKey = Key('surface-child-hub');
@@ -117,7 +120,10 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
   }
 
   Future<void> _onPlay(HubActivityTile tile) async {
-    final activity = tile.activity;
+    // Re-resolve after async hub telemetry reconcile may have swapped buffers.
+    final activity = await (widget.resolveActivityForPlay?.call(tile.catalogId.id) ??
+        Future<LearningActivity?>.value(widget.game.registry.findById(tile.catalogId.id)));
+    if (!mounted) return;
     if (activity == null || !activity.isPlayable) {
       await _onPassiveTap(tile);
       return;
@@ -187,6 +193,9 @@ class _ChildHubSurfaceState extends State<ChildHubSurface> {
                         child: ActivityPlayHost(
                           game: widget.game,
                           activity: playing,
+                          newActivityForRestart: widget.resolveActivityForPlay == null
+                              ? null
+                              : () => widget.resolveActivityForPlay!(playing.id),
                           onClose: _closePlayHost,
                           showEnvBadge: _showEnvBadge,
                         ),

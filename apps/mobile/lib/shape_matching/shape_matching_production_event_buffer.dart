@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import '../core/canonical_rfc4122_uuid.dart';
 import '../offline/activity_event_emitter.dart';
-import 'shape_matching_constants.dart';
 import 'shape_matching_events.dart';
+import 'shape_matching_production_consent.dart';
+import 'shape_matching_wire_payload.dart';
 
 /// Optional production adapter — construct only with server-bound UUID session ids.
 class ShapeMatchingProductionEventBuffer extends ShapeMatchingLocalEventBuffer {
@@ -12,18 +14,18 @@ class ShapeMatchingProductionEventBuffer extends ShapeMatchingLocalEventBuffer {
     required String deviceId,
     required String contentVersionId,
   }) : super(deviceId: deviceId, contentVersionId: contentVersionId) {
-    final uuid = RegExp(
-      r'^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-      caseSensitive: false,
-    );
-    if (!uuid.hasMatch(deviceId) ||
-        !uuid.hasMatch(contentVersionId) ||
-        !uuid.hasMatch(sessionPayload['play_session_id']?.toString() ?? '') ||
+    if (!CanonicalRfc4122Uuid.isValid(deviceId) ||
+        !CanonicalRfc4122Uuid.isValid(contentVersionId) ||
+        !CanonicalRfc4122Uuid.isValid(
+          sessionPayload['play_session_id']?.toString() ?? '',
+        ) ||
         emitter.deviceId != deviceId ||
         emitter.contentVersionId != contentVersionId ||
         sessionPayload['consent'] is! Map ||
+        (sessionPayload['consent'] as Map)['purpose'] !=
+            ShapeMatchingProductionConsent.purpose ||
         (sessionPayload['consent'] as Map)['consent_scope'] !=
-            'essential_play_events' ||
+            ShapeMatchingProductionConsent.scope ||
         (sessionPayload['consent'] as Map)['policy_version'] !=
             emitter.consentPolicyVersion ||
         sessionPayload['schema_version'] != '1.0.0' ||
@@ -40,6 +42,9 @@ class ShapeMatchingProductionEventBuffer extends ShapeMatchingLocalEventBuffer {
   final List<ShapeMatchingActivityEvent> _pending = [];
   Future<void>? _draining;
   final Stopwatch _duration = Stopwatch();
+  int _hintsUsed = 0;
+  int _eligibleFirstAttempts = 0;
+  int _correctFirstAttempts = 0;
 
   @override
   ShapeMatchingActivityEvent emit({
@@ -59,6 +64,14 @@ class ShapeMatchingProductionEventBuffer extends ShapeMatchingLocalEventBuffer {
     );
     if (type == ShapeMatchingEventType.activityStarted && !_duration.isRunning) {
       _duration.start();
+    }
+    if (type == ShapeMatchingEventType.activityHintUsed) {
+      _hintsUsed++;
+    }
+    if (type == ShapeMatchingEventType.activityAttempted) {
+      final correct = event.payload['correct'] == true;
+      _eligibleFirstAttempts++;
+      if (correct) _correctFirstAttempts++;
     }
     _pending.add(event);
     unawaited(drain().catchError((Object _) {}));
@@ -85,7 +98,7 @@ class ShapeMatchingProductionEventBuffer extends ShapeMatchingLocalEventBuffer {
                   ShapeMatchingEventType.activityAbandoned.wireName;
       await emitter.emit(
         eventType: event.eventType,
-        consentScope: 'essential_play_events',
+        consentScope: ShapeMatchingProductionConsent.scope,
         payload: _canonicalPayload(event),
         source: 'instrumented',
         emitter: 'kids_mode_client',
@@ -117,28 +130,18 @@ class ShapeMatchingProductionEventBuffer extends ShapeMatchingLocalEventBuffer {
   }
 
   Map<String, dynamic> _canonicalPayload(ShapeMatchingActivityEvent event) {
-    final p = event.payload;
-    switch (event.eventType) {
-      case 'activity_started':
-        return {
-          'age_months': p['age_months'],
-          'activity_variant_id': ShapeMatchingConstants.activityId,
-          if (p['restart'] == true) 'restart': true,
-        };
-      case 'activity_attempted':
-        return {
-          'shape_id': p['shape_id'],
-          'correct': p['correct'],
-          'round_index': p['round_index'],
-        };
-      case 'activity_hint_used':
-        return {'hint_level': p['hint_level']};
-      case 'activity_completed':
-        return {'completion_status': 'completed', 'scoring': 'neutral'};
-      case 'activity_abandoned':
-        return {'completion_status': 'abandoned'};
-      default:
-        throw ArgumentError('Shape Matching production event type not mapped');
-    }
+    return ShapeMatchingWirePayload.canonicalPayload(
+      eventType: event.eventType,
+      instrumentPayload: Map<String, dynamic>.from(event.payload),
+      hintsUsed: _hintsUsed,
+      eligibleFirstAttempts:
+          event.eventType == ShapeMatchingEventType.activityCompleted.wireName
+              ? _eligibleFirstAttempts
+              : null,
+      correctFirstAttempts:
+          event.eventType == ShapeMatchingEventType.activityCompleted.wireName
+              ? _correctFirstAttempts
+              : null,
+    );
   }
 }

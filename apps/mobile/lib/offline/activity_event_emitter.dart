@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 
 import '../auth/auth_session.dart';
+import '../core/canonical_rfc4122_uuid.dart';
 import 'activity_file_outbox.dart';
 
 /// Builds a valid LMP-50 v1 envelope from instrumented activity events.
@@ -18,7 +19,9 @@ class ActivityEventEmitter {
   }) : _uuid = uuid ?? const Uuid(),
        _clock = clock ?? DateTime.now {
     for (final id in [deviceId, contentVersionId]) {
-      if (!_id.hasMatch(id)) throw ArgumentError('expected UUID v4/v7');
+      if (!CanonicalRfc4122Uuid.isValid(id)) {
+        throw ArgumentError('expected canonical RFC4122 UUID (v4/v5/v7)');
+      }
     }
     if (consentPolicyVersion.isEmpty) {
       throw ArgumentError('missing consent policy');
@@ -32,10 +35,6 @@ class ActivityEventEmitter {
   final String consentPolicyVersion;
   final Uuid _uuid;
   final DateTime Function() _clock;
-  static final _id = RegExp(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    caseSensitive: false,
-  );
   static const childTypes = {
     'activity_started', 'activity_attempted', 'activity_hint_used',
     'activity_completed', 'activity_abandoned',
@@ -97,7 +96,9 @@ class ActivityEventEmitter {
       throw ArgumentError('consent scope not allowlisted');
     }
     if ((parentOnly && playSessionId != null) ||
-        (!parentOnly && (playSessionId == null || !_id.hasMatch(playSessionId)))) {
+        (!parentOnly &&
+            (playSessionId == null ||
+                !CanonicalRfc4122Uuid.isValid(playSessionId)))) {
       throw ArgumentError('invalid play session relation');
     }
     if (!parentOnly && sessionPayload == null) {

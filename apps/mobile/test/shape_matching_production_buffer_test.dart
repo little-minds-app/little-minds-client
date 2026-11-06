@@ -6,6 +6,7 @@ import 'package:little_minds_mobile/offline/activity_event_emitter.dart';
 import 'package:little_minds_mobile/offline/activity_file_outbox.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_constants.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_events.dart';
+import 'package:little_minds_mobile/shape_matching/shape_matching_production_consent.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_production_event_buffer.dart';
 
 void main() {
@@ -41,8 +42,8 @@ void main() {
           'started_at': '2026-11-04T12:00:00Z',
           'completion_status': 'started',
           'consent': {
-            'purpose': 'essential_service_telemetry',
-            'consent_scope': 'essential_play_events',
+            'purpose': ShapeMatchingProductionConsent.purpose,
+            'consent_scope': ShapeMatchingProductionConsent.scope,
             'policy_version': 'privacy-notice-draft-0',
             'decision': 'granted',
           },
@@ -76,7 +77,13 @@ void main() {
       final attempted = events.singleWhere(
         (e) => e.payload['event_type'] == 'activity_attempted',
       );
-      expect(attempted.payload['payload'], containsPair('shape_id', 'circle'));
+      expect(attempted.payload['payload'], containsPair('attempt_index', 0));
+      expect(attempted.payload['payload'].keys, isNot(contains('shape_id')));
+      final started = events.singleWhere(
+        (e) => e.payload['event_type'] == 'activity_started',
+      );
+      expect(started.payload['payload'].keys, isNot(contains('activity_variant_id')));
+      expect(started.payload['payload'], containsPair('age_band', '24_35'));
       expect(
         events.every((e) => e.payload['content_version_id'] == contentId),
         isTrue,
@@ -113,8 +120,8 @@ void main() {
             'started_at': '2026-11-04T12:00:00Z',
             'completion_status': 'started',
             'consent': {
-              'purpose': 'essential_service_telemetry',
-              'consent_scope': 'essential_play_events',
+              'purpose': ShapeMatchingProductionConsent.purpose,
+              'consent_scope': ShapeMatchingProductionConsent.scope,
               'policy_version': 'privacy-notice-draft-0',
               'decision': 'granted',
             },

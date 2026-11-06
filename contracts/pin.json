@@ -1,9 +1,9 @@
 {
-  "$comment": "LMP-54 web BFF dashboard read routes (session KPIs + child missions)",
+  "$comment": "LMP-134 privacy consent APIs (PrivacyApi) + batch ingest. Pinned to backend PR #37 @ e30900c.",
   "backendRepository": "little-minds-app/little-minds-backend",
-  "backendCommitSha": "455bc3f3a3a44bb436d0c723dc407cff07d92e8d",
+  "backendCommitSha": "e30900c7b26690449ffa2bafce0a3562e9757d30",
   "artifactPath": "contracts/openapi.yaml",
-  "artifactBlobSha": "95a261894d27447f95537bdd9ccb7df4c4696b43",
-  "contractVersion": "0.14.2",
-  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/34"
+  "artifactBlobSha": "223e67417981ab74f42aafbe88458e7c0c3c71b5",
+  "contractVersion": "0.14.5",
+  "backendPullRequest": "https://github.com/little-minds-app/little-minds-backend/pull/37"
 }

@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/canonical_rfc4122_uuid.dart';
+
 import 'activity_payload_codec.dart';
 
 /// Immutable, account-bound record. No tokens or child PII are persisted.
@@ -71,12 +73,26 @@ class PendingActivityEvent {
 /// Scope: mobile platforms with atomic same-volume rename. This is a durable
 /// initial outbox implementation, NOT a SQLite multi-record transaction.
 /// Production uses AES-GCM ciphertext with a Keychain/Keystore managed key.
-class ActivityFileOutbox {
-  ActivityFileOutbox._(this._root, this._codec);
+typedef ActivityOutboxPersistedHook = void Function(int partitionPendingHint);
 
-  factory ActivityFileOutbox.forTesting(Directory root,
-      {ActivityPayloadCodec codec = const TestPlainActivityPayloadCodec()}) =>
-      ActivityFileOutbox._(root, codec);
+class ActivityFileOutbox {
+  ActivityFileOutbox._(
+    this._root,
+    this._codec, {
+    this.recordLimit = maxRecordsPerParent,
+    this.byteLimit = maxPartitionBytes,
+  });
+
+  factory ActivityFileOutbox.forTesting(
+    Directory root, {
+    ActivityPayloadCodec codec = const TestPlainActivityPayloadCodec(),
+    ActivityOutboxPersistedHook? onEventPersisted,
+    int recordLimit = maxRecordsPerParent,
+    int byteLimit = maxPartitionBytes,
+  }) =>
+      ActivityFileOutbox._(root, codec,
+          recordLimit: recordLimit, byteLimit: byteLimit)
+        ..onEventPersisted = onEventPersisted;
 
   static Future<ActivityFileOutbox> open() async {
     final directory = await getApplicationSupportDirectory();
@@ -88,15 +104,23 @@ class ActivityFileOutbox {
 
   final Directory _root;
   final ActivityPayloadCodec _codec;
-  /// Safety caps: exceed -> visible storage error; never silently drop a child event.
-  static const maxRecordsPerParent = 2000;
-  static const maxEventBytes = 16384;
-  Future<void> _tail = Future<void>.value();
+  /// Injectable only through the test factory; production uses hard limits.
+  final int recordLimit;
+  final int byteLimit;
 
-  static final _uuid = RegExp(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    caseSensitive: false,
-  );
+  /// Invoked after a new event record is atomically persisted (not on dedupe hits).
+  ActivityOutboxPersistedHook? onEventPersisted;
+
+  /// Hard per-parent outbox limits (encrypted bytes on disk, including quarantine).
+  /// At quota, evict oldest COMPLETE session as a unit; never evict an active
+  /// session or a session whose events are reserved by an in-flight batch.
+  static const maxRecordsPerParent = 500;
+  static const maxPartitionBytes = 5 * 1024 * 1024;
+  static const maxEventBytes = 16384;
+  final Set<String> _reservedEventIds = <String>{};
+  int droppedEventsAtCapacity = 0;
+  int droppedSessionsAtCapacity = 0;
+  Future<void> _tail = Future<void>.value();
 
   // Serializes local read-modify-write operations within one outbox instance.
   Future<T> _serialized<T>(Future<T> Function() operation) async {
@@ -112,12 +136,16 @@ class ActivityFileOutbox {
   }
 
   Directory _partition(String parentId) {
-    if (!_uuid.hasMatch(parentId)) throw ArgumentError('invalid parent ID');
+    if (!CanonicalRfc4122Uuid.isValid(parentId)) {
+      throw ArgumentError('invalid parent ID');
+    }
     return Directory('${_root.path}/${parentId.toLowerCase()}');
   }
 
   File _entry(String parentId, String eventId) {
-    if (!_uuid.hasMatch(eventId)) throw ArgumentError('invalid event ID');
+    if (!CanonicalRfc4122Uuid.isValid(eventId)) {
+      throw ArgumentError('invalid event ID');
+    }
     return File('${_partition(parentId).path}/${eventId.toLowerCase()}.json');
   }
 
@@ -156,18 +184,25 @@ class ActivityFileOutbox {
       }
       return; // Never reset retry metadata on accidental re-enqueue.
     }
-    final existing = await file.parent.list(followLinks: false).toList();
-    if (existing.whereType<File>().where((f) => f.path.endsWith('.json')).length >=
-        maxRecordsPerParent) {
-      throw StateError('outbox.capacity_exceeded');
+    // Seal once so quota measures the actual encrypted bytes on disk.
+    final sealed = await _codec.seal(event.parentId, event.toJson());
+    await _makeSpaceFor(event.parentId, utf8.encode(sealed).length);
+    await _atomicWriteSealed(file, sealed);
+    final hook = onEventPersisted;
+    if (hook != null) {
+      final files = await file.parent
+          .list(followLinks: false)
+          .where((e) => e is File && e.path.endsWith('.json'))
+          .length;
+      hook(files);
     }
-    await _atomicWrite(file, event.toJson());
   });
 
   Future<List<PendingActivityEvent>> pending(
     String parentId, {
     DateTime? now,
     int limit = 50,
+    bool reserve = false,
   }) => _serialized(() async {
     if (limit < 1 || limit > 50) throw RangeError.range(limit, 1, 50);
     final dir = _partition(parentId);
@@ -189,8 +224,17 @@ class ActivityFileOutbox {
         if (result.length == limit) break;
       }
     }
+    if (reserve) {
+      _reservedEventIds.addAll(result.map((e) => e.eventId));
+    }
     return result;
   });
+
+  /// Ends the lease established for an HTTP batch; safe even after ACK/deletion.
+  Future<void> releaseReserved(List<PendingActivityEvent> events) =>
+      _serialized(() async {
+        _reservedEventIds.removeAll(events.map((e) => e.eventId));
+      });
 
   Future<void> acknowledge(String parentId, String eventId) =>
       _serialized(() async {
@@ -222,10 +266,89 @@ class ActivityFileOutbox {
       throw ArgumentError('invalid rejection reason');
     }
     final file = _entry(parentId, eventId);
-    if (await file.exists()) {
-      await file.rename('${file.path}.rejected');
+    if (!await file.exists()) return;
+    final rejected = File(
+      '${file.parent.path}/${eventId.toLowerCase()}.json.rejected',
+    );
+    if (await rejected.exists()) {
+      throw StateError('quarantine destination already exists');
     }
+    // Same-volume rename to *.json.rejected can fail with EINVAL on some
+    // platforms; copy-then-delete preserves the sealed bytes without loss.
+    await rejected.writeAsBytes(await file.readAsBytes(), flush: true);
+    await file.delete();
   });
+
+  /// Re-enqueue quarantined events for a consent scope without touching
+  /// `*.json.rejected` archives (copy-then-enqueue). Skips when the same
+  /// [event_id] is already pending. Safe to call after server grant (LMP-134).
+  Future<int> requeueQuarantinedConsentScope(
+    String parentId,
+    String scope,
+  ) =>
+      _serialized(() async {
+        final dir = _partition(parentId);
+        if (!await dir.exists()) return 0;
+        final pendingIds = <String>{};
+        await for (final entity in dir.list(followLinks: false)) {
+          if (entity is! File || !entity.path.endsWith('.json')) {
+            continue;
+          }
+          final data = PendingActivityEvent.fromJson(
+            await _codec.open(parentId, await entity.readAsString()),
+          );
+          pendingIds.add(data.eventId.toLowerCase());
+        }
+        var requeued = 0;
+        await for (final entity in dir.list(followLinks: false)) {
+          if (entity is! File || !entity.path.endsWith('.json.rejected')) {
+            continue;
+          }
+          final data = PendingActivityEvent.fromJson(
+            await _codec.open(parentId, await entity.readAsString()),
+          );
+          if (data.parentId != parentId ||
+              data.payload['consent_scope'] != scope) {
+            continue;
+          }
+          final id = data.eventId.toLowerCase();
+          if (pendingIds.contains(id)) {
+            continue;
+          }
+          final destination = _entry(parentId, data.eventId);
+          if (await destination.exists()) {
+            pendingIds.add(id);
+            continue;
+          }
+          final fresh = PendingActivityEvent(
+            parentId: data.parentId,
+            eventId: data.eventId,
+            payload: data.payload,
+            sessionPayload: data.sessionPayload,
+            createdAt: data.createdAt,
+          );
+          // Requeue is not allowed to bypass the same encrypted quota used
+          // for normal enqueue. Preserve the original quarantine on overflow.
+          final sealed = await _codec.seal(parentId, fresh.toJson());
+          var used = 0;
+          await for (final candidate in dir.list(followLinks: false)) {
+            if (candidate is File &&
+                (candidate.path.endsWith('.json') ||
+                    candidate.path.endsWith('.json.rejected'))) {
+              used += await candidate.length();
+            }
+          }
+          if (pendingIds.length >= recordLimit ||
+              used + utf8.encode(sealed).length > byteLimit) {
+            throw StateError('outbox.capacity_exceeded');
+          }
+          await _atomicWriteSealed(destination, sealed);
+          pendingIds.add(id);
+          requeued++;
+          onEventPersisted?.call(pendingIds.length);
+        }
+        return requeued;
+      });
 
   /// Purge unacknowledged optional analytics when consent is withdrawn.
   Future<int> purgeConsentScope(String parentId, String scope) =>
@@ -276,16 +399,87 @@ class ActivityFileOutbox {
     await _codec.forgetParent(parentId);
   });
 
-  Future<void> _atomicWrite(File destination, Map<String, dynamic> value) async {
+  Future<void> _makeSpaceFor(String parentId, int incomingBytes) async {
+    if (incomingBytes > byteLimit) {
+      throw StateError('outbox.event_too_large');
+    }
+    final dir = _partition(parentId);
+    final files = (await dir.list(followLinks: false).toList())
+        .whereType<File>().toList();
+    final active = files.where((f) => f.path.endsWith('.json')).toList();
+    final quarantine = files.where((f) => f.path.endsWith('.json.rejected')).toList();
+    var used = 0;
+    for (final file in [...active, ...quarantine]) {
+      used += await file.length();
+    }
+    if (active.length < recordLimit &&
+        used + incomingBytes <= byteLimit) { return; }
+
+    // Old quarantined records have no retry path until explicit user action.
+    // Remove them before risking unsent telemetry, keeping storage bounded.
+    quarantine.sort((a, b) => a.statSync().modified.compareTo(b.statSync().modified));
+    for (final file in quarantine) {
+      if (active.length < recordLimit &&
+          used + incomingBytes <= byteLimit) { break; }
+      final size = await file.length();
+      await file.delete();
+      used -= size;
+    }
+
+    final groups = <String, List<({File file, PendingActivityEvent item, int size})>>{};
+    for (final file in active) {
+      final item = PendingActivityEvent.fromJson(
+          await _codec.open(parentId, await file.readAsString()));
+      if (item.parentId != parentId) throw StateError('outbox account binding corrupted');
+      final sessionId = item.payload['play_session_id'];
+      final groupId = sessionId is String ? sessionId : 'event:${item.eventId}';
+      groups.putIfAbsent(groupId, () => []).add(
+          (file: file, item: item, size: await file.length()));
+    }
+    final candidates = groups.entries.where((group) {
+      final items = group.value;
+      if (items.any((row) => _reservedEventIds.contains(row.item.eventId))) return false;
+      if (group.key.startsWith('event:')) return true;
+      return items.any((row) =>
+          row.item.payload['event_type'] == 'activity_completed' ||
+          row.item.payload['event_type'] == 'activity_abandoned');
+    }).toList()..sort((a, b) {
+      DateTime oldest(List<({File file, PendingActivityEvent item, int size})> entries) =>
+          entries.map((e) => e.item.createdAt)
+              .reduce((a, b) => a.isBefore(b) ? a : b);
+      return oldest(a.value).compareTo(oldest(b.value));
+    });
+    var remaining = active.length;
+    for (final group in candidates) {
+      if (remaining < recordLimit &&
+          used + incomingBytes <= byteLimit) { break; }
+      for (final row in group.value) {
+        await row.file.delete();
+        used -= row.size;
+        remaining--;
+        droppedEventsAtCapacity++;
+      }
+      droppedSessionsAtCapacity++;
+    }
+    // If only active/in-flight sessions remain, refuse to lose half a session.
+    if (remaining >= recordLimit ||
+        used + incomingBytes > byteLimit) {
+      throw StateError('outbox.capacity_exceeded');
+    }
+  }
+
+  Future<void> _atomicWriteSealed(File destination, String sealed) async {
     final temp = File('${destination.path}.${const Uuid().v4()}.tmp');
     try {
-      final parentId = destination.parent.uri.pathSegments.where((x) => x.isNotEmpty).last;
-      await temp.writeAsString(await _codec.seal(parentId, value), flush: true);
+      await temp.writeAsString(sealed, flush: true);
       await temp.rename(destination.path);
     } finally {
-      if (await temp.exists()) {
-        await temp.delete();
-      }
+      if (await temp.exists()) await temp.delete();
     }
+  }
+
+  Future<void> _atomicWrite(File destination, Map<String, dynamic> value) async {
+    final parentId = destination.parent.uri.pathSegments.where((x) => x.isNotEmpty).last;
+    await _atomicWriteSealed(destination, await _codec.seal(parentId, value));
   }
 }

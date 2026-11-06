@@ -13,7 +13,7 @@
     "contracts:compat": "node scripts/contracts/check-compatibility.mjs",
     "contracts:generate": "node scripts/contracts/generate.mjs",
     "contracts:check": "bash scripts/check-contracts.sh",
-    "test": "node --test tests/contract/*.test.mjs"
+    "test": "node --test tests/contract/*.test.mjs tests/scripts/*.test.mjs"
   },
   "dependencies": {
     "@apidevtools/swagger-parser": "13.1.0",
@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@openapitools/openapi-generator-cli": "2.42.0",
+    "ajv": "^8.20.0",
     "openapi-typescript": "7.13.0"
   }
 }

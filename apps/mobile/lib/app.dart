@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'auth/auth_session.dart';
+import 'consent/essential_play_events_consent_scope.dart';
+import 'consent/essential_play_events_consent_service.dart';
 import 'auth/auth_token_store.dart';
 import 'auth/parent_auth_controller.dart';
 import 'auth/parent_auth_repository.dart';
@@ -15,8 +17,12 @@ import 'config/app_config.dart';
 import 'theme/little_minds_parent_theme.dart';
 import 'config/app_config_scope.dart';
 import 'game/activity_registry.dart';
+import 'game/learning_activity.dart';
 import 'game/flame_host.dart';
 import 'shape_matching/hub_activity_registry.dart';
+import 'shape_matching/hub_bootstrap.dart';
+import 'shape_matching/hub_device_child_binding.dart';
+import 'shape_matching/hub_production_telemetry.dart';
 import 'l10n/app_localizations.dart';
 import 'mentor/mentor_card.dart';
 import 'mentor/mentor_card_fixtures.dart';
@@ -33,6 +39,7 @@ import 'surfaces/optional_parent_profile_surface.dart';
 import 'parent_dashboard/mission_status_repository.dart';
 import 'parent_dashboard/session_kpi_repository.dart';
 import 'surfaces/parent_dashboard_surface.dart';
+import 'surfaces/essential_play_events_consent_surface.dart';
 import 'surfaces/parent_settings_surface.dart';
 import 'surfaces/profile_selection_surface.dart';
 import 'surfaces/screen_time_debug_inspector_surface.dart';
@@ -66,6 +73,9 @@ class LittleMindsApp extends StatefulWidget {
     this.parentGateApi,
     this.sessionKpiRepository,
     this.missionStatusRepository,
+    this.hubTelemetry,
+    this.hubDeviceChildBinding,
+    this.essentialPlayConsent,
   }) : config = config ?? AppConfig.developmentLocal;
 
   final StubLearningGame? game;
@@ -126,6 +136,15 @@ class LittleMindsApp extends StatefulWidget {
   /// Widget tests may inject mission status repository (LMP-53 delivery B).
   final MissionStatusRepository? missionStatusRepository;
 
+  /// LMP-134: optional hub production telemetry coordinator (production [main]).
+  final HubProductionTelemetryCoordinator? hubTelemetry;
+
+  /// LMP-134: mirrors server `devices.child_id` before production reconcile.
+  final HubDeviceChildBindingService? hubDeviceChildBinding;
+
+  /// LMP-134 server-attested play telemetry consent (production [main]).
+  final EssentialPlayEventsConsentService? essentialPlayConsent;
+
   @override
   State<LittleMindsApp> createState() => _LittleMindsAppState();
 }
@@ -141,6 +160,7 @@ enum _ShellRoute {
   nearFarDemo,
   nearFarMentor,
   screenTimeDebug,
+  essentialPlayConsent,
 }
 
 bool get _isWidgetTestBinding =>
@@ -159,7 +179,10 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   late final ActivityRegistry _hubRegistry = widget.game?.registry ??
       createHubActivityRegistry(
         ageMonthsProvider: () => _hubChildAge.ageMonths,
-        localeTag: widget.locale?.toLanguageTag() ?? 'en-US',
+        options: HubActivityRegistryOptions(
+          localeTag: widget.locale?.toLanguageTag() ?? 'en-US',
+          telemetryCoordinator: widget.hubTelemetry,
+        ),
       );
   late final StubLearningGame _game =
       widget.game ?? StubLearningGame(registry: _hubRegistry);
@@ -184,6 +207,59 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   Timer? _offlineSyncTimer;
   final List<({String token, AuthSession session, DateTime expiresAt})> _pendingRevokes = [];
   bool _revokeInFlight = false;
+  int _hubTelemetryReconcileGeneration = 0;
+  String? _lastAuthenticatedParentId;
+
+  /// Never reuse a prior session or outbox buffer when launching another play.
+  Future<LearningActivity?> _freshActivityForPlay(String activityId) async {
+    if (widget.hubTelemetry == null || widget.game != null) {
+      return _hubRegistry.findById(activityId);
+    }
+    final previous = _hubRegistry.findById(activityId);
+    await _reconcileHubTelemetry();
+    final fresh = _hubRegistry.findById(activityId);
+    if (identical(previous, fresh)) return null; // Fail closed on stale telemetry.
+    return fresh;
+  }
+
+  Future<void> _reconcileHubTelemetry() async {
+    final coordinator = widget.hubTelemetry;
+    if (coordinator == null || widget.game != null) return;
+    final generation = ++_hubTelemetryReconcileGeneration;
+    try {
+      String? installationId;
+      String? scopedDeviceId;
+      if (_parentAuth.isAuthenticated) {
+        try {
+          installationId = await _parentAuth.resolveInstallationId();
+          scopedDeviceId = await _parentAuth.resolveScopedDeviceId();
+        } catch (_) {
+          installationId = null;
+          scopedDeviceId = null;
+        }
+      }
+      await widget.hubDeviceChildBinding?.synchronizeSelectedChild(
+        readSession: () => _parentAuth.session,
+        installationId: installationId,
+        scopedDeviceId: scopedDeviceId,
+        selectedChildId: _profiles.selectedId,
+      );
+      if (generation != _hubTelemetryReconcileGeneration) return;
+      await coordinator.reconcileHubRegistry(
+        registry: _hubRegistry,
+        ageMonthsProvider: () => _hubChildAge.ageMonths,
+        session: _parentAuth.session,
+        selectedChildId: _profiles.selectedId,
+        deviceId: scopedDeviceId,
+        localeTag: widget.locale?.toLanguageTag() ?? 'en-US',
+      );
+      if (mounted && generation == _hubTelemetryReconcileGeneration) {
+        setState(() {});
+      }
+    } catch (_) {
+      // Hub reconcile must not surface as an unhandled async error from listeners.
+    }
+  }
 
   /// A storage/codec failure must not become an unhandled asynchronous error
   /// from a lifecycle callback or timer. Outbox data remains on disk for
@@ -259,6 +335,8 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     );
     _hubChildAge.profiles = _profiles;
     _parentAuth.addListener(_handleAuthChange);
+    _profiles.addListener(_reconcileHubTelemetry);
+    widget.essentialPlayConsent?.addListener(_reconcileHubTelemetry);
     if (widget.offlineSync != null) {
       _flushOfflineSafely();
       _offlineSyncTimer = Timer.periodic(const Duration(seconds: 60), (_) {
@@ -285,6 +363,8 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
         _parentAuth.bootstrap();
       }
     }
+    // ignore: discarded_futures
+    _reconcileHubTelemetry();
   }
 
   /// In-memory only outside release. Release without injection → fail-closed.
@@ -330,6 +410,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     return route == _ShellRoute.parentSettings ||
         route == _ShellRoute.parentDashboard ||
         route == _ShellRoute.optionalParentProfile ||
+        route == _ShellRoute.essentialPlayConsent ||
         route == _ShellRoute.nearFarMentor ||
         route == _ShellRoute.nearFarDemo ||
         route == _ShellRoute.screenTimeDebug ||
@@ -382,9 +463,22 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
 
   void _handleAuthChange() {
     if (!mounted) return;
+    final session = _parentAuth.session;
+    if (session == null && _lastAuthenticatedParentId != null) {
+      // ignore: discarded_futures
+      widget.hubDeviceChildBinding?.onParentLoggedOut(_lastAuthenticatedParentId!);
+      widget.essentialPlayConsent?.clearForLogout();
+      _lastAuthenticatedParentId = null;
+    } else if (session != null) {
+      _lastAuthenticatedParentId = session.parentId;
+      // ignore: discarded_futures
+      widget.essentialPlayConsent?.refresh(session);
+    }
     if (_parentAuth.isAuthenticated && widget.offlineSync != null) {
       _flushOfflineSafely();
     }
+    // ignore: discarded_futures
+    _reconcileHubTelemetry();
     if (_gateSessionId != null &&
         _parentAuth.session?.sessionId != _gateSessionId) {
       _clearAdultGrant();
@@ -443,6 +537,8 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     _revokeRetryTimer?.cancel();
     _offlineSyncTimer?.cancel();
     _parentAuth.removeListener(_handleAuthChange);
+    _profiles.removeListener(_reconcileHubTelemetry);
+    widget.essentialPlayConsent?.removeListener(_reconcileHubTelemetry);
     if (_ownsScreenTime) {
       _screenTime.dispose();
     }
@@ -455,6 +551,15 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
     super.dispose();
   }
 
+  Widget _wrapConsentScope(Widget child) {
+    final consent = widget.essentialPlayConsent;
+    if (consent == null) return child;
+    return EssentialPlayEventsConsentScope(
+      notifier: consent,
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ParentAuthScope(
@@ -463,7 +568,8 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
         config: widget.config,
         child: ScreenTimeScope(
           coordinator: _screenTime,
-          child: MaterialApp(
+          child: _wrapConsentScope(
+            MaterialApp(
           onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
           debugShowCheckedModeBanner: false,
           locale: widget.locale,
@@ -481,6 +587,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                 case _ShellRoute.childHub:
                   return ChildHubSurface(
                     game: _game,
+                    resolveActivityForPlay: _freshActivityForPlay,
                     audioGuidance: widget.audioGuidance,
                     forceShowEnvBadge: widget.forceShowEnvBadge,
                     onOpenProfiles: () { _profileManageMode = false; _go(_ShellRoute.profileSelection); },
@@ -528,6 +635,9 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                 case _ShellRoute.parentSettings:
                   return ParentSettingsSurface(
                     onOpenOptionalParentProfile: () => _go(_ShellRoute.optionalParentProfile),
+                    onOpenEssentialPlayConsent: widget.essentialPlayConsent != null
+                        ? () => _go(_ShellRoute.essentialPlayConsent)
+                        : null,
                     onOpenProfiles: () { _profileManageMode = true; _go(_ShellRoute.profileSelection); },
                     onOpenParentDashboard: () => _go(_ShellRoute.parentDashboard),
                     onBack: () => _go(_ShellRoute.parentGate),
@@ -581,11 +691,23 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                     onBack: () => _go(_ShellRoute.parentSettings),
                     forceShowForTest: kDebugMode,
                   );
+                case _ShellRoute.essentialPlayConsent:
+                  return EssentialPlayEventsConsentSurface(
+                    publicationRegistry: widget.hubTelemetry?.contentRegistry ??
+                        publishedContentRegistryFor(widget.config),
+                    onBack: () => _go(_ShellRoute.parentSettings),
+                    onCompleted: () {
+                      // ignore: discarded_futures
+                      _reconcileHubTelemetry();
+                      _go(_ShellRoute.parentSettings);
+                    },
+                  );
               }
             },
           ),
         ),
       ),
+    ),
     ),
     );
   }

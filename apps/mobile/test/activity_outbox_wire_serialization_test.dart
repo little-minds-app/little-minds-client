@@ -51,11 +51,39 @@ void main() {
           'correct_first_attempts': 5,
         },
       };
+      final sessionPayload = <String, dynamic>{
+        'schema_version': '1.0.0',
+        'play_session_id': '55555555-5555-4555-8555-555555555555',
+        'device_id': event['device_id'],
+        'content_version_id': event['content_version_id'],
+        'started_at': '2026-10-28T06:00:00.000Z',
+        'completion_status': 'started',
+        'consent': {
+          'purpose': 'essential_service_telemetry',
+          'policy_version': 'privacy-notice-draft-0',
+          'consent_scope': 'essential_play_events',
+          'decision': 'granted',
+        },
+        'provenance': {
+          'emitter': 'kids_mode_client',
+          'capture_channel': 'offline_queue',
+          'clock_trust': 'monotonic_within_boot',
+        },
+      };
       await expectLater(
-        sender.send(session, [event], []),
+        sender.send(session, [event], [sessionPayload]),
         throwsA(isA<ActivityPermanentHttp>()),
       );
       await serverTask;
+      expect(captured!['sessions'], isA<List>());
+      expect((captured!['sessions'] as List), hasLength(1));
+      final wireSession = (captured!['sessions'] as List).single
+          as Map<String, dynamic>;
+      expect(wireSession['play_session_id'], sessionPayload['play_session_id']);
+      expect(
+        (wireSession['consent'] as Map)['purpose'],
+        'essential_service_telemetry',
+      );
       final wireEvent = (captured!['events'] as List).single
           as Map<String, dynamic>;
       expect(wireEvent.containsKey('play_session_id'), isFalse);

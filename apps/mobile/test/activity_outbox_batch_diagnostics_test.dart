@@ -1,0 +1,492 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:little_minds_mobile/auth/auth_session.dart';
+import 'package:little_minds_mobile/offline/activity_batch_wire_codec.dart';
+import 'package:little_minds_mobile/offline/activity_file_outbox.dart';
+import 'package:little_minds_mobile/offline/activity_outbox_sync.dart';
+import 'package:little_minds_api/api.dart';
+
+void main() {
+  DebugPrintCallback? restoreDebugPrint;
+
+  setUp(() {
+    restoreDebugPrint = debugPrint;
+  });
+
+  tearDown(() {
+    debugPrint = restoreDebugPrint!;
+  });
+
+  test('encodeActivityBatchWire is jsonEncode-safe with sessions', () {
+    const sid = '55555555-5555-4555-8555-555555555555';
+    final session = ActivitySessionV1.fromJson(<String, dynamic>{
+      'schema_version': '1.0.0',
+      'play_session_id': sid,
+      'device_id': '51100000-0000-4000-8000-000000000002',
+      'content_version_id': '51100000-0000-4000-8000-000000000007',
+      'started_at': '2026-10-28T06:00:00.000Z',
+      'ended_at': '2026-10-28T06:01:24.000Z',
+      'monotonic_duration_seconds': 84,
+      'completion_status': 'completed',
+      'app_build': '0.1.0+local',
+      'locale': 'en-US',
+      'consent': {
+        'purpose': 'essential_service_telemetry',
+        'policy_version': 'privacy-notice-draft-0',
+        'consent_scope': 'essential_play_events',
+        'decision': 'granted',
+      },
+      'provenance': {
+        'emitter': 'kids_mode_client',
+        'capture_channel': 'offline_queue',
+        'clock_trust': 'monotonic_within_boot',
+      },
+    })!;
+    final event = ActivityEventV1.fromJson(<String, dynamic>{
+      'schema_version': '1.0.0',
+      'event_id': '33333333-3333-4333-8333-333333333333',
+      'event_type': 'activity_completed',
+      'play_session_id': sid,
+      'device_id': '51100000-0000-4000-8000-000000000002',
+      'content_version_id': '51100000-0000-4000-8000-000000000007',
+      'occurred_at': '2026-10-28T06:01:24.000Z',
+      'monotonic_duration_seconds': 84,
+      'consent_scope': 'essential_play_events',
+      'consent_policy_version': 'privacy-notice-draft-0',
+      'provenance': {
+        'emitter': 'kids_mode_client',
+        'actor_scope': 'child_play',
+        'source': 'instrumented',
+        'clock_trust': 'monotonic_within_boot',
+      },
+      'payload': {'completion_status': 'completed'},
+    })!;
+    final wire = encodeActivityBatchWire(
+      IngestActivityEventBatchRequest(sessions: [session], events: [event]),
+    );
+    expect(() => jsonEncode(wire), returnsNormally);
+    final sessions = wire['sessions'] as List;
+    expect(sessions, hasLength(1));
+    expect(sessions.single['play_session_id'], sid);
+    expect((sessions.single['consent'] as Map)['purpose'],
+        'essential_service_telemetry');
+  });
+
+  test('HTTP 401 emits batch_http_failed and auth skip diagnostics', () async {
+    final logs = <String>[];
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) logs.add(message);
+    };
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      request.response.statusCode = HttpStatus.unauthorized;
+      await request.response.close();
+    });
+    const session = AuthSession(
+      accessToken: 'test-only',
+      refreshToken: 'test-only',
+      sessionId: 'test-session',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      expiresInSeconds: 300,
+    );
+    final sender = ActivityHttpBatchSender(
+      apiBaseUrl: Uri.parse('http://127.0.0.1:${server.port}'),
+    );
+    await expectLater(
+      sender.send(session, [_minimalEvent()], []),
+      throwsA(isA<ActivityAuthExpired>()),
+    );
+    expect(
+      logs.any((line) => line.contains('batch_http_failed status=401')),
+      isTrue,
+    );
+    expect(
+      logs.any((line) => line.contains('batch_endpoint host=127.0.0.1')),
+      isTrue,
+    );
+  });
+
+  test('HTTP 400 emits validation field paths without raw body', () async {
+    final logs = <String>[];
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) logs.add(message);
+    };
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      request.response.statusCode = HttpStatus.badRequest;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(
+        '{"message":["sessions.0.device_id must match pattern","batch.invalid_event"]}',
+      );
+      await request.response.close();
+    });
+    const session = AuthSession(
+      accessToken: 'test-only',
+      refreshToken: 'test-only',
+      sessionId: 'test-session',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      expiresInSeconds: 300,
+    );
+    final sender = ActivityHttpBatchSender(
+      apiBaseUrl: Uri.parse('http://127.0.0.1:${server.port}'),
+    );
+    await expectLater(
+      sender.send(session, [_minimalEvent()], [_minimalSession()]),
+      throwsA(isA<ActivityPermanentHttp>()),
+    );
+    expect(
+      logs.any(
+        (line) =>
+            line.contains('batch_http_failed status=400') &&
+            line.contains('error_code=batch.invalid_event') &&
+            line.contains('field_paths=sessions.0.device_id'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('HTTP 200 retryable ACK emits per-event reason diagnostics', () async {
+    final logs = <String>[];
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) logs.add(message);
+    };
+    final root = await Directory.systemTemp.createTemp('lmp134-ack-retry-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final outbox = ActivityFileOutbox.forTesting(root);
+    const eventIds = [
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
+    ];
+    for (final id in eventIds) {
+      await outbox.enqueue(
+        PendingActivityEvent(
+          parentId: '11111111-1111-4111-8111-111111111111',
+          eventId: id,
+          createdAt: DateTime.utc(2026, 11, 4),
+          payload: {..._minimalEvent(), 'event_id': id},
+        ),
+      );
+    }
+    final sync = ActivityOutboxSync(
+      outbox: outbox,
+      currentSession: () => const AuthSession(
+        accessToken: 'test-only',
+        refreshToken: 'test-only',
+        sessionId: 'test-session',
+        parentId: '11111111-1111-4111-8111-111111111111',
+        expiresInSeconds: 300,
+      ),
+      clock: () => DateTime.utc(2026, 11, 4),
+      send: (_, events, _) async => {
+        'results': [
+          for (var i = 0; i < events.length; i++)
+            {
+              'event_id': events[i]['event_id'],
+              'status': 'retryable',
+              'reason_code': i == 0
+                  ? 'session.pending'
+                  : 'storage.temporarily_unavailable',
+            },
+        ],
+      },
+    );
+    await sync.flush();
+    sync.dispose();
+    expect(
+      logs.any(
+        (line) =>
+            line.contains('LMP-134 telemetry sync_ack ') &&
+            line.contains('retryable=3'),
+      ),
+      isTrue,
+    );
+    expect(
+      logs.any(
+        (line) =>
+            line.contains('sync_ack_event ordinal=1 status=retryable') &&
+            line.contains('reason=session.pending'),
+      ),
+      isTrue,
+    );
+    expect(
+      logs.any(
+        (line) =>
+            line.contains('sync_ack_event ordinal=2 status=retryable') &&
+            line.contains('reason=storage.temporarily_unavailable'),
+      ),
+      isTrue,
+    );
+    expect(logs.any((line) => line.contains(eventIds[0])), isFalse);
+    expect(
+      await outbox.pending(
+        '11111111-1111-4111-8111-111111111111',
+        now: DateTime.utc(2026, 11, 5),
+      ),
+      hasLength(3),
+    );
+  });
+
+  test('HTTP 401 postpones batch and enters auth backoff', () async {
+    final logs = <String>[];
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) logs.add(message);
+    };
+    final root = await Directory.systemTemp.createTemp('lmp134-auth-401-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final outbox = ActivityFileOutbox.forTesting(root);
+    await outbox.enqueue(
+      PendingActivityEvent(
+        parentId: '11111111-1111-4111-8111-111111111111',
+        eventId: '33333333-3333-4333-8333-333333333333',
+        createdAt: DateTime.utc(2026, 11, 4),
+        // Auth backoff path does not need a session envelope.
+        payload: _minimalEvent(),
+      ),
+    );
+    var sendCalls = 0;
+    final sync = ActivityOutboxSync(
+      outbox: outbox,
+      currentSession: () => const AuthSession(
+        accessToken: 'test-only',
+        refreshToken: 'test-only',
+        sessionId: 'test-session',
+        parentId: '11111111-1111-4111-8111-111111111111',
+        expiresInSeconds: 300,
+      ),
+      clock: () => DateTime.utc(2026, 11, 4),
+      send: (_, _, _) async {
+        sendCalls++;
+        throw const ActivityAuthExpired();
+      },
+    );
+    await sync.flush();
+    expect(sendCalls, 1);
+    expect(
+      logs.any((line) => line.contains('sync_skipped reason=auth_expired')),
+      isTrue,
+    );
+    expect(
+      logs.any(
+        (line) =>
+            line.contains('sync_retry_scheduled reason=auth_expired'),
+      ),
+      isTrue,
+    );
+    sendCalls = 0;
+    await sync.flush();
+    expect(sendCalls, 0);
+    expect(
+      logs.any((line) => line.contains('sync_skipped reason=auth_backoff')),
+      isTrue,
+    );
+    sync.dispose();
+  });
+
+  test('HTTP 401 refresh retries once before auth backoff', () async {
+    final root = await Directory.systemTemp.createTemp('lmp134-auth-refresh-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final outbox = ActivityFileOutbox.forTesting(root);
+    await outbox.enqueue(
+      PendingActivityEvent(
+        parentId: '11111111-1111-4111-8111-111111111111',
+        eventId: '33333333-3333-4333-8333-333333333333',
+        createdAt: DateTime.utc(2026, 11, 4),
+        payload: _minimalEvent(),
+      ),
+    );
+    var sendCalls = 0;
+    var refreshCalls = 0;
+    const session = AuthSession(
+      accessToken: 'stale',
+      refreshToken: 'test-only',
+      sessionId: 'test-session',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      expiresInSeconds: 300,
+    );
+    const refreshed = AuthSession(
+      accessToken: 'fresh',
+      refreshToken: 'test-only',
+      sessionId: 'test-session',
+      parentId: '11111111-1111-4111-8111-111111111111',
+      expiresInSeconds: 300,
+    );
+    final sync = ActivityOutboxSync(
+      outbox: outbox,
+      currentSession: () => sendCalls == 0 ? session : refreshed,
+      refreshSession: (_) async {
+        refreshCalls++;
+        return refreshed;
+      },
+      clock: () => DateTime.utc(2026, 11, 4),
+      send: (active, _, _) async {
+        sendCalls++;
+        if (active.accessToken == 'stale') {
+          throw const ActivityAuthExpired();
+        }
+        return {
+          'results': [
+            {
+              'event_id': '33333333-3333-4333-8333-333333333333',
+              'status': 'accepted',
+            },
+          ],
+        };
+      },
+    );
+    await sync.flush();
+    expect(refreshCalls, 1);
+    expect(sendCalls, 2);
+    expect(
+      await outbox.pending(
+        '11111111-1111-4111-8111-111111111111',
+        now: DateTime.utc(2026, 11, 5),
+      ),
+      isEmpty,
+    );
+    sync.dispose();
+  });
+
+  test('sync repairs mismatched session consent before POST', () async {
+    final root = await Directory.systemTemp.createTemp('lmp134-session-repair-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final outbox = ActivityFileOutbox.forTesting(root);
+    final session = _minimalSession();
+    (session['consent'] as Map)['policy_version'] = 'v1-tr-2026-10';
+    final event = {
+      ..._minimalEvent(),
+      'play_session_id': session['play_session_id'],
+    };
+    await outbox.enqueue(
+      PendingActivityEvent(
+        parentId: '11111111-1111-4111-8111-111111111111',
+        eventId: event['event_id'] as String,
+        createdAt: DateTime.utc(2026, 11, 4),
+        payload: event,
+        sessionPayload: session,
+      ),
+    );
+    List<Map<String, dynamic>>? postedSessions;
+    final sync = ActivityOutboxSync(
+      outbox: outbox,
+      currentSession: () => const AuthSession(
+        accessToken: 'test-only',
+        refreshToken: 'test-only',
+        sessionId: 'test-session',
+        parentId: '11111111-1111-4111-8111-111111111111',
+        expiresInSeconds: 300,
+      ),
+      clock: () => DateTime.utc(2026, 11, 4),
+      send: (_, _, sessions) async {
+        postedSessions = sessions;
+        return {
+          'results': [
+            {
+              'event_id': event['event_id'],
+              'status': 'accepted',
+            },
+          ],
+        };
+      },
+    );
+    await sync.flush();
+    sync.dispose();
+    expect(postedSessions, hasLength(1));
+    expect(
+      (postedSessions!.single['consent'] as Map)['policy_version'],
+      event['consent_policy_version'],
+    );
+    expect(
+      (postedSessions!.single['consent'] as Map)['purpose'],
+      'essential_play_events',
+    );
+  });
+
+  test('HTTP 503 emits retry diagnostics through outbox sync', () async {
+    final logs = <String>[];
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) logs.add(message);
+    };
+    final root = await Directory.systemTemp.createTemp('lmp134-batch-diag-');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    final outbox = ActivityFileOutbox.forTesting(root);
+    await outbox.enqueue(
+      PendingActivityEvent(
+        parentId: '11111111-1111-4111-8111-111111111111',
+        eventId: '33333333-3333-4333-8333-333333333333',
+        createdAt: DateTime.utc(2026, 11, 4),
+        payload: _minimalEvent(),
+      ),
+    );
+    final sync = ActivityOutboxSync(
+      outbox: outbox,
+      currentSession: () => const AuthSession(
+        accessToken: 'test-only',
+        refreshToken: 'test-only',
+        sessionId: 'test-session',
+        parentId: '11111111-1111-4111-8111-111111111111',
+        expiresInSeconds: 300,
+      ),
+      clock: () => DateTime.utc(2026, 11, 4),
+      send: (_, _, _) async => throw const ActivityRetryableHttp(503),
+    );
+    await sync.flush();
+    expect(
+      logs.any((line) => line.contains('sync_retry_scheduled reason=http_retryable_503')),
+      isTrue,
+    );
+  });
+}
+
+Map<String, dynamic> _minimalSession() => <String, dynamic>{
+      'schema_version': '1.0.0',
+      'play_session_id': '55555555-5555-4555-8555-555555555555',
+      'device_id': '51100000-0000-4000-8000-000000000002',
+      'content_version_id': '51100000-0000-4000-8000-000000000007',
+      'started_at': '2026-10-28T06:00:00.000Z',
+      'completion_status': 'started',
+      'consent': {
+        'purpose': 'essential_play_events',
+        'policy_version': 'privacy-notice-draft-0',
+        'consent_scope': 'essential_play_events',
+        'decision': 'granted',
+      },
+      'provenance': {
+        'emitter': 'kids_mode_client',
+        'capture_channel': 'offline_queue',
+        'clock_trust': 'monotonic_within_boot',
+      },
+    };
+
+Map<String, dynamic> _minimalEvent() => <String, dynamic>{
+      'schema_version': '1.0.0',
+      'event_id': '33333333-3333-4333-8333-333333333333',
+      'event_type': 'activity_completed',
+      'device_id': '51100000-0000-4000-8000-000000000002',
+      'content_version_id': '51100000-0000-4000-8000-000000000007',
+      'occurred_at': '2026-10-28T06:01:24.000Z',
+      'consent_scope': 'essential_play_events',
+      'consent_policy_version': 'privacy-notice-draft-0',
+      'provenance': {
+        'emitter': 'kids_mode_client',
+        'actor_scope': 'child_play',
+        'source': 'instrumented',
+        'clock_trust': 'monotonic_within_boot',
+      },
+      'payload': {'completion_status': 'completed'},
+    };

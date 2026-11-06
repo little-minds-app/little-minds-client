@@ -170,21 +170,36 @@ test('stale and partial freshness metadata show warnings', async () => {
 
 test('tab focus revalidates session and clears data after logout', async () => {
   let authed = true;
+  let meCalls = 0;
   globalThis.fetch = (async (url: string) => {
-    if (url === '/api/auth/me') return authed ? reply(200, { parent_id: 'parent-a' }) : reply(401, {});
+    if (url === '/api/auth/me') {
+      meCalls += 1;
+      return authed ? reply(200, { parent_id: 'parent-a' }) : reply(401, {});
+    }
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
+  // Bind listeners + events to this file's JSDOM (avoid cross-file globalThis.window clobber).
+  bindDomGlobals();
   Object.defineProperty(dom.window.document, 'visibilityState', {
     configurable: true,
     value: 'visible',
   });
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
+  // Flush the snapshot→revalidate-listener effect before synthesizing focus.
+  await act(async () => {});
+  bindDomGlobals();
+  const meBeforeFocus = meCalls;
   authed = false;
-  fireEvent(dom.window, new dom.window.Event('focus'));
-  await waitFor(() => assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/)));
-  assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
+  await act(async () => {
+    fireEvent(dom.window, new dom.window.Event('focus'));
+  });
+  await waitFor(() => assert.ok(meCalls > meBeforeFocus));
+  await waitFor(() => {
+    assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/));
+    assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
+  });
 });
 
 test('tab focus clears dashboard when parent identity changes', async () => {
@@ -215,14 +230,17 @@ test('tab focus clears dashboard when parent identity changes', async () => {
 
 test('tab focus network error on session revalidation fails closed', async () => {
   let failMeOnFocus = false;
+  let meCalls = 0;
   globalThis.fetch = (async (url: string) => {
     if (url === '/api/auth/me') {
+      meCalls += 1;
       if (failMeOnFocus) throw new TypeError('Failed to fetch');
       return reply(200, { parent_id: 'parent-a' });
     }
     if (url.startsWith('/api/insights/')) return reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
+  bindDomGlobals();
   Object.defineProperty(dom.window.document, 'visibilityState', {
     configurable: true,
     value: 'visible',
@@ -230,8 +248,14 @@ test('tab focus network error on session revalidation fails closed', async () =>
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
   assert.ok(screen.getByText(/Ebeveyn bildirimi yok \(uygulama etkileşimi tamamlanma kanıtı değildir\)/));
+  await act(async () => {});
+  bindDomGlobals();
+  const meBeforeFocus = meCalls;
   failMeOnFocus = true;
-  fireEvent(dom.window, new dom.window.Event('focus'));
+  await act(async () => {
+    fireEvent(dom.window, new dom.window.Event('focus'));
+  });
+  await waitFor(() => assert.ok(meCalls > meBeforeFocus));
   await waitFor(() => {
     assert.ok(screen.getByText(/Korumalı bilgiler gizlendi/));
     assert.equal(screen.queryByText(/50% \(1\/2\)/), null);
@@ -239,16 +263,22 @@ test('tab focus network error on session revalidation fails closed', async () =>
   });
 });
 
-test('retry refetches both independent data panels', async () => {
+test('verified tab focus refetches both panels without manual refresh control', async () => {
   let kpis = 0;
   globalThis.fetch = (async (url: string) => {
     if (url === '/api/auth/me') return reply(200, { parent_id: 'parent-a' });
     if (url.startsWith('/api/insights/')) return ++kpis === 1 ? reply(503, {}) : reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
+  bindDomGlobals();
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/Oturum özeti yüklenemedi/)));
-  fireEvent.click(screen.getByRole('button', { name: 'Özeti yenile' }));
+  assert.equal(screen.queryByRole('button', { name: 'Özeti yenile' }), null);
+  await act(async () => {});
+  bindDomGlobals();
+  await act(async () => {
+    fireEvent(dom.window, new dom.window.Event('focus'));
+  });
   await waitFor(() => assert.ok(screen.getByText('Uygun oturum')));
   assert.equal(kpis, 2);
 });
