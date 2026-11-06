@@ -48,14 +48,30 @@ abstract final class AnimalSoundMatchingAnimalTrack {
 }
 
 /// Single-slot animal prompt port — never stacks overlapping prompts.
+///
+/// Playback is generation-owned: a stale [play]/[stop] for an older
+/// [generation] must neither restart old audio nor silence a newer owner.
 abstract class AnimalSoundMatchingAnimalPlayer {
   bool get canPlay;
   bool get isPlaying;
 
-  /// Stops any in-flight prompt, then plays [kind]. Returns false on failure.
-  Future<bool> play(AnimalKind kind, {required double volume});
+  /// Generation that currently owns the bus (0 when idle / fully stopped).
+  int get activeGeneration;
 
-  Future<void> stop();
+  /// Stops any lower-generation prompt, then plays [kind] owned by [generation].
+  /// Returns false when superseded, disposed, or playback fails.
+  Future<bool> play(
+    AnimalKind kind, {
+    required double volume,
+    required int generation,
+  });
+
+  /// Stops the bus.
+  ///
+  /// When [generation] is non-null, stops only if that generation still owns
+  /// the bus — a stale caller cannot silence a newer prompt. When null, stops
+  /// unconditionally (pause / background / dispose / screen-time).
+  Future<void> stop({int? generation});
 
   Future<void> dispose();
 }
@@ -71,10 +87,18 @@ class UnavailableAnimalSoundMatchingAnimalPlayer
   bool get isPlaying => false;
 
   @override
-  Future<bool> play(AnimalKind kind, {required double volume}) async => false;
+  int get activeGeneration => 0;
 
   @override
-  Future<void> stop() async {}
+  Future<bool> play(
+    AnimalKind kind, {
+    required double volume,
+    required int generation,
+  }) async =>
+      false;
+
+  @override
+  Future<void> stop({int? generation}) async {}
 
   @override
   Future<void> dispose() async {}
@@ -100,11 +124,18 @@ class RecordingAnimalSoundMatchingAnimalPlayer
   @override
   bool isPlaying = false;
 
+  @override
+  int activeGeneration = 0;
+
   final List<AnimalKind> plays = <AnimalKind>[];
   final List<double> volumes = <double>[];
+  final List<int> playGenerations = <int>[];
   var succeed = true;
   var stopCount = 0;
   var disposeCount = 0;
+
+  /// Generations that were refused a stop because a newer owner held the bus.
+  final List<int> ignoredStops = <int>[];
 
   final List<_HeldAnimalPlay> _heldPlays = <_HeldAnimalPlay>[];
 
@@ -113,17 +144,30 @@ class RecordingAnimalSoundMatchingAnimalPlayer
   AnimalKind? get nextHeldKind =>
       _heldPlays.isEmpty ? null : _heldPlays.first.kind;
 
+  int? get nextHeldGeneration =>
+      _heldPlays.isEmpty ? null : _heldPlays.first.generation;
+
   /// Completes the oldest held [play]. Returns false if none are pending.
   bool releaseNextPlay({bool? succeedOverride}) {
     if (_heldPlays.isEmpty) return false;
     final held = _heldPlays.removeAt(0);
+    // Superseded while held — never record as an audible play.
+    if (activeGeneration != held.generation) {
+      held.completer.complete(false);
+      return true;
+    }
     final ok = succeedOverride ?? (succeed && canPlay && disposeCount == 0);
     if (ok) {
       plays.add(held.kind);
       volumes.add(held.volume);
+      playGenerations.add(held.generation);
       isPlaying = true;
+      activeGeneration = held.generation;
     } else {
       isPlaying = false;
+      if (activeGeneration == held.generation) {
+        activeGeneration = 0;
+      }
     }
     held.completer.complete(ok);
     return true;
@@ -135,39 +179,69 @@ class RecordingAnimalSoundMatchingAnimalPlayer
     }
   }
 
+  void _failHeld({required bool Function(_HeldAnimalPlay held) match}) {
+    final remaining = <_HeldAnimalPlay>[];
+    for (final held in _heldPlays) {
+      if (match(held)) {
+        held.completer.complete(false);
+      } else {
+        remaining.add(held);
+      }
+    }
+    _heldPlays
+      ..clear()
+      ..addAll(remaining);
+  }
+
   @override
-  Future<bool> play(AnimalKind kind, {required double volume}) async {
-    // Replay contract: stop prior before starting (no overlap).
+  Future<bool> play(
+    AnimalKind kind, {
+    required double volume,
+    required int generation,
+  }) async {
+    // Claim the bus for this generation — supersede older owners.
+    activeGeneration = generation;
     if (isPlaying) {
       stopCount++;
       isPlaying = false;
     }
-    // Cancel any still-held prior plays — a newer play supersedes them.
-    while (_heldPlays.isNotEmpty) {
-      releaseNextPlay(succeedOverride: false);
-    }
+    // Cancel still-held plays from older generations only.
+    _failHeld(match: (held) => held.generation < generation);
+
     if (!holdPlays) {
-      if (!canPlay || !succeed || disposeCount > 0) return false;
+      if (!canPlay || !succeed || disposeCount > 0) {
+        if (activeGeneration == generation) {
+          activeGeneration = 0;
+        }
+        return false;
+      }
+      // Late check: a newer claim may have arrived while we were sync.
+      if (activeGeneration != generation) return false;
       plays.add(kind);
       volumes.add(volume);
+      playGenerations.add(generation);
       isPlaying = true;
-      // Instant complete for unit tests — production waits on player complete.
-      isPlaying = false;
+      // Instant complete for unit tests — keep isPlaying true so ownership
+      // races can observe the active owner until an explicit stop/supersede.
       return true;
     }
-    final held = _HeldAnimalPlay(kind, volume);
+    final held = _HeldAnimalPlay(kind, volume, generation);
     _heldPlays.add(held);
     return held.completer.future;
   }
 
   @override
-  Future<void> stop() async {
+  Future<void> stop({int? generation}) async {
+    if (generation != null && activeGeneration != generation) {
+      ignoredStops.add(generation);
+      // Still fail our own held play if present, without touching newer audio.
+      _failHeld(match: (held) => held.generation == generation);
+      return;
+    }
     stopCount++;
     isPlaying = false;
-    // Fail held plays so in-flight prompt awaits do not hang after silence.
-    while (_heldPlays.isNotEmpty) {
-      releaseNextPlay(succeedOverride: false);
-    }
+    activeGeneration = 0;
+    _failHeld(match: (_) => true);
   }
 
   @override
@@ -175,21 +249,24 @@ class RecordingAnimalSoundMatchingAnimalPlayer
     disposeCount++;
     canPlay = false;
     isPlaying = false;
-    while (_heldPlays.isNotEmpty) {
-      releaseNextPlay(succeedOverride: false);
-    }
+    activeGeneration = 0;
+    _failHeld(match: (_) => true);
   }
 }
 
 class _HeldAnimalPlay {
-  _HeldAnimalPlay(this.kind, this.volume);
+  _HeldAnimalPlay(this.kind, this.volume, this.generation);
 
   final AnimalKind kind;
   final double volume;
+  final int generation;
   final Completer<bool> completer = Completer<bool>();
 }
 
 /// Production single-slot animal prompt player (ambient / no exclusive focus).
+///
+/// Generation ownership lives here so overlapping stop/play and
+/// pause/dispose cancellation cannot silence a newer valid prompt.
 class AudioplayersAnimalSoundMatchingAnimalPlayer
     implements AnimalSoundMatchingAnimalPlayer {
   AudioplayersAnimalSoundMatchingAnimalPlayer();
@@ -198,6 +275,7 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
   var _disposed = false;
   var _sessionConfigured = false;
   var _playing = false;
+  var _activeGeneration = 0;
 
   static const _opTimeout = Duration(milliseconds: 400);
 
@@ -206,6 +284,9 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
 
   @override
   bool get isPlaying => _playing && !_disposed;
+
+  @override
+  int get activeGeneration => _activeGeneration;
 
   Future<void> _ensureSession() async {
     if (_sessionConfigured) return;
@@ -227,50 +308,9 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
     } catch (_) {}
   }
 
-  @override
-  Future<bool> play(AnimalKind kind, {required double volume}) async {
-    if (_disposed) return false;
-    await stop();
-    if (_disposed) return false;
-    await _ensureSession();
-    if (_disposed) return false;
-    try {
-      final player = _player ?? AudioPlayer();
-      if (_disposed) return false;
-      _player = player;
-      await player.setReleaseMode(ReleaseMode.release).timeout(_opTimeout);
-      if (_disposed) return false;
-      await player.setPlayerMode(PlayerMode.lowLatency).timeout(_opTimeout);
-      if (_disposed) return false;
-      await player.setVolume(volume.clamp(0.0, 1.0)).timeout(_opTimeout);
-      if (_disposed) return false;
-      await player
-          .play(
-            AssetSource(AnimalSoundMatchingAnimalTrack.assetSourcePath(kind)),
-          )
-          .timeout(_opTimeout);
-      if (_disposed) return false;
-      _playing = true;
-      unawaited(
-        player.onPlayerComplete.first
-            .timeout(const Duration(seconds: 4))
-            .then((_) {
-          if (!_disposed) _playing = false;
-        }).catchError((_) {
-          if (!_disposed) _playing = false;
-        }),
-      );
-      return true;
-    } catch (_) {
-      _playing = false;
-      return false;
-    }
-  }
-
-  @override
-  Future<void> stop() async {
-    final player = _player;
+  Future<void> _haltEngine() async {
     _playing = false;
+    final player = _player;
     if (player == null) return;
     try {
       await player.stop().timeout(_opTimeout);
@@ -278,10 +318,83 @@ class AudioplayersAnimalSoundMatchingAnimalPlayer
   }
 
   @override
+  Future<bool> play(
+    AnimalKind kind, {
+    required double volume,
+    required int generation,
+  }) async {
+    if (_disposed) return false;
+    // Claim ownership before awaiting so older stop/play cannot win the bus.
+    _activeGeneration = generation;
+    await _haltEngine();
+    if (_disposed || _activeGeneration != generation) return false;
+    await _ensureSession();
+    if (_disposed || _activeGeneration != generation) return false;
+    try {
+      final player = _player ?? AudioPlayer();
+      if (_disposed || _activeGeneration != generation) return false;
+      _player = player;
+      await player.setReleaseMode(ReleaseMode.release).timeout(_opTimeout);
+      if (_disposed || _activeGeneration != generation) return false;
+      await player.setPlayerMode(PlayerMode.lowLatency).timeout(_opTimeout);
+      if (_disposed || _activeGeneration != generation) return false;
+      await player.setVolume(volume.clamp(0.0, 1.0)).timeout(_opTimeout);
+      if (_disposed || _activeGeneration != generation) return false;
+      await player
+          .play(
+            AssetSource(AnimalSoundMatchingAnimalTrack.assetSourcePath(kind)),
+          )
+          .timeout(_opTimeout);
+      if (_disposed || _activeGeneration != generation) {
+        // Stale after a late start — halt only while we still own the bus.
+        if (_activeGeneration == generation) {
+          await _haltEngine();
+          _activeGeneration = 0;
+        }
+        return false;
+      }
+      _playing = true;
+      final ownedGeneration = generation;
+      unawaited(
+        player.onPlayerComplete.first
+            .timeout(const Duration(seconds: 4))
+            .then((_) {
+          if (!_disposed && _activeGeneration == ownedGeneration) {
+            _playing = false;
+            _activeGeneration = 0;
+          }
+        }).catchError((_) {
+          if (!_disposed && _activeGeneration == ownedGeneration) {
+            _playing = false;
+            _activeGeneration = 0;
+          }
+        }),
+      );
+      return true;
+    } catch (_) {
+      if (_activeGeneration == generation) {
+        _playing = false;
+        _activeGeneration = 0;
+      }
+      return false;
+    }
+  }
+
+  @override
+  Future<void> stop({int? generation}) async {
+    if (generation != null && _activeGeneration != generation) {
+      return;
+    }
+    _activeGeneration = 0;
+    await _haltEngine();
+  }
+
+  @override
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
     _playing = false;
+    _activeGeneration = 0;
     final player = _player;
     _player = null;
     if (player == null) return;
@@ -1051,12 +1164,10 @@ class AnimalSoundMatchingAudio {
 
   Future<bool> playWrong() => _playImmediate(AnimalSoundMatchingSfxCue.wrongSoft);
 
-  /// Plays the animal recognition prompt. Stops any in-flight prompt first
-  /// (replay-safe, no overlap). Soft-fails when muted / missing / disposed.
-  ///
-  /// A stale completion after [silence] / [dispose] / a newer prompt serial
-  /// always rolls back with [AnimalSoundMatchingAnimalPlayer.stop] so no
-  /// audible leftover survives lifecycle cancellation.
+  /// Plays the animal recognition prompt. Soft-fails when muted / missing /
+  /// disposed. Ownership is generation-scoped on the animal player so a stale
+  /// completion after a newer replay / silence / dispose can neither restart
+  /// old audio nor silence the newer owner.
   Future<bool> playAnimalPrompt(
     AnimalKind kind, {
     bool forceRestart = false,
@@ -1064,20 +1175,17 @@ class AnimalSoundMatchingAudio {
     if (!_animalGate()) return false;
     final serial = ++_animalPromptSerial;
     final epoch = _lifecycleEpoch;
-    // Always stop prior prompt — replay must never stack.
-    await _animal.stop();
-    if (!_animalStillValid(epoch, serial)) return false;
     // ignore: discarded_futures
     _duckBgmForPrompt(serial: serial);
     final played = await _animal.play(
       kind,
       volume: animalPromptGain.clamp(0.0, 1.0),
+      generation: serial,
     );
     if (!_animalStillValid(epoch, serial)) {
-      // Late start after pause / background / dispose / superseded replay —
-      // never leave audible playback from a cancelled generation.
+      // Roll back only OUR generation — never stop a newer valid prompt.
       try {
-        await _animal.stop();
+        await _animal.stop(generation: serial);
       } catch (_) {}
       return false;
     }

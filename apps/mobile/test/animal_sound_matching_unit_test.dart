@@ -369,6 +369,41 @@ void main() {
       expect(activity.usesVisualFallback, isTrue);
     });
 
+    test(
+        'repeated replay after failure stays sticky then recovers on restart',
+        () async {
+      final animal = RecordingAnimalSoundMatchingAnimalPlayer();
+      final activity = AnimalSoundMatchingActivity(
+        ageMonthsProvider: () => 30,
+        playSessionId: '00000000-0000-4000-8000-000000000079',
+        audio: _testAudio(animalPlayer: animal),
+      );
+      await activity.prepare();
+      await activity.onEnter();
+      final playsAfterEnter = animal.plays.length;
+      expect(playsAfterEnter, 1);
+
+      animal.succeed = false;
+      expect(await activity.replayAnimalSound(), isFalse);
+      expect(activity.usesVisualFallback, isTrue);
+      // Failed play does not record audio; sticky blocks further engine hits.
+      expect(animal.plays.length, playsAfterEnter);
+      animal.succeed = true;
+      expect(await activity.replayAnimalSound(), isFalse);
+      expect(await activity.replayAnimalSound(), isFalse);
+      expect(animal.plays.length, playsAfterEnter);
+      expect(activity.usesVisualFallback, isTrue);
+
+      // Fresh restart clears sticky fallback and recovers audio prompts.
+      await activity.onRestart();
+      expect(activity.usesVisualFallback, isFalse);
+      expect(activity.promptMode, AnimalPromptMode.audio);
+      expect(animal.plays.length, playsAfterEnter + 1);
+      expect(await activity.replayAnimalSound(), isTrue);
+      expect(animal.plays.length, playsAfterEnter + 2);
+      expect(activity.promptMode, AnimalPromptMode.audio);
+    });
+
     test('stale prompt completion after pause does not force visual mode',
         () async {
       final animal = RecordingAnimalSoundMatchingAnimalPlayer(holdPlays: true);

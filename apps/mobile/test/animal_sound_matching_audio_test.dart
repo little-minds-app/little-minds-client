@@ -614,6 +614,7 @@ void main() {
       expect(played, isFalse);
       expect(animal.plays, isEmpty);
       expect(animal.isPlaying, isFalse);
+      expect(animal.activeGeneration, 0);
       expect(animal.stopCount, greaterThanOrEqualTo(1));
     });
 
@@ -633,9 +634,10 @@ void main() {
       expect(played, isFalse);
       expect(animal.plays, isEmpty);
       expect(animal.disposeCount, 1);
+      expect(animal.isPlaying, isFalse);
     });
 
-    test('TC-ASM-ANIMAL-RACE-03 rapid replay supersedes prior held prompt',
+    test('TC-ASM-ANIMAL-RACE-03 rapid replay yields exactly one valid prompt',
         () async {
       final animal = RecordingAnimalSoundMatchingAnimalPlayer(holdPlays: true);
       final audio = _audio(animalPlayer: animal);
@@ -661,10 +663,48 @@ void main() {
       expect(animal.releaseNextPlay(succeedOverride: true), isTrue);
       expect(await second, isTrue);
       expect(animal.plays, [AnimalKind.cow]);
+      expect(animal.playGenerations, [2]);
+      expect(animal.isPlaying, isTrue);
+      expect(animal.activeGeneration, 2);
     });
 
     test(
-        'TC-ASM-ANIMAL-RACE-04 stale success after silence is rolled back with stop',
+        'TC-ASM-ANIMAL-RACE-04 stale completion does not silence newer prompt',
+        () async {
+      final animal = RecordingAnimalSoundMatchingAnimalPlayer(holdPlays: true);
+      final audio = _audio(animalPlayer: animal);
+      await audio.probe('en-US');
+
+      final first = audio.playAnimalPrompt(AnimalKind.cat);
+      for (var i = 0; i < 40; i++) {
+        if (animal.pendingPlayCount >= 1) break;
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      final second = audio.playAnimalPrompt(AnimalKind.dog, forceRestart: true);
+      for (var i = 0; i < 40; i++) {
+        if (animal.pendingPlayCount >= 1 &&
+            animal.nextHeldKind == AnimalKind.dog) {
+          break;
+        }
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(animal.releaseNextPlay(succeedOverride: true), isTrue);
+      expect(await second, isTrue);
+      expect(animal.isPlaying, isTrue);
+      expect(animal.activeGeneration, 2);
+
+      // Old prompt finishes after newer succeeded — must not stop newer audio.
+      expect(await first, isFalse);
+      expect(animal.isPlaying, isTrue);
+      expect(animal.activeGeneration, 2);
+      expect(animal.plays, [AnimalKind.dog]);
+      expect(animal.ignoredStops, contains(1));
+    });
+
+    test(
+        'TC-ASM-ANIMAL-RACE-05 pause during delayed playback leaves no ghost audio',
         () async {
       final animal = RecordingAnimalSoundMatchingAnimalPlayer(holdPlays: true);
       final audio = _audio(animalPlayer: animal);
@@ -676,19 +716,42 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       }
 
-      // Bump lifecycle epoch without clearing the held play via stop first —
-      // silence both bumps epoch and stops; release a "late success" path by
-      // manually completing after silence (stop already failed the hold).
       await audio.silence();
       expect(await pending, isFalse);
       expect(animal.isPlaying, isFalse);
+      expect(animal.activeGeneration, 0);
+      expect(animal.plays, isEmpty);
 
-      // A fresh play after silence should still work when eligible.
+      // Fresh play after silence recovers cleanly.
       animal.holdPlays = false;
       final ok = await audio.playAnimalPrompt(AnimalKind.sheep);
       expect(ok, isTrue);
       expect(animal.plays, [AnimalKind.sheep]);
+      expect(animal.isPlaying, isTrue);
+      expect(animal.activeGeneration, greaterThan(0));
+    });
+
+    test(
+        'TC-ASM-ANIMAL-RACE-06 generation-scoped stop ignores non-owners',
+        () async {
+      final animal = RecordingAnimalSoundMatchingAnimalPlayer();
+      final audio = _audio(animalPlayer: animal);
+      await audio.probe('en-US');
+
+      expect(await audio.playAnimalPrompt(AnimalKind.bird), isTrue);
+      expect(animal.activeGeneration, 1);
+      expect(animal.isPlaying, isTrue);
+
+      // Stale generation stop must be a no-op at the player boundary.
+      await animal.stop(generation: 1 - 1); // generation 0 / non-owner
+      await animal.stop(generation: 99);
+      expect(animal.isPlaying, isTrue);
+      expect(animal.activeGeneration, 1);
+      expect(animal.ignoredStops, containsAll(<int>[0, 99]));
+
+      await animal.stop(generation: 1);
       expect(animal.isPlaying, isFalse);
+      expect(animal.activeGeneration, 0);
     });
   });
 }
