@@ -73,5 +73,5 @@ test('dashboard renders KPI metric cards and donut for seeded KPI fixture', asyn
   await waitFor(() => assert.ok(screen.getByText(/50% \(1\/2\)/)));
   assert.ok(screen.getAllByText(/Oturum dağılımı/).length >= 1);
   assert.ok(screen.getByText(/Zaman içi trend/));
-  assert.ok(screen.getByRole('button', { name: /Özeti yenile/ }));
+  assert.equal(screen.queryByRole('button', { name: /Özeti yenile/ }), null);
 });
