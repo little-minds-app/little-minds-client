@@ -56,21 +56,64 @@ class UnavailableShapeMatchingSfxPlayer implements ShapeMatchingSfxPlayer {
 }
 
 /// Test / DI double that records cue plays without touching speakers.
+///
+/// When [holdPlays] is true, each [play] call parks on a completer until
+/// [releaseNextPlay] (or [releaseAllPlays]) — used for deterministic celebrate
+/// race tests without wall-clock sleeps.
 class RecordingShapeMatchingSfxPlayer implements ShapeMatchingSfxPlayer {
-  RecordingShapeMatchingSfxPlayer({this.canPlay = true});
+  RecordingShapeMatchingSfxPlayer({
+    this.canPlay = true,
+    this.holdPlays = false,
+  });
 
   @override
   bool canPlay;
+
+  /// When true, [play] awaits an explicit [releaseNextPlay] before recording.
+  bool holdPlays;
 
   final List<ShapeMatchingSfxCue> plays = <ShapeMatchingSfxCue>[];
   var succeed = true;
   var stopCount = 0;
   var disposeCount = 0;
 
+  final List<_HeldPlay> _heldPlays = <_HeldPlay>[];
+
+  /// Number of [play] calls currently waiting on a release gate.
+  int get pendingPlayCount => _heldPlays.length;
+
+  /// Cue for the oldest held [play], if any.
+  ShapeMatchingSfxCue? get nextHeldCue =>
+      _heldPlays.isEmpty ? null : _heldPlays.first.cue;
+
+  /// Completes the oldest held [play]. Returns false if none are pending.
+  bool releaseNextPlay({bool? succeedOverride}) {
+    if (_heldPlays.isEmpty) return false;
+    final held = _heldPlays.removeAt(0);
+    final ok = succeedOverride ?? (succeed && canPlay);
+    if (ok) {
+      plays.add(held.cue);
+    }
+    held.completer.complete(ok);
+    return true;
+  }
+
+  /// Completes every held [play] in FIFO order.
+  void releaseAllPlays({bool? succeedOverride}) {
+    while (_heldPlays.isNotEmpty) {
+      releaseNextPlay(succeedOverride: succeedOverride);
+    }
+  }
+
   @override
   Future<bool> play(ShapeMatchingSfxCue cue) async {
-    plays.add(cue);
-    return succeed && canPlay;
+    if (!holdPlays) {
+      plays.add(cue);
+      return succeed && canPlay;
+    }
+    final held = _HeldPlay(cue);
+    _heldPlays.add(held);
+    return held.completer.future;
   }
 
   @override
@@ -82,7 +125,18 @@ class RecordingShapeMatchingSfxPlayer implements ShapeMatchingSfxPlayer {
   Future<void> dispose() async {
     disposeCount++;
     canPlay = false;
+    // Fail any still-held plays so celebrate awaits do not hang after dispose.
+    while (_heldPlays.isNotEmpty) {
+      releaseNextPlay(succeedOverride: false);
+    }
   }
+}
+
+class _HeldPlay {
+  _HeldPlay(this.cue);
+
+  final ShapeMatchingSfxCue cue;
+  final Completer<bool> completer = Completer<bool>();
 }
 
 /// Production offline player using [audioplayers] + ambient iOS session
@@ -188,7 +242,9 @@ class AudioplayersShapeMatchingSfxPlayer implements ShapeMatchingSfxPlayer {
 /// - Completion: [completeJingle] → delayed [softClap] → [twinkle] (richer)
 ///
 /// Anti-spam: one celebrate sequence per [correctMatchSerial]; duplicate notify
-/// ignored; rapid next serial cancels prior pending clap/twinkle timers.
+/// ignored; a newer serial cancels prior timers and invalidates any older
+/// in-flight lead [await] so superseded celebrations cannot schedule delayed
+/// clap/twinkle. [silence] / [dispose] bump lifecycle epoch for the same.
 class ShapeMatchingAudio {
   ShapeMatchingAudio({
     this.soundOff = false,
@@ -288,21 +344,36 @@ class ShapeMatchingAudio {
         ? ShapeMatchingSfxCue.completeJingle
         : ShapeMatchingSfxCue.correctChime;
     final played = await _playCue(lead);
-    if (!played || _disposed || epoch != _lifecycleEpoch) {
-      return played;
+    // Lifecycle epoch covers silence/dispose; serial covers a newer celebrate
+    // that started while this lead cue was still in-flight.
+    if (!played ||
+        _disposed ||
+        epoch != _lifecycleEpoch ||
+        serial != _lastCelebratedSerial) {
+      return false;
     }
 
     final clapAfter = isCompletion ? completionClapDelay : clapDelay;
     final twinkleAfter =
         isCompletion ? completionTwinkleDelay : twinkleDelay;
 
+    // Drop any orphaned timers a superseded in-flight celebrate may have set.
+    _cancelSequenceTimers();
     _clapTimer = Timer(clapAfter, () {
-      if (_disposed || epoch != _lifecycleEpoch) return;
+      if (_disposed ||
+          epoch != _lifecycleEpoch ||
+          serial != _lastCelebratedSerial) {
+        return;
+      }
       // ignore: discarded_futures
       _playCue(ShapeMatchingSfxCue.softClap);
     });
     _twinkleTimer = Timer(twinkleAfter, () {
-      if (_disposed || epoch != _lifecycleEpoch) return;
+      if (_disposed ||
+          epoch != _lifecycleEpoch ||
+          serial != _lastCelebratedSerial) {
+        return;
+      }
       // ignore: discarded_futures
       _playCue(ShapeMatchingSfxCue.twinkle);
     });

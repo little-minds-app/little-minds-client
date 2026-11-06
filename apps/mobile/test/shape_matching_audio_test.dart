@@ -334,4 +334,138 @@ void main() {
       expect(activity.correctMatchSerial, 0);
     });
   });
+
+  group('ShapeMatchingAudio celebrate in-flight serial race', () {
+    Future<void> waitForHeld(RecordingShapeMatchingSfxPlayer player, int n) async {
+      for (var i = 0; i < 40; i++) {
+        if (player.pendingPlayCount >= n) return;
+        await Future<void>.delayed(Duration.zero);
+      }
+      fail('expected $n held play(s), got ${player.pendingPlayCount}');
+    }
+
+    test(
+        'TC-SM-SFX-016 newer serial invalidates older in-flight lead '
+        'before clap/twinkle', () async {
+      final player = RecordingShapeMatchingSfxPlayer(holdPlays: true);
+      final audio = _audio(
+        player: player,
+        clapDelay: const Duration(milliseconds: 10),
+        twinkleDelay: const Duration(milliseconds: 20),
+      );
+      await audio.probe('en-US');
+
+      final older = audio.playCorrectMatch(serial: 1, isCompletion: false);
+      await waitForHeld(player, 1);
+      expect(player.nextHeldCue, ShapeMatchingSfxCue.correctChime);
+
+      final newer = audio.playCorrectMatch(serial: 2, isCompletion: false);
+      await waitForHeld(player, 2);
+
+      // Older lead finishes after newer has claimed the celebrate serial.
+      expect(player.releaseNextPlay(), isTrue);
+      expect(await older, isFalse);
+
+      // Newer lead may schedule delayed cues — release without holding them.
+      player.holdPlays = false;
+      expect(player.releaseNextPlay(), isTrue);
+      expect(await newer, isTrue);
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(
+        player.plays.where((c) => c == ShapeMatchingSfxCue.correctChime),
+        hasLength(2),
+      );
+      // Only the newer celebrate may schedule clap + twinkle.
+      expect(
+        player.plays.where((c) => c == ShapeMatchingSfxCue.softClap),
+        hasLength(1),
+      );
+      expect(
+        player.plays.where((c) => c == ShapeMatchingSfxCue.twinkle),
+        hasLength(1),
+      );
+      expect(audio.lastCelebratedSerial, 2);
+    });
+
+    test(
+        'TC-SM-SFX-017 silence during in-flight lead blocks delayed sequence',
+        () async {
+      final player = RecordingShapeMatchingSfxPlayer(holdPlays: true);
+      final audio = _audio(
+        player: player,
+        clapDelay: const Duration(milliseconds: 10),
+        twinkleDelay: const Duration(milliseconds: 20),
+      );
+      await audio.probe('en-US');
+
+      final celebrate = audio.playCorrectMatch(serial: 1, isCompletion: false);
+      await waitForHeld(player, 1);
+
+      await audio.silence();
+      final epochAfterSilence = audio.lifecycleEpoch;
+      player.holdPlays = false;
+      expect(player.releaseNextPlay(), isTrue);
+      expect(await celebrate, isFalse);
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(player.plays, [ShapeMatchingSfxCue.correctChime]);
+      expect(player.stopCount, greaterThanOrEqualTo(1));
+      expect(audio.lifecycleEpoch, epochAfterSilence);
+    });
+
+    test(
+        'TC-SM-SFX-018 dispose during in-flight lead blocks delayed sequence',
+        () async {
+      final player = RecordingShapeMatchingSfxPlayer(holdPlays: true);
+      final audio = _audio(
+        player: player,
+        clapDelay: const Duration(milliseconds: 10),
+        twinkleDelay: const Duration(milliseconds: 20),
+      );
+      await audio.probe('en-US');
+
+      final celebrate = audio.playCorrectMatch(serial: 1, isCompletion: false);
+      await waitForHeld(player, 1);
+
+      await audio.dispose();
+      // dispose releases held plays with failure — celebrate must not hang.
+      expect(await celebrate, isFalse);
+      expect(audio.isDisposed, isTrue);
+      expect(player.disposeCount, 1);
+      expect(player.plays, isEmpty);
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(player.plays, isEmpty);
+    });
+
+    test(
+        'TC-SM-SFX-019 resetForReplay during in-flight lead blocks delayed '
+        'cues and clears serial', () async {
+      final player = RecordingShapeMatchingSfxPlayer(holdPlays: true);
+      final audio = _audio(
+        player: player,
+        clapDelay: const Duration(milliseconds: 10),
+        twinkleDelay: const Duration(milliseconds: 20),
+      );
+      await audio.probe('en-US');
+
+      final celebrate = audio.playCorrectMatch(serial: 1, isCompletion: false);
+      await waitForHeld(player, 1);
+
+      await audio.resetForReplay();
+      expect(audio.lastCelebratedSerial, 0);
+      player.holdPlays = false;
+      expect(player.releaseNextPlay(), isTrue);
+      expect(await celebrate, isFalse);
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(player.plays, [ShapeMatchingSfxCue.correctChime]);
+      expect(
+        player.plays.where((c) => c == ShapeMatchingSfxCue.softClap),
+        isEmpty,
+      );
+    });
+  });
 }
