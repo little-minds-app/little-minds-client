@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { components } from '../../../../generated/typescript/schema';
 import { ActivityDurationChart, SessionCompositionDonut, TrendsPlaceholderChart } from './dashboard-charts';
-import { LmButton, LmCard, LmDisclosure, LmKpiMetric } from './lm-ui';
+import { LmCard, LmDisclosure, LmKpiMetric } from './lm-ui';
 import { ParentFeedback } from './parent-feedback';
 import {
   completenessLabel,
