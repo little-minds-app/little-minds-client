@@ -498,6 +498,18 @@ class AppLocalizationsTr extends AppLocalizations {
   String get shapeMatchingShapeHexagon => 'Altıgen';
 
   @override
+  String get shapeMatchingPraiseGreat => 'Aferin!';
+
+  @override
+  String get shapeMatchingPraiseNice => 'Güzel eşleşme!';
+
+  @override
+  String get shapeMatchingPraiseAwesome => 'Süper!';
+
+  @override
+  String get shapeMatchingGardenTitle => 'Neşeli Öğrenme Bahçesi';
+
+  @override
   String get parentDashboardChildSelectorLabel => 'Çocuk profili';
 
   @override

@@ -271,6 +271,10 @@
   "shapeMatchingShapeTriangle": "Triangle",
   "shapeMatchingShapeStar": "Star",
   "shapeMatchingShapeHexagon": "Hexagon",
+  "shapeMatchingPraiseGreat": "Great job!",
+  "shapeMatchingPraiseNice": "Nice match!",
+  "shapeMatchingPraiseAwesome": "Awesome!",
+  "shapeMatchingGardenTitle": "Playful Learning Garden",
   "parentDashboardChildSelectorLabel": "Child profile",
   "@parentDashboardChildSelectorLabel": {
     "description": "Accessible label for the Parent Dashboard child profile switcher."

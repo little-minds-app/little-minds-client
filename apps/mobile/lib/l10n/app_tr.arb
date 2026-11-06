@@ -150,6 +150,10 @@
   "shapeMatchingShapeTriangle": "Üçgen",
   "shapeMatchingShapeStar": "Yıldız",
   "shapeMatchingShapeHexagon": "Altıgen",
+  "shapeMatchingPraiseGreat": "Aferin!",
+  "shapeMatchingPraiseNice": "Güzel eşleşme!",
+  "shapeMatchingPraiseAwesome": "Süper!",
+  "shapeMatchingGardenTitle": "Neşeli Öğrenme Bahçesi",
   "parentDashboardChildSelectorLabel": "Çocuk profili",
   "parentDashboardChildSelectorHint": "Hangi çocuğun özeti ve görev durumunun gösterileceğini seçin."
 }

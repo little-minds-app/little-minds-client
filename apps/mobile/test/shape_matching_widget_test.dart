@@ -6,7 +6,11 @@ import 'package:little_minds_mobile/game/flame_host.dart';
 import 'package:little_minds_mobile/l10n/app_localizations.dart';
 import 'package:little_minds_mobile/screen_time/screen_time.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_activity.dart';
+import 'package:little_minds_mobile/shape_matching/shape_matching_bunny_mascot.dart';
+import 'package:little_minds_mobile/shape_matching/shape_matching_garden_scene.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_play_field.dart';
+import 'package:little_minds_mobile/shape_matching/shape_matching_shape_character.dart';
+import 'package:little_minds_mobile/shape_matching/shape_matching_visual_profile.dart';
 import 'package:little_minds_mobile/config/scaffolding_assumptions.dart';
 
 Future<void> _pumpFrames(WidgetTester tester) async {
@@ -268,5 +272,141 @@ void main() {
     await _pumpFrames(tester);
     expect(activity.roundIndex, 0);
     expect(find.byKey(ShapeMatchingPlayField.targetKey), findsOneWidget);
+  });
+
+  testWidgets('TC-SM-W13 garden scene and bunny mascot render', (tester) async {
+    final activity = _activityForAge(30);
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+    expect(find.byKey(ShapeMatchingGardenScene.sceneKey), findsOneWidget);
+    expect(find.byKey(ShapeMatchingBunnyMascot.mascotKey), findsOneWidget);
+  });
+
+  testWidgets('TC-SM-W14 correct pick shows localized praise', (tester) async {
+    final activity = _activityForAge(36);
+    await activity.prepare();
+    final target = activity.round!.target;
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+    await tester.tap(find.byKey(ShapeMatchingPlayField.choiceKey(target)));
+    await _pumpFrames(tester);
+    expect(find.byKey(ShapeMatchingPlayField.praiseKey), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Text &&
+            (w.data == 'Great job!' ||
+                w.data == 'Nice match!' ||
+                w.data == 'Awesome!'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('TC-SM-W15 Turkish praise string on correct pick', (tester) async {
+    final activity = _activityForAge(36);
+    await activity.prepare();
+    final target = activity.round!.target;
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
+    );
+    await tester.pumpWidget(
+      _host(activity: activity, locale: const Locale('tr', 'TR')),
+    );
+    await _pumpFrames(tester);
+    await tester.tap(find.byKey(ShapeMatchingPlayField.choiceKey(target)));
+    await _pumpFrames(tester);
+    expect(find.byKey(ShapeMatchingPlayField.praiseKey), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Text &&
+            (w.data == 'Aferin!' ||
+                w.data == 'Güzel eşleşme!' ||
+                w.data == 'Süper!'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('TC-SM-W16 early band shows choice labels', (tester) async {
+    final activity = _activityForAge(60);
+    await activity.prepare();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+    final profile = ShapeMatchingVisualProfile.forAgeMonths(60);
+    expect(profile.showChoiceLabels, isTrue);
+    expect(find.text('Circle').evaluate().isNotEmpty ||
+            find.text('Square').evaluate().isNotEmpty ||
+            find.text('Triangle').evaluate().isNotEmpty ||
+            find.text('Star').evaluate().isNotEmpty ||
+            find.text('Hexagon').evaluate().isNotEmpty,
+        isTrue);
+  });
+
+  testWidgets('TC-SM-W17 toddler band hides choice labels', (tester) async {
+    final activity = _activityForAge(28);
+    await activity.prepare();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+    final profile = ShapeMatchingVisualProfile.forAgeMonths(28);
+    expect(profile.showChoiceLabels, isFalse);
+    expect(profile.band, ShapeMatchingVisualBand.toddler);
+  });
+
+  testWidgets('TC-SM-W18 shape characters present for choices', (tester) async {
+    final activity = _activityForAge(36);
+    await activity.prepare();
+    final choices = activity.round!.choices;
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+    for (final token in choices) {
+      expect(
+        find.byKey(ShapeMatchingShapeCharacter.characterKey(token)),
+        findsWidgets,
+      );
+    }
+  });
+
+  test('TC-SM-U19 visual profile age bands', () {
+    expect(
+      ShapeMatchingVisualProfile.forAgeMonths(30).band,
+      ShapeMatchingVisualBand.toddler,
+    );
+    expect(
+      ShapeMatchingVisualProfile.forAgeMonths(40).band,
+      ShapeMatchingVisualBand.preschool,
+    );
+    expect(
+      ShapeMatchingVisualProfile.forAgeMonths(55).band,
+      ShapeMatchingVisualBand.early,
+    );
   });
 }
