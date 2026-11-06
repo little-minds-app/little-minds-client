@@ -692,6 +692,8 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                   );
                 case _ShellRoute.essentialPlayConsent:
                   return EssentialPlayEventsConsentSurface(
+                    publicationRegistry: widget.hubTelemetry?.contentRegistry ??
+                        publishedContentRegistryFor(widget.config),
                     onBack: () => _go(_ShellRoute.parentSettings),
                     onCompleted: () {
                       // ignore: discarded_futures
