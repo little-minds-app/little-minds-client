@@ -17,6 +17,7 @@ import 'config/app_config.dart';
 import 'theme/little_minds_parent_theme.dart';
 import 'config/app_config_scope.dart';
 import 'game/activity_registry.dart';
+import 'game/learning_activity.dart';
 import 'game/flame_host.dart';
 import 'shape_matching/hub_activity_registry.dart';
 import 'shape_matching/hub_device_child_binding.dart';
