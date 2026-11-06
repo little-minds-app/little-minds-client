@@ -208,6 +208,18 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
   int _hubTelemetryReconcileGeneration = 0;
   String? _lastAuthenticatedParentId;
 
+  /// Never reuse a prior session or outbox buffer when launching another play.
+  Future<LearningActivity?> _freshActivityForPlay(String activityId) async {
+    if (widget.hubTelemetry == null || widget.game != null) {
+      return _hubRegistry.findById(activityId);
+    }
+    final previous = _hubRegistry.findById(activityId);
+    await _reconcileHubTelemetry();
+    final fresh = _hubRegistry.findById(activityId);
+    if (identical(previous, fresh)) return null; // Fail closed on stale telemetry.
+    return fresh;
+  }
+
   Future<void> _reconcileHubTelemetry() async {
     final coordinator = widget.hubTelemetry;
     if (coordinator == null || widget.game != null) return;
@@ -573,6 +585,7 @@ class _LittleMindsAppState extends State<LittleMindsApp> with WidgetsBindingObse
                 case _ShellRoute.childHub:
                   return ChildHubSurface(
                     game: _game,
+                    resolveActivityForPlay: _freshActivityForPlay,
                     audioGuidance: widget.audioGuidance,
                     forceShowEnvBadge: widget.forceShowEnvBadge,
                     onOpenProfiles: () { _profileManageMode = false; _go(_ShellRoute.profileSelection); },
