@@ -209,11 +209,22 @@ class _HeldPlay {
 }
 
 /// Recording BGM double for deterministic lifecycle / duck tests.
+///
+/// When [holdOperations] is true, [startLoop] / [setVolume] / [resume] park on a
+/// completer until [releaseNextOperation] — used for delayed-future race tests
+/// without wall-clock sleeps. [pause] / [stop] / [dispose] never hold so they
+/// can win in-flight startup / duck races immediately.
 class RecordingShapeMatchingBgmPlayer implements ShapeMatchingBgmPlayer {
-  RecordingShapeMatchingBgmPlayer({this.canPlay = true});
+  RecordingShapeMatchingBgmPlayer({
+    this.canPlay = true,
+    this.holdOperations = false,
+  });
 
   @override
   bool canPlay;
+
+  /// When true, async start/volume/resume await an explicit release gate.
+  bool holdOperations;
 
   @override
   bool isPlaying = false;
@@ -232,9 +243,36 @@ class RecordingShapeMatchingBgmPlayer implements ShapeMatchingBgmPlayer {
   final List<double> volumeHistory = <double>[];
   var succeed = true;
 
+  final List<Completer<void>> _heldOps = <Completer<void>>[];
+
+  /// Number of BGM ops currently waiting on a release gate.
+  int get pendingOperationCount => _heldOps.length;
+
+  /// Completes the oldest held op. Returns false if none are pending.
+  bool releaseNextOperation() {
+    if (_heldOps.isEmpty) return false;
+    _heldOps.removeAt(0).complete();
+    return true;
+  }
+
+  /// Completes every held op in FIFO order.
+  void releaseAllOperations() {
+    while (_heldOps.isNotEmpty) {
+      releaseNextOperation();
+    }
+  }
+
+  Future<void> _awaitOperationGate() async {
+    if (!holdOperations) return;
+    final held = Completer<void>();
+    _heldOps.add(held);
+    await held.future;
+  }
+
   @override
   Future<bool> startLoop({required double volume}) async {
-    if (!canPlay || !succeed) return false;
+    await _awaitOperationGate();
+    if (!canPlay || !succeed || disposeCount > 0) return false;
     startLoopCount++;
     this.volume = volume;
     volumeHistory.add(volume);
@@ -245,6 +283,8 @@ class RecordingShapeMatchingBgmPlayer implements ShapeMatchingBgmPlayer {
 
   @override
   Future<void> setVolume(double volume) async {
+    await _awaitOperationGate();
+    if (disposeCount > 0 || !canPlay) return;
     this.volume = volume;
     volumeHistory.add(volume);
   }
@@ -252,7 +292,7 @@ class RecordingShapeMatchingBgmPlayer implements ShapeMatchingBgmPlayer {
   @override
   Future<void> pause() async {
     pauseCount++;
-    if (isPlaying) {
+    if (isPlaying || isPaused) {
       isPaused = true;
       isPlaying = false;
     }
@@ -260,6 +300,8 @@ class RecordingShapeMatchingBgmPlayer implements ShapeMatchingBgmPlayer {
 
   @override
   Future<void> resume() async {
+    await _awaitOperationGate();
+    if (disposeCount > 0 || !canPlay) return;
     resumeCount++;
     if (isPaused || (!isPlaying && startLoopCount > 0 && disposeCount == 0)) {
       isPaused = false;
@@ -280,6 +322,8 @@ class RecordingShapeMatchingBgmPlayer implements ShapeMatchingBgmPlayer {
     canPlay = false;
     isPlaying = false;
     isPaused = false;
+    // Fail-open held ops so in-flight ensure/duck awaits do not hang.
+    releaseAllOperations();
   }
 }
 
@@ -431,23 +475,30 @@ class AudioplayersShapeMatchingBgmPlayer implements ShapeMatchingBgmPlayer {
     _volume = volume.clamp(0.0, 1.0);
     if (_player != null && _playing && !_paused) {
       await setVolume(_volume);
-      return true;
+      return !_disposed && _playing && !_paused;
     }
     if (_player != null && _paused) {
       await setVolume(_volume);
+      if (_disposed) return false;
       await resume();
-      return true;
+      return !_disposed && isPlaying;
     }
     await _ensureSession();
+    if (_disposed) return false;
     try {
       final player = _player ?? AudioPlayer();
+      if (_disposed) return false;
       _player = player;
       await player.setReleaseMode(ReleaseMode.loop).timeout(_opTimeout);
+      if (_disposed) return false;
       await player.setPlayerMode(PlayerMode.mediaPlayer).timeout(_opTimeout);
+      if (_disposed) return false;
       await player.setVolume(_volume).timeout(_opTimeout);
+      if (_disposed) return false;
       await player
           .play(AssetSource(ShapeMatchingBgmTrack.assetSourcePath))
           .timeout(_opTimeout);
+      if (_disposed) return false;
       _playing = true;
       _paused = false;
       return true;
@@ -472,6 +523,7 @@ class AudioplayersShapeMatchingBgmPlayer implements ShapeMatchingBgmPlayer {
     if (player == null || _disposed) return;
     try {
       await player.pause().timeout(_opTimeout);
+      if (_disposed) return;
       _paused = true;
       _playing = false;
     } catch (_) {}
@@ -483,6 +535,7 @@ class AudioplayersShapeMatchingBgmPlayer implements ShapeMatchingBgmPlayer {
     if (player == null || _disposed) return;
     try {
       await player.resume().timeout(_opTimeout);
+      if (_disposed) return;
       _paused = false;
       _playing = true;
     } catch (_) {}
@@ -641,18 +694,35 @@ class ShapeMatchingAudio {
   }
 
   /// Starts or continues the single Happy Garden loop (idempotent).
+  ///
+  /// Captures [lifecycleEpoch] before awaits so a concurrent pause / screen-time
+  /// silence / nav dispose cannot leave a late [startLoop] or [resume] audible.
   Future<bool> ensureBgmPlaying() async {
     if (!_bgmGate()) return false;
     if (_bgm.isPlaying) {
       // Already looping — do not restart between rounds / on replay.
       return true;
     }
+    final epoch = _lifecycleEpoch;
     if (_bgm.isPaused) {
       await _bgm.setVolume(_effectiveBgmGain());
+      if (!_bgmStartupStillValid(epoch)) {
+        return false;
+      }
       await _bgm.resume();
-      return _bgm.isPlaying || _bgm.isPaused == false;
+      if (!_bgmStartupStillValid(epoch)) {
+        await _rollbackSupersededBgmStartup();
+        return false;
+      }
+      return _bgm.isPlaying;
     }
-    return _bgm.startLoop(volume: _effectiveBgmGain());
+    final started = await _bgm.startLoop(volume: _effectiveBgmGain());
+    if (!started) return false;
+    if (!_bgmStartupStillValid(epoch)) {
+      await _rollbackSupersededBgmStartup();
+      return false;
+    }
+    return _bgm.isPlaying;
   }
 
   Future<void> pauseBgm() async {
@@ -660,11 +730,18 @@ class ShapeMatchingAudio {
     await _bgm.pause();
   }
 
+  /// Resumes the existing loop when eligible. Same epoch guard as
+  /// [ensureBgmPlaying] so a late resume cannot outrun pause / dispose.
   Future<void> resumeBgm() async {
     if (!_bgmGate()) return;
+    final epoch = _lifecycleEpoch;
     if (_bgm.isPaused) {
       await _bgm.setVolume(_effectiveBgmGain());
+      if (!_bgmStartupStillValid(epoch)) return;
       await _bgm.resume();
+      if (!_bgmStartupStillValid(epoch)) {
+        await _rollbackSupersededBgmStartup();
+      }
       return;
     }
     if (!_bgm.isPlaying) {
@@ -800,23 +877,49 @@ class ShapeMatchingAudio {
     return true;
   }
 
+  /// True while the captured lifecycle epoch still owns BGM startup/resume.
+  bool _bgmStartupStillValid(int epoch) {
+    return !_disposed && epoch == _lifecycleEpoch && _bgmGate();
+  }
+
+  /// Active BGM bus (playing or intentionally paused mid-session).
+  bool _bgmHasActivePlayback() => _bgm.isPlaying || _bgm.isPaused;
+
+  /// Undo a start/resume that finished after pause / screen-time / dispose won.
+  Future<void> _rollbackSupersededBgmStartup() async {
+    if (_disposed) return;
+    try {
+      await _bgm.pause();
+    } catch (_) {}
+  }
+
   Future<void> _duckBgmForCelebrate({
     required int serial,
     required bool isCompletion,
   }) async {
     if (!_bgmGate()) return;
-    if (!_bgm.isPlaying && !_bgm.isPaused) return;
+    if (!_bgmHasActivePlayback()) return;
     if (serial < _lastDuckSerial) return;
     _lastDuckSerial = serial;
     final epoch = _lifecycleEpoch;
     _cancelDuckRestore();
     await _bgm.setVolume(_duckedBgmGain());
+    // Re-check after await: outdated duck must not schedule restore once a
+    // newer match / pause / exit / dispose has claimed the bus.
+    if (_disposed ||
+        epoch != _lifecycleEpoch ||
+        serial != _lastDuckSerial ||
+        !_bgmGate() ||
+        !_bgmHasActivePlayback()) {
+      return;
+    }
     final restoreAfter =
         isCompletion ? completionDuckRestore : matchDuckRestore;
     _duckRestoreTimer = Timer(restoreAfter, () {
       if (_disposed ||
           epoch != _lifecycleEpoch ||
-          serial != _lastDuckSerial) {
+          serial != _lastDuckSerial ||
+          !_bgmHasActivePlayback()) {
         return;
       }
       // ignore: discarded_futures

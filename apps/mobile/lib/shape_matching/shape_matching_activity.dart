@@ -142,6 +142,8 @@ class ShapeMatchingActivity extends LearningActivity {
     if (_lastOutcome is! ActivityCompletedOutcome) {
       setInteractionsEnabled(true);
     }
+    // No BGM while gameplay remains blocked (screen-time / pause / complete).
+    if (!_interactionsEnabled) return;
     await _audio.resumeBgm();
   }
 
@@ -154,6 +156,9 @@ class ShapeMatchingActivity extends LearningActivity {
 
   @override
   Future<void> onForeground() async {
+    // Foreground alone must not restart BGM while pause / screen-time still
+    // blocks play (_pausedBeforeBackground → onForeground without onResume).
+    if (!_interactionsEnabled) return;
     await _audio.resumeBgm();
   }
 

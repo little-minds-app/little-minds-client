@@ -567,15 +567,24 @@ void main() {
       expect(bgm.startLoopCount, 1);
     });
 
-    test('TC-SM-BGM-006 background pauses; foreground resumes', () async {
+    test('TC-SM-BGM-006 background pauses; resume path restores BGM', () async {
       final sfx = RecordingShapeMatchingSfxPlayer();
       final bgm = RecordingShapeMatchingBgmPlayer();
       final activity = await _preparedActivity(player: sfx, bgmPlayer: bgm);
 
       await activity.onBackground();
       expect(bgm.isPaused, isTrue);
+      expect(activity.interactionsEnabled, isFalse);
 
+      // Session controller calls onForeground then onResume when returning from
+      // background while previously running. Foreground alone stays quiet while
+      // gameplay is still blocked (see TC-SM-BGM-020).
       await activity.onForeground();
+      expect(bgm.isPaused, isTrue);
+      expect(bgm.resumeCount, 0);
+
+      await activity.onResume();
+      expect(activity.interactionsEnabled, isTrue);
       expect(bgm.isPlaying, isTrue);
       expect(bgm.startLoopCount, 1);
     });
@@ -732,6 +741,195 @@ void main() {
       expect(await audio.playTap(), isTrue);
       expect(sfx.plays, [ShapeMatchingSfxCue.tapPop]);
       expect(bgm.startLoopCount, 0);
+    });
+  });
+
+  group('ShapeMatchingAudio BGM delayed-future races', () {
+    Future<void> waitForHeld(RecordingShapeMatchingBgmPlayer bgm, int n) async {
+      for (var i = 0; i < 40; i++) {
+        if (bgm.pendingOperationCount >= n) return;
+        await Future<void>.delayed(Duration.zero);
+      }
+      fail('expected $n held BGM op(s), got ${bgm.pendingOperationCount}');
+    }
+
+    test(
+        'TC-SM-BGM-015 pause during startup leaves BGM paused (no late start)',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer(holdOperations: true);
+      final audio = _audio(player: sfx, bgmPlayer: bgm);
+      await audio.probe('en-US');
+
+      final startup = audio.ensureBgmPlaying();
+      await waitForHeld(bgm, 1);
+
+      await audio.silence(); // pause / screen-time
+      expect(bgm.releaseNextOperation(), isTrue);
+      expect(await startup, isFalse);
+      expect(bgm.isPlaying, isFalse);
+      expect(bgm.isPaused, isTrue);
+      expect(bgm.startLoopCount, 1);
+    });
+
+    test(
+        'TC-SM-BGM-016 dispose during startup does not leave music on',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer(holdOperations: true);
+      final audio = _audio(player: sfx, bgmPlayer: bgm);
+      await audio.probe('en-US');
+
+      final startup = audio.ensureBgmPlaying();
+      await waitForHeld(bgm, 1);
+
+      await audio.dispose(); // releases held startLoop
+      expect(await startup, isFalse);
+      expect(bgm.isPlaying, isFalse);
+      expect(bgm.disposeCount, 1);
+      expect(audio.isDisposed, isTrue);
+    });
+
+    test(
+        'TC-SM-BGM-017 screen-time pause during startup via activity',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer(holdOperations: true);
+      final audio = _audio(player: sfx, bgmPlayer: bgm);
+      final activity = ShapeMatchingActivity(
+        ageMonthsProvider: () => 36,
+        audio: audio,
+        playSessionId: '00000000-0000-4000-8000-0000000000cc',
+      );
+      await activity.prepare();
+
+      final enter = activity.onEnter();
+      await waitForHeld(bgm, 1);
+
+      await activity.onPause(); // interactions off + silence
+      expect(activity.interactionsEnabled, isFalse);
+      expect(bgm.releaseNextOperation(), isTrue);
+      await enter;
+
+      expect(bgm.isPlaying, isFalse);
+      expect(bgm.isPaused, isTrue);
+    });
+
+    test(
+        'TC-SM-BGM-018 newer celebrate during in-flight duck blocks stale restore',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer(holdOperations: true);
+      final audio = _audio(
+        player: sfx,
+        bgmPlayer: bgm,
+        matchDuckRestore: const Duration(milliseconds: 30),
+      );
+      await audio.probe('en-US');
+      bgm.holdOperations = false;
+      await audio.ensureBgmPlaying();
+      expect(bgm.volume, closeTo(0.20, 0.001));
+
+      bgm.holdOperations = true;
+      // Duck is fire-and-forget inside celebrate; hold gates setVolume only.
+      // ignore: discarded_futures
+      audio.playCorrectMatch(serial: 1, isCompletion: false);
+      await waitForHeld(bgm, 1); // older setVolume(duck)
+
+      // ignore: discarded_futures
+      audio.playCorrectMatch(serial: 2, isCompletion: false);
+      await waitForHeld(bgm, 2); // newer setVolume(duck)
+
+      // Stale duck finishes after newer claimed serial — must not schedule restore.
+      expect(bgm.releaseNextOperation(), isTrue);
+      await Future<void>.delayed(Duration.zero);
+
+      bgm.holdOperations = false;
+      expect(bgm.releaseNextOperation(), isTrue);
+      await Future<void>.delayed(Duration.zero);
+      expect(bgm.volume, closeTo(0.05, 0.001));
+      expect(audio.lastDuckSerial, 2);
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(bgm.volume, closeTo(0.20, 0.001));
+      // start + one restore (stale duck must not add a second restore).
+      final restores =
+          bgm.volumeHistory.where((v) => (v - 0.20).abs() < 0.001).length;
+      expect(restores, 2); // initial start + single restore
+    });
+
+    test(
+        'TC-SM-BGM-019 pause during in-flight duck does not restore after silence',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer(holdOperations: true);
+      final audio = _audio(
+        player: sfx,
+        bgmPlayer: bgm,
+        matchDuckRestore: const Duration(milliseconds: 30),
+      );
+      await audio.probe('en-US');
+      bgm.holdOperations = false;
+      await audio.ensureBgmPlaying();
+
+      bgm.holdOperations = true;
+      // ignore: discarded_futures
+      audio.playCorrectMatch(serial: 1, isCompletion: false);
+      await waitForHeld(bgm, 1);
+
+      await audio.silence();
+      final restoresBeforeRelease = bgm.volumeHistory
+          .where((v) => (v - 0.20).abs() < 0.001)
+          .length;
+      expect(bgm.releaseNextOperation(), isTrue);
+      await Future<void>.delayed(Duration.zero);
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Late duck may apply ducked gain on the paused bus, but must not
+      // schedule a restore back to idle gain after silence won the epoch.
+      final restoresAfter = bgm.volumeHistory
+          .where((v) => (v - 0.20).abs() < 0.001)
+          .length;
+      expect(restoresAfter, restoresBeforeRelease);
+      expect(bgm.isPaused, isTrue);
+      expect(bgm.isPlaying, isFalse);
+    });
+
+    test(
+        'TC-SM-BGM-020 foreground while gameplay blocked does not resume BGM',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final activity = await _preparedActivity(player: sfx, bgmPlayer: bgm);
+      expect(bgm.isPlaying, isTrue);
+
+      await activity.onPause();
+      expect(activity.interactionsEnabled, isFalse);
+      expect(bgm.isPaused, isTrue);
+
+      await activity.onForeground();
+      expect(bgm.isPlaying, isFalse);
+      expect(bgm.isPaused, isTrue);
+      expect(bgm.resumeCount, 0);
+      expect(bgm.startLoopCount, 1);
+    });
+
+    test(
+        'TC-SM-BGM-021 replay ensureBgmPlaying does not duplicate startLoop',
+        () async {
+      final sfx = RecordingShapeMatchingSfxPlayer();
+      final bgm = RecordingShapeMatchingBgmPlayer();
+      final activity = await _preparedActivity(player: sfx, bgmPlayer: bgm);
+      expect(bgm.startLoopCount, 1);
+
+      await activity.onRestart();
+      expect(bgm.startLoopCount, 1);
+      expect(bgm.isPlaying, isTrue);
+      expect(bgm.stopCount, 0);
+
+      await activity.audio.ensureBgmPlaying();
+      await activity.audio.ensureBgmPlaying();
+      expect(bgm.startLoopCount, 1);
     });
   });
 }
