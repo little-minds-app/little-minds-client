@@ -21,7 +21,7 @@ class ShapeMatchingActivity extends LearningActivity {
     String? playSessionId,
     String Function()? sessionIdFactory,
   })  : eventBuffer = eventBuffer ?? ShapeMatchingLocalEventBuffer(),
-        _audio = audio ?? ShapeMatchingAudio(),
+        _audio = audio ?? ShapeMatchingAudio(soundOff: soundOff),
         playSessionId = playSessionId ??
             (sessionIdFactory?.call() ??
                 'session-${DateTime.now().toUtc().microsecondsSinceEpoch}');
@@ -32,6 +32,9 @@ class ShapeMatchingActivity extends LearningActivity {
   final String localeTag;
   final bool soundOff;
   final String playSessionId;
+
+  /// Exposed for play-field tap/drag SFX and tests — single shared audio system.
+  ShapeMatchingAudio get audio => _audio;
 
   FlameGame? _game;
   var _ageMonths = -1;
@@ -125,6 +128,8 @@ class ShapeMatchingActivity extends LearningActivity {
   @override
   Future<void> onPause() async {
     setInteractionsEnabled(false);
+    // Screen-time / pause — stop SFX immediately (no gameplay delay on resume).
+    await _audio.silence();
     await _drainProduction();
   }
 
@@ -138,6 +143,7 @@ class ShapeMatchingActivity extends LearningActivity {
   @override
   Future<void> onBackground() async {
     setInteractionsEnabled(false);
+    await _audio.silence();
     await _drainProduction();
   }
 
@@ -146,6 +152,7 @@ class ShapeMatchingActivity extends LearningActivity {
 
   @override
   Future<void> onRestart() async {
+    await _audio.resetForReplay();
     _resetProgress(emitStarted: true);
     setInteractionsEnabled(true);
     _notify();
@@ -163,6 +170,7 @@ class ShapeMatchingActivity extends LearningActivity {
         payload: const {'completion_status': 'abandoned'},
       );
     }
+    await _audio.dispose();
     await _drainProduction();
     final game = _game;
     if (game != null) {
@@ -172,11 +180,24 @@ class ShapeMatchingActivity extends LearningActivity {
 
   @override
   Future<void> disposeResources() async {
+    await _audio.dispose();
     final game = _game;
     if (game != null) {
       await unmountFlameLayer(game);
     }
     _game = null;
+  }
+
+  /// Choice tap affordance SFX (non-blocking).
+  void notifyChoiceTap() {
+    // ignore: discarded_futures
+    _audio.playTap();
+  }
+
+  /// Drag-start bounce SFX (non-blocking).
+  void notifyChoiceDragStart() {
+    // ignore: discarded_futures
+    _audio.playDragBounce();
   }
 
   void setInteractionsEnabled(bool enabled) {
@@ -252,8 +273,14 @@ class ShapeMatchingActivity extends LearningActivity {
     if (correct) {
       _correctMatchSerial++;
       _showCelebrationPulse = true;
+      final willComplete =
+          _roundIndex + 1 >= ShapeMatchingConstants.roundsPerSession;
+      // Celebrate SFX is non-blocking — never delays round advance / completion.
       // ignore: discarded_futures
-      _audio.playCorrect();
+      _audio.playCorrectMatch(
+        serial: _correctMatchSerial,
+        isCompletion: willComplete,
+      );
       _lastOutcome = const EncouragementOutcome(cueKey: 'shape_match');
       _notify();
       _advanceAfterCorrect();
@@ -261,6 +288,8 @@ class ShapeMatchingActivity extends LearningActivity {
     }
 
     _wrongAttemptsThisRound++;
+    // ignore: discarded_futures
+    _audio.playWrong();
     _lastOutcome = const EncouragementOutcome(cueKey: 'try_again');
     if (_wrongAttemptsThisRound >= 2) {
       offerHint();

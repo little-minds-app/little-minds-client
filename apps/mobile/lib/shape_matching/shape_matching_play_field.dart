@@ -263,6 +263,8 @@ class _ShapeMatchingPlayFieldState extends State<ShapeMatchingPlayField> {
                           reduceMotion: reduceMotion,
                           profile: profile,
                           onPick: _handlePick,
+                          onTap: _handleTap,
+                          onDragStart: _handleDragStart,
                         ),
                       ),
                     ),
@@ -286,6 +288,15 @@ class _ShapeMatchingPlayFieldState extends State<ShapeMatchingPlayField> {
         );
       },
     );
+  }
+
+  void _handleTap(ShapeToken token) {
+    activity.notifyChoiceTap();
+    _handlePick(token);
+  }
+
+  void _handleDragStart() {
+    activity.notifyChoiceDragStart();
   }
 
   void _handlePick(ShapeToken token) {
@@ -496,6 +507,8 @@ class _ChoicesZone extends StatelessWidget {
     required this.reduceMotion,
     required this.profile,
     required this.onPick,
+    required this.onTap,
+    required this.onDragStart,
   });
 
   final ShapeMatchingRound? round;
@@ -505,6 +518,8 @@ class _ChoicesZone extends StatelessWidget {
   final bool reduceMotion;
   final ShapeMatchingVisualProfile profile;
   final void Function(ShapeToken) onPick;
+  final void Function(ShapeToken) onTap;
+  final VoidCallback onDragStart;
 
   @override
   Widget build(BuildContext context) {
@@ -559,6 +574,8 @@ class _ChoicesZone extends StatelessWidget {
                           activity.hintLevel >= 2 && token == round!.target,
                       showLabel: profile.showChoiceLabels,
                       onPick: () => onPick(token),
+                      onTap: () => onTap(token),
+                      onDragStart: onDragStart,
                     ),
                 ],
               ),
@@ -726,6 +743,8 @@ class _DraggableShapeChoice extends StatelessWidget {
     required this.label,
     required this.size,
     required this.onPick,
+    required this.onTap,
+    required this.onDragStart,
     required this.enabled,
     required this.highlighted,
     required this.reduceMotion,
@@ -737,6 +756,8 @@ class _DraggableShapeChoice extends StatelessWidget {
   final String label;
   final double size;
   final VoidCallback onPick;
+  final VoidCallback onTap;
+  final VoidCallback onDragStart;
   final bool enabled;
   final bool highlighted;
   final bool reduceMotion;
@@ -765,6 +786,7 @@ class _DraggableShapeChoice extends StatelessWidget {
       child: Draggable<ShapeToken>(
         data: token,
         maxSimultaneousDrags: enabled ? 1 : 0,
+        onDragStarted: enabled ? onDragStart : null,
         feedback: Material(
           color: Colors.transparent,
           child: ShapeMatchingShapeCharacter(
@@ -787,7 +809,7 @@ class _DraggableShapeChoice extends StatelessWidget {
           ),
         ),
         child: GestureDetector(
-          onTap: enabled ? onPick : null,
+          onTap: enabled ? onTap : null,
           behavior: HitTestBehavior.opaque,
           child: card,
         ),

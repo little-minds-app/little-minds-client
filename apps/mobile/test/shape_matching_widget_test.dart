@@ -7,6 +7,7 @@ import 'package:little_minds_mobile/game/scoring_neutral_outcome.dart';
 import 'package:little_minds_mobile/l10n/app_localizations.dart';
 import 'package:little_minds_mobile/screen_time/screen_time.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_activity.dart';
+import 'package:little_minds_mobile/shape_matching/shape_matching_audio.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_bunny_mascot.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_garden_scene.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_play_field.dart';
@@ -60,9 +61,12 @@ Widget _host({
 }
 
 ShapeMatchingActivity _activityForAge(int ageMonths) {
+  // Widget tests inject a recording player so audioplayers platform channels
+  // never block lifecycle (replay / pause / dispose) on the test binding.
   return ShapeMatchingActivity(
     ageMonthsProvider: () => ageMonths,
     playSessionId: '00000000-0000-4000-8000-000000000055',
+    audio: ShapeMatchingAudio(player: RecordingShapeMatchingSfxPlayer()),
   );
 }
 
