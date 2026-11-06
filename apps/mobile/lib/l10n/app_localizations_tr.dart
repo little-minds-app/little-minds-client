@@ -510,6 +510,59 @@ class AppLocalizationsTr extends AppLocalizations {
   String get shapeMatchingGardenTitle => 'Neşeli Öğrenme Bahçesi';
 
   @override
+  String get colorSortingPromptSort => 'Eşleşen sepete koy!';
+
+  @override
+  String get colorSortingPromptDone => 'Harika yaptın!';
+
+  @override
+  String get colorSortingTapOrDragHint => 'Sepete dokun veya sürükle.';
+
+  @override
+  String get colorSortingObjectLabel => 'Sıralanacak oyuncak';
+
+  @override
+  String get colorSortingBinLabel => 'Sepet';
+
+  @override
+  String get colorSortingBinsLabel => 'Sepetler';
+
+  @override
+  String get colorSortingTryAgain => 'Bir daha dene!';
+
+  @override
+  String get colorSortingPlayAgain => 'Tekrar oyna';
+
+  @override
+  String colorSortingHintLevel(int level) {
+    return 'Küçük bir ipucu: aynı renge bak ($level)';
+  }
+
+  @override
+  String get colorSortingColorRed => 'Kırmızı';
+
+  @override
+  String get colorSortingColorYellow => 'Sarı';
+
+  @override
+  String get colorSortingColorBlue => 'Mavi';
+
+  @override
+  String get colorSortingColorGreen => 'Yeşil';
+
+  @override
+  String get colorSortingPraiseGreat => 'Aferin!';
+
+  @override
+  String get colorSortingPraiseNice => 'Güzel sıralama!';
+
+  @override
+  String get colorSortingPraiseAwesome => 'Süper!';
+
+  @override
+  String get colorSortingOrchardTitle => 'Renkli Meyve Bahçesi';
+
+  @override
   String get parentDashboardChildSelectorLabel => 'Çocuk profili';
 
   @override

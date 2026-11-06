@@ -1,3 +1,4 @@
+import '../color_sorting/color_sorting_activity.dart';
 import '../game/activity_registry.dart';
 import 'hub_production_telemetry.dart';
 import 'shape_matching_activity.dart';
@@ -15,18 +16,24 @@ class HubActivityRegistryOptions {
   final bool soundOff;
 }
 
-/// Production composition root for Kids Hub playable engines (LMP-55 / LMP-134).
+/// Production composition root for Kids Hub playable engines (LMP-55 / LMP-56 / LMP-134).
 ///
-/// When [options.telemetryCoordinator] is null, Shape Matching uses the local-only
+/// When [options.telemetryCoordinator] is null, activities use the local-only
 /// buffer. The coordinator's [HubProductionTelemetryCoordinator.reconcileHubRegistry]
-/// replaces the registry entry when parent, child, device, consent, and published
-/// content version gates are satisfied.
+/// replaces registry entries when parent, child, device, consent, and published
+/// content version gates are satisfied. Color Sorting stays fail-closed for
+/// production sync until an authoritative published `content_version_id` exists.
 ActivityRegistry createHubActivityRegistry({
   required int? Function() ageMonthsProvider,
   HubActivityRegistryOptions options = const HubActivityRegistryOptions(),
 }) {
   return ActivityRegistry([
     ShapeMatchingActivity(
+      ageMonthsProvider: ageMonthsProvider,
+      localeTag: options.localeTag,
+      soundOff: options.soundOff,
+    ),
+    ColorSortingActivity(
       ageMonthsProvider: ageMonthsProvider,
       localeTag: options.localeTag,
       soundOff: options.soundOff,
