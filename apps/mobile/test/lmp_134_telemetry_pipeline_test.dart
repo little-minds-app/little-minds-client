@@ -198,6 +198,93 @@ void main() {
     });
   });
 
+  group('LMP-134 offline recovery', () {
+    test('offline preserves queued terminal event; reconnect ACK clears outbox',
+        () async {
+      final root = await Directory.systemTemp.createTemp('lmp134-reconnect-');
+      ActivityOutboxSync? sync;
+      try {
+        var online = false;
+        var attempts = 0;
+        var now = DateTime.utc(2026, 11, 6, 12);
+        final outbox = ActivityFileOutbox.forTesting(
+          root,
+          recordLimit: 4,
+          onEventPersisted: (_) => sync!.scheduleFlush(),
+        );
+        sync = ActivityOutboxSync(
+          outbox: outbox,
+          currentSession: session,
+          clock: () => now,
+          random: Random(0),
+          send: (_, events, sessions) async {
+            attempts++;
+            if (!online) throw const SocketException('offline');
+            expect(sessions, isNotEmpty);
+            return {
+              'results': [
+                for (final event in events)
+                  {'event_id': event['event_id'], 'status': 'accepted'},
+              ],
+            };
+          },
+        );
+        final catalog = MemoryHubAuthorizedDeviceChildCatalog();
+        await catalog.applyServerAuthorizedChild(
+          parentId: parentId,
+          scopedDeviceId: deviceId,
+          childId: childId,
+        );
+        final coordinator = HubProductionTelemetryCoordinator(
+          outbox: outbox,
+          contentRegistry: MapPublishedContentRegistry({
+            ShapeMatchingConstants.activityId: PublishedActivityPublication(
+              contentVersionId: contentId,
+              consentPolicyVersion: 'privacy-notice-draft-0',
+            ),
+          }),
+          deviceChildCatalog: catalog,
+        );
+        final registry = ActivityRegistry([]);
+        await coordinator.reconcileHubRegistry(
+          registry: registry,
+          ageMonthsProvider: () => 36,
+          session: session(),
+          selectedChildId: childId,
+          deviceId: deviceId,
+        );
+        final activity = registry.findById(ShapeMatchingConstants.activityId)!
+            as ShapeMatchingActivity;
+        final id = activity.playSessionId;
+        activity.eventBuffer.emit(
+          playSessionId: id,
+          type: ShapeMatchingEventType.activityStarted,
+          payload: const {'age_months': 36},
+        );
+        activity.eventBuffer.emit(
+          playSessionId: id,
+          type: ShapeMatchingEventType.activityCompleted,
+        );
+        await (activity.eventBuffer as ShapeMatchingProductionEventBuffer).drain();
+        await sync.flush();
+        expect(attempts, greaterThanOrEqualTo(1));
+        final queued = await outbox.pending(
+          parentId, now: now.add(const Duration(hours: 1)));
+        expect(queued.length, 2);
+        expect(queued.every((e) => e.payload['play_session_id'] == id), isTrue);
+
+        online = true;
+        now = now.add(const Duration(hours: 1));
+        await sync.flush();
+        expect(await outbox.pending(parentId, now: now), isEmpty);
+        expect(attempts, greaterThanOrEqualTo(2));
+      } finally {
+        sync?.dispose();
+        if (await root.exists()) await root.delete(recursive: true);
+      }
+    });
+  });
+
   group('LMP-134 telemetry negatives', () {
     test('child mismatch keeps local buffer — no batch send', () async {
       final root = await Directory.systemTemp.createTemp('lmp134-neg-child-');
