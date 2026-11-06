@@ -165,6 +165,8 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
         if (epoch !== revalidateEpoch || abort.signal.aborted) return;
         if (!parent.parent_id || parent.parent_id !== expectedParent) {
           invalidateProtectedData(childId);
+        } else {
+          refresh();
         }
       } catch (error) {
         const aborted = abort.signal.aborted;
@@ -197,7 +199,7 @@ export function WebParentDashboard({ selectedChildId }: { selectedChildId: strin
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [snapshot, selectedChildId, invalidateProtectedData]);
+  }, [snapshot, selectedChildId, invalidateProtectedData, refresh]);
 
   if (!selectedChildId) {
     return (
