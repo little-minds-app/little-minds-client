@@ -20,6 +20,7 @@ import 'game/activity_registry.dart';
 import 'game/learning_activity.dart';
 import 'game/flame_host.dart';
 import 'shape_matching/hub_activity_registry.dart';
+import 'shape_matching/hub_bootstrap.dart';
 import 'shape_matching/hub_device_child_binding.dart';
 import 'shape_matching/hub_production_telemetry.dart';
 import 'l10n/app_localizations.dart';
