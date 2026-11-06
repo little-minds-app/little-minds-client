@@ -263,16 +263,22 @@ test('tab focus network error on session revalidation fails closed', async () =>
   });
 });
 
-test('retry refetches both independent data panels', async () => {
+test('verified tab focus refetches both panels without manual refresh control', async () => {
   let kpis = 0;
   globalThis.fetch = (async (url: string) => {
     if (url === '/api/auth/me') return reply(200, { parent_id: 'parent-a' });
     if (url.startsWith('/api/insights/')) return ++kpis === 1 ? reply(503, {}) : reply(200, kpi);
     return reply(200, mission);
   }) as typeof fetch;
+  bindDomGlobals();
   render(React.createElement(WebParentDashboard, { selectedChildId: childA }));
   await waitFor(() => assert.ok(screen.getByText(/Oturum özeti yüklenemedi/)));
-  fireEvent.click(screen.getByRole('button', { name: 'Özeti yenile' }));
+  assert.equal(screen.queryByRole('button', { name: 'Özeti yenile' }), null);
+  await act(async () => {});
+  bindDomGlobals();
+  await act(async () => {
+    fireEvent(dom.window, new dom.window.Event('focus'));
+  });
   await waitFor(() => assert.ok(screen.getByText('Uygun oturum')));
   assert.equal(kpis, 2);
 });
