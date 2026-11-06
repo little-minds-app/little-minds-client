@@ -76,14 +76,23 @@ class PendingActivityEvent {
 typedef ActivityOutboxPersistedHook = void Function(int partitionPendingHint);
 
 class ActivityFileOutbox {
-  ActivityFileOutbox._(this._root, this._codec);
+  ActivityFileOutbox._(
+    this._root,
+    this._codec, {
+    this.recordLimit = maxRecordsPerParent,
+    this.byteLimit = maxPartitionBytes,
+  });
 
   factory ActivityFileOutbox.forTesting(
     Directory root, {
     ActivityPayloadCodec codec = const TestPlainActivityPayloadCodec(),
     ActivityOutboxPersistedHook? onEventPersisted,
+    int recordLimit = maxRecordsPerParent,
+    int byteLimit = maxPartitionBytes,
   }) =>
-      ActivityFileOutbox._(root, codec)..onEventPersisted = onEventPersisted;
+      ActivityFileOutbox._(root, codec,
+          recordLimit: recordLimit, byteLimit: byteLimit)
+        ..onEventPersisted = onEventPersisted;
 
   static Future<ActivityFileOutbox> open() async {
     final directory = await getApplicationSupportDirectory();
@@ -95,6 +104,9 @@ class ActivityFileOutbox {
 
   final Directory _root;
   final ActivityPayloadCodec _codec;
+  /// Injectable only through the test factory; production uses hard limits.
+  final int recordLimit;
+  final int byteLimit;
 
   /// Invoked after a new event record is atomically persisted (not on dedupe hits).
   ActivityOutboxPersistedHook? onEventPersisted;
@@ -373,7 +385,7 @@ class ActivityFileOutbox {
   });
 
   Future<void> _makeSpaceFor(String parentId, int incomingBytes) async {
-    if (incomingBytes > maxPartitionBytes) {
+    if (incomingBytes > byteLimit) {
       throw StateError('outbox.event_too_large');
     }
     final dir = _partition(parentId);
@@ -385,15 +397,15 @@ class ActivityFileOutbox {
     for (final file in [...active, ...quarantine]) {
       used += await file.length();
     }
-    if (active.length < maxRecordsPerParent &&
-        used + incomingBytes <= maxPartitionBytes) return;
+    if (active.length < recordLimit &&
+        used + incomingBytes <= byteLimit) return;
 
     // Old quarantined records have no retry path until explicit user action.
     // Remove them before risking unsent telemetry, keeping storage bounded.
     quarantine.sort((a, b) => a.statSync().modified.compareTo(b.statSync().modified));
     for (final file in quarantine) {
-      if (active.length < maxRecordsPerParent &&
-          used + incomingBytes <= maxPartitionBytes) break;
+      if (active.length < recordLimit &&
+          used + incomingBytes <= byteLimit) break;
       final size = await file.length();
       await file.delete();
       used -= size;
@@ -424,8 +436,8 @@ class ActivityFileOutbox {
     });
     var remaining = active.length;
     for (final group in candidates) {
-      if (remaining < maxRecordsPerParent &&
-          used + incomingBytes <= maxPartitionBytes) break;
+      if (remaining < recordLimit &&
+          used + incomingBytes <= byteLimit) break;
       for (final row in group.value) {
         await row.file.delete();
         used -= row.size;
@@ -435,8 +447,8 @@ class ActivityFileOutbox {
       droppedSessionsAtCapacity++;
     }
     // If only active/in-flight sessions remain, refuse to lose half a session.
-    if (remaining >= maxRecordsPerParent ||
-        used + incomingBytes > maxPartitionBytes) {
+    if (remaining >= recordLimit ||
+        used + incomingBytes > byteLimit) {
       throw StateError('outbox.capacity_exceeded');
     }
   }
