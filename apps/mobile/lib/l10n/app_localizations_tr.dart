@@ -563,6 +563,80 @@ class AppLocalizationsTr extends AppLocalizations {
   String get colorSortingOrchardTitle => 'Renkli Meyve Bahçesi';
 
   @override
+  String get animalSoundMatchingPromptListen => 'Dinle ve hayvanı bul!';
+
+  @override
+  String get animalSoundMatchingPromptVisual => 'Bak ve aynı hayvanı bul!';
+
+  @override
+  String get animalSoundMatchingPromptDone => 'Harika yaptın!';
+
+  @override
+  String get animalSoundMatchingListenCue => 'Hayvan sesi';
+
+  @override
+  String get animalSoundMatchingReplaySound => 'Sesi tekrar çal';
+
+  @override
+  String get animalSoundMatchingVisualFallbackHint =>
+      'Ses kapalı — resmi eşleştir.';
+
+  @override
+  String animalSoundMatchingVisualFallbackLabel(String animal) {
+    return 'Bu hayvanı bul: $animal';
+  }
+
+  @override
+  String get animalSoundMatchingChoicesLabel => 'Birini seç';
+
+  @override
+  String get animalSoundMatchingTryAgain => 'Bir daha dene!';
+
+  @override
+  String get animalSoundMatchingPlayAgain => 'Tekrar oyna';
+
+  @override
+  String animalSoundMatchingHintLevel(int level) {
+    return 'Küçük bir ipucu: eşleşen hayvana bak ($level)';
+  }
+
+  @override
+  String get animalSoundMatchingAnimalCat => 'Kedi';
+
+  @override
+  String get animalSoundMatchingAnimalDog => 'Köpek';
+
+  @override
+  String get animalSoundMatchingAnimalCow => 'İnek';
+
+  @override
+  String get animalSoundMatchingAnimalDuck => 'Ördek';
+
+  @override
+  String get animalSoundMatchingAnimalBird => 'Kuş';
+
+  @override
+  String get animalSoundMatchingAnimalSheep => 'Koyun';
+
+  @override
+  String get animalSoundMatchingAnimalFrog => 'Kurbağa';
+
+  @override
+  String get animalSoundMatchingAnimalHorse => 'At';
+
+  @override
+  String get animalSoundMatchingPraiseGreat => 'Aferin!';
+
+  @override
+  String get animalSoundMatchingPraiseNice => 'Güzel eşleşme!';
+
+  @override
+  String get animalSoundMatchingPraiseAwesome => 'Süper!';
+
+  @override
+  String get animalSoundMatchingGardenTitle => 'Hayvan Bahçesi';
+
+  @override
   String get parentDashboardChildSelectorLabel => 'Çocuk profili';
 
   @override

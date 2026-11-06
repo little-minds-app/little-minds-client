@@ -10,6 +10,8 @@ import 'activity_session_controller.dart';
 import 'activity_session_snapshot.dart';
 import 'flame_host.dart';
 import 'game_lifecycle_phase.dart';
+import '../animal_sound_matching/animal_sound_matching_activity.dart';
+import '../animal_sound_matching/animal_sound_matching_play_field.dart';
 import '../color_sorting/color_sorting_activity.dart';
 import '../color_sorting/color_sorting_play_field.dart';
 import '../shape_matching/shape_matching_activity.dart';
@@ -86,6 +88,8 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
       (_playActivity as ShapeMatchingActivity).bindFlameGame(widget.game);
     } else if (_playActivity is ColorSortingActivity) {
       (_playActivity as ColorSortingActivity).bindFlameGame(widget.game);
+    } else if (_playActivity is AnimalSoundMatchingActivity) {
+      (_playActivity as AnimalSoundMatchingActivity).bindFlameGame(widget.game);
     }
     final ok = await _controller.enter(_playActivity);
     if (!mounted || _controller.isDisposed) {
@@ -183,6 +187,8 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
       fresh.bindFlameGame(widget.game);
     } else if (fresh is ColorSortingActivity) {
       fresh.bindFlameGame(widget.game);
+    } else if (fresh is AnimalSoundMatchingActivity) {
+      fresh.bindFlameGame(widget.game);
     }
     final entered = await _controller.enter(fresh);
     if (!mounted) return;
@@ -279,6 +285,20 @@ class _ActivityPlayHostState extends State<ActivityPlayHost>
                           absorbing: blockInput,
                           child: ColorSortingPlayField(
                             activity: _playActivity as ColorSortingActivity,
+                            controller: _controller,
+                            reduceMotion: MediaQuery.maybeOf(context)
+                                    ?.disableAnimations ??
+                                false,
+                          ),
+                        ),
+                      if (_playActivity is AnimalSoundMatchingActivity &&
+                          phase != GameLifecyclePhase.preparing &&
+                          phase != GameLifecyclePhase.idle)
+                        AbsorbPointer(
+                          absorbing: blockInput,
+                          child: AnimalSoundMatchingPlayField(
+                            activity:
+                                _playActivity as AnimalSoundMatchingActivity,
                             controller: _controller,
                             reduceMotion: MediaQuery.maybeOf(context)
                                     ?.disableAnimations ??
