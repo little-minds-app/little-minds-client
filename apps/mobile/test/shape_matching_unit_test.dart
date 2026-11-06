@@ -115,10 +115,26 @@ void main() {
       }
 
       expect(activity.lastOutcome, isA<ActivityCompletedOutcome>());
+      expect(activity.correctMatchSerial, ShapeMatchingConstants.roundsPerSession);
       final completed = buffer.events
           .where((e) => e.eventType == 'activity_completed')
           .toList();
       expect(completed, hasLength(1));
+    });
+
+    test('correctMatchSerial increments once per correct pick and resets', () async {
+      final activity = ShapeMatchingActivity(
+        ageMonthsProvider: () => 36,
+        playSessionId: '00000000-0000-4000-8000-000000000099',
+      );
+      await activity.prepare();
+      expect(activity.correctMatchSerial, 0);
+      activity.pickShape(activity.round!.target);
+      expect(activity.correctMatchSerial, 1);
+      activity.pickShape(activity.round!.target);
+      expect(activity.correctMatchSerial, 2);
+      await activity.onRestart();
+      expect(activity.correctMatchSerial, 0);
     });
 
     test('restart emits started with restart flag', () async {

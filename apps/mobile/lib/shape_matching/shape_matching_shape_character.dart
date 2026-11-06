@@ -130,31 +130,62 @@ class ShapeCharacterPainter extends CustomPainter {
     }
 
     final fillColor = ShapeMatchingShapeCharacter.fillFor(token);
+
+    // Soft drop shadow under filled characters
+    canvas.save();
+    canvas.translate(1.5, 2.5);
+    canvas.drawPath(
+      path,
+      Paint()..color = Colors.black.withValues(alpha: 0.12),
+    );
+    canvas.restore();
+
     final fill = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          Color.lerp(fillColor, Colors.white, 0.22)!,
+          Color.lerp(fillColor, Colors.white, 0.28)!,
           fillColor,
-          Color.lerp(fillColor, const Color(0xFF37474F), 0.12)!,
+          Color.lerp(fillColor, const Color(0xFF37474F), 0.14)!,
         ],
+        stops: const [0.0, 0.55, 1.0],
       ).createShader(bounds);
     canvas.drawPath(path, fill);
 
+    // Rim light
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
+    );
+
     final stroke = Paint()
-      ..color = highlighted ? const Color(0xFF2E7D32) : const Color(0xFF37474F)
+      ..color = highlighted ? const Color(0xFF2E7D32) : const Color(0xFF455A64)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = highlighted ? 4 : 3;
+      ..strokeWidth = highlighted ? 4.2 : 2.8;
     canvas.drawPath(path, stroke);
 
-    // Soft inner highlight
+    // Soft inner highlight + gloss
     canvas.save();
     canvas.clipPath(path);
     canvas.drawCircle(
-      Offset(bounds.left + bounds.width * 0.32, bounds.top + bounds.height * 0.3),
-      bounds.shortestSide * 0.18,
-      Paint()..color = Colors.white.withValues(alpha: 0.28),
+      Offset(bounds.left + bounds.width * 0.3, bounds.top + bounds.height * 0.28),
+      bounds.shortestSide * 0.2,
+      Paint()..color = Colors.white.withValues(alpha: 0.32),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(
+          bounds.left + bounds.width * 0.55,
+          bounds.top + bounds.height * 0.22,
+        ),
+        width: bounds.width * 0.28,
+        height: bounds.height * 0.12,
+      ),
+      Paint()..color = Colors.white.withValues(alpha: 0.18),
     );
     canvas.restore();
 

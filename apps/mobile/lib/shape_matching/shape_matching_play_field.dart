@@ -55,12 +55,17 @@ class _ShapeMatchingPlayFieldState extends State<ShapeMatchingPlayField> {
 
   BunnyMascotMood _mascotMood = BunnyMascotMood.idle;
   Timer? _moodTimer;
+  /// Bumped on reset / activity replace so stale timers never mutate UI.
+  var _moodEpoch = 0;
   var _praiseVisible = false;
   var _praiseIndex = 0;
+  /// Last [ShapeMatchingActivity.correctMatchSerial] that triggered celebrate.
+  var _celebratedMatchSerial = 0;
 
   @override
   void initState() {
     super.initState();
+    _celebratedMatchSerial = activity.correctMatchSerial;
     activity.addListener(_onActivityChanged);
   }
 
@@ -69,61 +74,107 @@ class _ShapeMatchingPlayFieldState extends State<ShapeMatchingPlayField> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.activity != activity) {
       oldWidget.activity.removeListener(_onActivityChanged);
+      _resetVisualFeedback();
       activity.addListener(_onActivityChanged);
+      // Sync fields without setState — parent rebuild already schedules paint.
+      _syncMoodFromOutcome(notify: false);
     }
   }
 
   @override
   void dispose() {
-    _moodTimer?.cancel();
+    _cancelMoodTimer();
+    _moodEpoch++;
     activity.removeListener(_onActivityChanged);
     super.dispose();
   }
 
+  void _cancelMoodTimer() {
+    _moodTimer?.cancel();
+    _moodTimer = null;
+  }
+
+  /// Clears praise / mood / timers (replay, activity replace, child switch).
+  void _resetVisualFeedback() {
+    _cancelMoodTimer();
+    _moodEpoch++;
+    _mascotMood = BunnyMascotMood.idle;
+    _praiseVisible = false;
+    _praiseIndex = 0;
+    _celebratedMatchSerial = activity.correctMatchSerial;
+  }
+
   void _onActivityChanged() {
     if (!mounted) return;
+    _syncMoodFromOutcome(notify: true);
+  }
+
+  void _syncMoodFromOutcome({required bool notify}) {
     final outcome = activity.lastOutcome;
+
+    // Replay / progress reset — drop stale celebration before next round.
+    if (outcome == null) {
+      _resetVisualFeedback();
+      if (notify) setState(() {});
+      return;
+    }
+
     if (outcome is ActivityCompletedOutcome) {
-      _setMood(BunnyMascotMood.complete, hold: const Duration(seconds: 4));
-      setState(() {
-        _praiseVisible = true;
-      });
+      _setMood(
+        BunnyMascotMood.complete,
+        hold: const Duration(seconds: 4),
+        notify: notify,
+      );
+      _praiseVisible = true;
+      if (notify) setState(() {});
       return;
     }
     if (outcome is EncouragementOutcome) {
       if (outcome.cueKey == 'shape_match') {
-        // pickShape notifies more than once per match; celebrate only once.
-        if (!_praiseVisible || _mascotMood != BunnyMascotMood.celebrate) {
+        // Deterministic: one celebration per correctMatchSerial, not UI mood.
+        // Survives rapid next-round picks and the duplicate notify from advance.
+        final serial = activity.correctMatchSerial;
+        if (serial > _celebratedMatchSerial) {
+          _celebratedMatchSerial = serial;
           _praiseIndex++;
+          _praiseVisible = true;
           _setMood(
             BunnyMascotMood.celebrate,
             hold: const Duration(milliseconds: 1200),
+            notify: notify,
           );
-          setState(() => _praiseVisible = true);
         }
         return;
       }
       if (outcome.cueKey == 'try_again') {
+        _praiseVisible = false;
         _setMood(
           BunnyMascotMood.encourage,
           hold: const Duration(milliseconds: 900),
+          notify: notify,
         );
-        setState(() => _praiseVisible = false);
         return;
       }
     }
-    setState(() {});
+    if (notify) setState(() {});
   }
 
-  void _setMood(BunnyMascotMood mood, {required Duration hold}) {
-    _moodTimer?.cancel();
-    setState(() => _mascotMood = mood);
+  void _setMood(
+    BunnyMascotMood mood, {
+    required Duration hold,
+    bool notify = true,
+  }) {
+    _cancelMoodTimer();
+    final epoch = _moodEpoch;
+    _mascotMood = mood;
+    if (notify) setState(() {});
     if (mood == BunnyMascotMood.complete) return;
     _moodTimer = Timer(hold, () {
-      if (!mounted) return;
+      if (!mounted || epoch != _moodEpoch) return;
       setState(() {
         _mascotMood = BunnyMascotMood.idle;
-        if (_praiseVisible && activity.lastOutcome is! ActivityCompletedOutcome) {
+        if (_praiseVisible &&
+            activity.lastOutcome is! ActivityCompletedOutcome) {
           _praiseVisible = false;
         }
       });
@@ -473,11 +524,13 @@ class _ChoicesZone extends StatelessWidget {
         // so the character tile never overflows the Row (F-034 short landscape).
         const zoneCaption = 24.0;
         final choiceCaption = profile.showChoiceLabels ? 18.0 : 0.0;
+        final availableHeight =
+            (constraints.maxHeight - zoneCaption).clamp(0.0, 400.0);
         final heightBudget =
-            (constraints.maxHeight - zoneCaption - choiceCaption).clamp(48.0, 200.0);
+            (availableHeight - choiceCaption).clamp(32.0, 200.0);
         final choiceSide = math
             .min(scaled, math.min(widthBudget, heightBudget))
-            .clamp(48.0, 120.0);
+            .clamp(32.0, 120.0);
         return Column(
           children: [
             Text(
@@ -768,46 +821,54 @@ class _ChoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget character = ShapeMatchingShapeCharacter(
-      token: token,
-      size: size,
-      profile: profile,
-      mood: highlighted ? ShapeCharacterMood.happy : ShapeCharacterMood.idle,
-      highlighted: highlighted,
-      lifted: lifted,
-    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final labelReserve = showLabel ? 18.0 : 0.0;
+        final side = math
+            .min(size, math.max(24.0, constraints.maxHeight - labelReserve))
+            .clamp(24.0, size);
+        Widget character = ShapeMatchingShapeCharacter(
+          token: token,
+          size: side,
+          profile: profile,
+          mood: highlighted ? ShapeCharacterMood.happy : ShapeCharacterMood.idle,
+          highlighted: highlighted,
+          lifted: lifted,
+        );
 
-    if (!reduceMotion && highlighted) {
-      character = TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.97, end: 1.05),
-        duration: const Duration(milliseconds: 900),
-        curve: Curves.easeInOut,
-        builder: (context, scale, child) =>
-            Transform.scale(scale: scale, child: child),
-        child: character,
-      );
-    }
+        if (!reduceMotion && highlighted) {
+          character = TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.97, end: 1.05),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeInOut,
+            builder: (context, scale, child) =>
+                Transform.scale(scale: scale, child: child),
+            child: character,
+          );
+        }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(width: size, height: size, child: character),
-        if (showLabel) ...[
-          const SizedBox(height: 2),
-          SizedBox(
-            height: 16,
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF37474F),
-                  ),
-            ),
-          ),
-        ],
-      ],
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(width: side, height: side, child: character),
+            if (showLabel) ...[
+              const SizedBox(height: 2),
+              SizedBox(
+                height: 16,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF37474F),
+                      ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

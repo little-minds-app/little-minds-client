@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:little_minds_mobile/game/activity_play_host.dart';
 import 'package:little_minds_mobile/game/activity_registry.dart';
 import 'package:little_minds_mobile/game/flame_host.dart';
+import 'package:little_minds_mobile/game/scoring_neutral_outcome.dart';
 import 'package:little_minds_mobile/l10n/app_localizations.dart';
 import 'package:little_minds_mobile/screen_time/screen_time.dart';
 import 'package:little_minds_mobile/shape_matching/shape_matching_activity.dart';
@@ -408,5 +409,281 @@ void main() {
       ShapeMatchingVisualProfile.forAgeMonths(55).band,
       ShapeMatchingVisualBand.early,
     );
+  });
+
+  testWidgets('TC-SM-W20 replay resets mascot mood and praise', (tester) async {
+    final activity = _activityForAge(36);
+    await activity.prepare();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+
+    await tester.tap(
+      find.byKey(ShapeMatchingPlayField.choiceKey(activity.round!.target)),
+    );
+    await _pumpFrames(tester);
+    expect(find.byKey(ShapeMatchingPlayField.praiseKey), findsOneWidget);
+    expect(
+      find.byKey(ShapeMatchingBunnyMascot.moodKey(BunnyMascotMood.celebrate)),
+      findsOneWidget,
+    );
+
+    // Finish remaining rounds → completion → replay
+    while (activity.lastOutcome is! ActivityCompletedOutcome) {
+      await tester.tap(
+        find.byKey(ShapeMatchingPlayField.choiceKey(activity.round!.target)),
+      );
+      await _pumpFrames(tester);
+    }
+    await tester.tap(find.byKey(ShapeMatchingPlayField.replayKey));
+    await _pumpFrames(tester);
+
+    expect(activity.roundIndex, 0);
+    expect(activity.correctMatchSerial, 0);
+    expect(find.byKey(ShapeMatchingPlayField.praiseKey), findsNothing);
+    expect(
+      find.byKey(ShapeMatchingBunnyMascot.moodKey(BunnyMascotMood.idle)),
+      findsOneWidget,
+    );
+    expect(find.byKey(ShapeMatchingPlayField.targetKey), findsOneWidget);
+  });
+
+  testWidgets('TC-SM-W21 activity replace cancels stale mood timer', (tester) async {
+    final first = _activityForAge(36);
+    await first.prepare();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(_host(activity: first));
+    await _pumpFrames(tester);
+    await tester.tap(
+      find.byKey(ShapeMatchingPlayField.choiceKey(first.round!.target)),
+    );
+    await _pumpFrames(tester);
+    expect(find.byKey(ShapeMatchingPlayField.praiseKey), findsOneWidget);
+
+    final second = _activityForAge(40);
+    await second.prepare();
+    await tester.pumpWidget(_host(activity: second));
+    await _pumpFrames(tester);
+
+    // Stale first-activity timer must not paint praise onto the replacement.
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(find.byKey(ShapeMatchingPlayField.praiseKey), findsNothing);
+    expect(find.byKey(ShapeMatchingPlayField.targetKey), findsOneWidget);
+    expect(second.correctMatchSerial, 0);
+  });
+
+  testWidgets('TC-SM-W22 rapid correct matches celebrate once each', (tester) async {
+    final activity = _activityForAge(36);
+    await activity.prepare();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+
+    await tester.tap(
+      find.byKey(ShapeMatchingPlayField.choiceKey(activity.round!.target)),
+    );
+    await tester.pump(); // keep prior praise timer alive (no 1.2s wait)
+    expect(activity.correctMatchSerial, 1);
+    expect(find.byKey(ShapeMatchingPlayField.praiseKey), findsOneWidget);
+    final firstPraise =
+        tester.widget<Text>(find.byKey(ShapeMatchingPlayField.praiseKey)).data;
+
+    // Immediate next-round correct while celebrate/praise still active.
+    await tester.tap(
+      find.byKey(ShapeMatchingPlayField.choiceKey(activity.round!.target)),
+    );
+    await tester.pump();
+    expect(activity.correctMatchSerial, 2);
+    expect(find.byKey(ShapeMatchingPlayField.praiseKey), findsOneWidget);
+    expect(
+      find.byKey(ShapeMatchingBunnyMascot.moodKey(BunnyMascotMood.celebrate)),
+      findsOneWidget,
+    );
+    // Praise index advanced (rotating copy) — proves a second celebration fired.
+    final secondPraise =
+        tester.widget<Text>(find.byKey(ShapeMatchingPlayField.praiseKey)).data;
+    expect(secondPraise, isNotNull);
+    expect(
+      {'Great job!', 'Nice match!', 'Awesome!'}.contains(secondPraise),
+      isTrue,
+    );
+    expect(secondPraise, isNot(firstPraise));
+  });
+
+  testWidgets('TC-SM-W23 duplicate activity notify does not double-celebrate',
+      (tester) async {
+    final activity = _activityForAge(36);
+    await activity.prepare();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+
+    final target = activity.round!.target;
+    await tester.tap(find.byKey(ShapeMatchingPlayField.choiceKey(target)));
+    await _pumpFrames(tester);
+    expect(activity.correctMatchSerial, 1);
+    final praiseAfterPick =
+        tester.widget<Text>(find.byKey(ShapeMatchingPlayField.praiseKey)).data;
+
+    // Duplicate notifies with the same serial (toggle + restore) must not
+    // advance praise — pickShape already double-notifies on advance as well.
+    activity.setInteractionsEnabled(false);
+    activity.setInteractionsEnabled(true);
+    await activity.restorePlayState(activity.capturePlayState());
+    await _pumpFrames(tester);
+
+    expect(activity.correctMatchSerial, 1);
+    expect(
+      tester.widget<Text>(find.byKey(ShapeMatchingPlayField.praiseKey)).data,
+      praiseAfterPick,
+    );
+  });
+
+  testWidgets('TC-SM-W24 dispose cancels mood timer without crashing', (tester) async {
+    final activity = _activityForAge(36);
+    await activity.prepare();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+    await tester.tap(
+      find.byKey(ShapeMatchingPlayField.choiceKey(activity.round!.target)),
+    );
+    await tester.pump();
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    // Timer would have fired — must be cancelled (no setState-after-dispose).
+    await tester.pump(const Duration(milliseconds: 2000));
+  });
+
+  testWidgets('TC-SM-W25 reduce-motion celebrate is static joyful pose', (tester) async {
+    final activity = _activityForAge(36);
+    await activity.prepare();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity, reduceMotion: true));
+    await _pumpFrames(tester);
+    await tester.tap(
+      find.byKey(ShapeMatchingPlayField.choiceKey(activity.round!.target)),
+    );
+    await _pumpFrames(tester);
+    expect(
+      find.byKey(ShapeMatchingBunnyMascot.moodKey(BunnyMascotMood.celebrate)),
+      findsOneWidget,
+    );
+    final mascot = tester.widget<ShapeMatchingBunnyMascot>(
+      find.byType(ShapeMatchingBunnyMascot),
+    );
+    expect(mascot.reduceMotion, isTrue);
+    expect(mascot.mood, BunnyMascotMood.celebrate);
+  });
+
+  testWidgets('TC-SM-W26 complete mood distinct from mid-round celebrate',
+      (tester) async {
+    final activity = _activityForAge(30);
+    await activity.prepare();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.compactPhoneHeight,
+      height: ScaffoldingViewports.compactPhoneWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+
+    await tester.tap(
+      find.byKey(ShapeMatchingPlayField.choiceKey(activity.round!.target)),
+    );
+    await _pumpFrames(tester);
+    expect(
+      find.byKey(ShapeMatchingBunnyMascot.moodKey(BunnyMascotMood.celebrate)),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(ShapeMatchingBunnyMascot.moodKey(BunnyMascotMood.complete)),
+      findsNothing,
+    );
+
+    while (activity.lastOutcome is! ActivityCompletedOutcome) {
+      await tester.tap(
+        find.byKey(ShapeMatchingPlayField.choiceKey(activity.round!.target)),
+      );
+      await _pumpFrames(tester);
+    }
+    expect(find.byKey(ShapeMatchingPlayField.completionKey), findsOneWidget);
+    expect(
+      find.byKey(ShapeMatchingBunnyMascot.moodKey(BunnyMascotMood.complete)),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(ShapeMatchingBunnyMascot.moodKey(BunnyMascotMood.celebrate)),
+      findsNothing,
+    );
+  });
+
+  testWidgets('TC-SM-W27 small landscape early band no overflow', (tester) async {
+    final activity = _activityForAge(60);
+    await activity.prepare();
+    await _setLandscape(tester, width: 640, height: 320);
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+    expect(find.byKey(ShapeMatchingPlayField.fieldKey), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    final promptBox = tester.getRect(find.byKey(ShapeMatchingPlayField.promptKey));
+    final targetBox = tester.getRect(find.byKey(ShapeMatchingPlayField.targetKey));
+    expect(promptBox.bottom, lessThanOrEqualTo(targetBox.top + 1));
+  });
+
+  testWidgets('TC-SM-W28 drag after replay still matches', (tester) async {
+    final activity = _activityForAge(36);
+    await activity.prepare();
+    await _setLandscape(
+      tester,
+      width: ScaffoldingViewports.tabletHeight,
+      height: ScaffoldingViewports.tabletWidth,
+    );
+    await tester.pumpWidget(_host(activity: activity));
+    await _pumpFrames(tester);
+
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(
+        find.byKey(ShapeMatchingPlayField.choiceKey(activity.round!.target)),
+      );
+      await _pumpFrames(tester);
+    }
+    expect(find.byKey(ShapeMatchingPlayField.replayKey), findsOneWidget);
+    await tester.tap(find.byKey(ShapeMatchingPlayField.replayKey));
+    await _pumpFrames(tester);
+
+    final target = activity.round!.target;
+    final choice = find.byKey(ShapeMatchingPlayField.choiceKey(target));
+    final drop = find.byKey(ShapeMatchingPlayField.targetKey);
+    final gesture = await tester.startGesture(tester.getCenter(choice));
+    await gesture.moveTo(tester.getCenter(drop));
+    await gesture.up();
+    await _pumpFrames(tester);
+    expect(activity.roundIndex, 1);
+    expect(activity.correctMatchSerial, 1);
   });
 }

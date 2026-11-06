@@ -44,11 +44,16 @@ class ShapeMatchingActivity extends LearningActivity {
   var _hintLevel = 0;
   var _wrongAttemptsThisRound = 0;
   var _showCelebrationPulse = false;
+  /// UI-only monotonic success id — one tick per correct match (not telemetry).
+  var _correctMatchSerial = 0;
   ScoringNeutralOutcome? _lastOutcome;
   final _listeners = <VoidCallback>[];
 
   bool get interactionsEnabled => _interactionsEnabled;
   bool get showCelebrationPulse => _showCelebrationPulse;
+  /// Increments once per correct pick; play-field uses this for one celebration
+  /// per match under rapid / duplicate notifications (not a wire payload field).
+  int get correctMatchSerial => _correctMatchSerial;
   int get ageMonths => _ageMonths;
   ShapeMatchingBand? get band => _band;
   int get roundIndex => _roundIndex;
@@ -185,6 +190,7 @@ class ShapeMatchingActivity extends LearningActivity {
     _hintLevel = 0;
     _wrongAttemptsThisRound = 0;
     _showCelebrationPulse = false;
+    _correctMatchSerial = 0;
     _lastOutcome = null;
     _startedEmitted = false;
     _abandonedEmitted = false;
@@ -244,6 +250,7 @@ class ShapeMatchingActivity extends LearningActivity {
     );
 
     if (correct) {
+      _correctMatchSerial++;
       _showCelebrationPulse = true;
       // ignore: discarded_futures
       _audio.playCorrect();
